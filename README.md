@@ -26,3 +26,8 @@ uv run uvicorn src.main:app --reload
 ```bash
 !uv pip install -e . --system
 ```
+
+## TEST
+```bash
+uv run python -m pytest
+```
