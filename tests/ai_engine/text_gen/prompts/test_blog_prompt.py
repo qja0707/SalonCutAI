@@ -1,4 +1,3 @@
-import pytest
 from src.ai_engine.text_gen.prompts.blog_prompt import BlogPrompt, BlogGenerationRequest
 
 def test_blog_prompt_generation():
