@@ -15,3 +15,14 @@ hair-salon-ai/                   # [루트] 프로젝트 레포지토리
         ├── metrics/             # [평가 파트]
         └── notebooks/           # [실험 공간]
 ```
+
+## how to run
+### local (test 용도)
+```bash
+uv run uvicorn src.main:app --reload
+```
+
+## colab 에서 패키지 설치
+```bash
+!uv pip install -e . --system
+```
