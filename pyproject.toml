@@ -1,0 +1,18 @@
+[project]
+name = "saloncutai"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "accelerate==1.14.0",
+    "diffusers==0.39.0",
+    "huggingface-hub==1.26.0",
+    "numpy==2.0.2",
+    "openai==2.53.0",
+    "opencv-python-headless~=4.13.0",
+    "peft==0.19.1",
+    "pillow==12.2.0",
+    "python-dotenv==1.2.2",
+    "safetensors==0.8.0",
+    "torch==2.11.0",
+    "transformers==5.14.1",
+]
