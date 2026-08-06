@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { InferenceClient } from "@huggingface/inference";
+import { IS_PUBLIC_PREVIEW, PUBLIC_PREVIEW_BLOCKED_MESSAGE } from "@/lib/public-preview";
 
 // 모델명은 시점에 따라 바뀔 수 있습니다. 실패하면 이 값을 huggingface.co에서
 // "Inference Providers" 배지가 붙은 최신 이미지 모델로 바꿔보세요.
@@ -10,6 +11,11 @@ const HF_MODEL = process.env.HF_IMAGE_MODEL || "stabilityai/stable-diffusion-xl-
 // 지금은 마스킹 없이 사진 전체를 변환합니다 — "얼굴만" 정밀 변환은 아직 아닙니다.
 
 export async function POST(req: NextRequest) {
+  // UI 숨김만으로는 이 라우트를 직접 호출하는 경로가 남으므로 서버에서 먼저 막는다.
+  if (IS_PUBLIC_PREVIEW) {
+    return NextResponse.json({ error: PUBLIC_PREVIEW_BLOCKED_MESSAGE }, { status: 403 });
+  }
+
   try {
     const formData = await req.formData();
     const apiKey = formData.get("apiKey");

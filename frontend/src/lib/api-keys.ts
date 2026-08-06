@@ -1,8 +1,11 @@
+import { IS_PUBLIC_PREVIEW } from "@/lib/public-preview";
+
 // provider별 API 키 해석: 클라이언트가 보낸 키가 있으면 그걸 쓰고,
 // 없으면 서버 .env(.local)에 설정된 키로 대체한다. Google/HuggingFace는
 // 아직 서버 키를 지원하지 않고 클라이언트 입력만 받는다.
 export function resolveApiKey(provider: "openai" | "google", clientApiKey?: string) {
-  if (clientApiKey) return clientApiKey;
+  // 공개 미리보기에서는 클라이언트가 보낸 키를 쓰지 않는다. 평문 HTTP 구간 노출 방지.
+  if (clientApiKey && !IS_PUBLIC_PREVIEW) return clientApiKey;
   if (provider === "openai") return process.env.OPENAI_API_KEY || "";
   return "";
 }

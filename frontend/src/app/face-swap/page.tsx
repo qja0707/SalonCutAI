@@ -19,6 +19,7 @@ import { BeforeAfter } from "@/components/before-after";
 import { ResultPlaceholder } from "@/components/result-placeholder";
 import { DevNote } from "@/components/dev-note";
 import { sampleAvatarFile } from "@/lib/sample-assets";
+import { IS_PUBLIC_PREVIEW, PUBLIC_PREVIEW_NOTICE } from "@/lib/public-preview";
 
 const BG_STYLES = ["화이트 스튜디오", "우드톤 인테리어", "그린 식물 배경"];
 const TONES = ["차분하게", "발랄하게", "전문적으로", "친근하게"];
@@ -93,9 +94,15 @@ export default function FaceSwapPage() {
     <div className="mx-auto max-w-5xl px-6 py-10">
       <h1 className="text-2xl font-semibold tracking-tight">💇 얼굴 교체 홍보 이미지</h1>
       <p className="mt-2 max-w-xl text-muted-foreground">
-        시술 사진 속 얼굴만 가상 인물로 바꿔드려요. 배경·헤어·의상은 그대로라, 고객 초상권 동의 없이도
-        바로 인스타에 올릴 수 있는 홍보 이미지가 됩니다.
+        시술 사진 속 얼굴만 가상 인물로 바꿔드려요. 배경·헤어·의상은 그대로라, 고객 동의를 받은 사진을
+        더 안전하게 홍보에 쓸 수 있습니다. 촬영·활용 동의는 반드시 먼저 받아주세요.
       </p>
+
+      {IS_PUBLIC_PREVIEW && (
+        <Alert className="mt-4">
+          <AlertDescription>{PUBLIC_PREVIEW_NOTICE}</AlertDescription>
+        </Alert>
+      )}
 
       <div className="mt-8 grid gap-8 lg:grid-cols-2">
         {/* 입력 */}
@@ -146,30 +153,35 @@ export default function FaceSwapPage() {
                 </Select>
               )}
 
-              <Separator />
+              {/* 공개 미리보기에서는 키 입력과 실제 호출을 숨긴다. 평문 HTTP 구간 노출 방지. */}
+              {!IS_PUBLIC_PREVIEW && (
+                <>
+                  <Separator />
 
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="real-image">실제 이미지 생성 시도 (실험)</Label>
-                  <p className="text-xs text-muted-foreground">
-                    HuggingFace로 실제 호출합니다. 아직 얼굴 마스킹 전이라 사진 전체가 변환돼요.
-                  </p>
-                </div>
-                <Switch id="real-image" checked={useRealImage} onCheckedChange={setUseRealImage} />
-              </div>
-              {useRealImage && (
-                <div>
-                  <Label className="mb-2 block">HuggingFace API 키</Label>
-                  <Input
-                    type="password"
-                    placeholder="hf_..."
-                    value={hfApiKey}
-                    onChange={(e) => setHfApiKey(e.target.value)}
-                  />
-                  <p className="mt-1.5 text-xs text-muted-foreground">
-                    이 브라우저 세션에서만 사용되고 서버에 저장되지 않습니다. 콜드스타트로 10~30초 걸릴 수 있어요.
-                  </p>
-                </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="real-image">실제 이미지 생성 시도 (실험)</Label>
+                      <p className="text-xs text-muted-foreground">
+                        HuggingFace로 실제 호출합니다. 아직 얼굴 마스킹 전이라 사진 전체가 변환돼요.
+                      </p>
+                    </div>
+                    <Switch id="real-image" checked={useRealImage} onCheckedChange={setUseRealImage} />
+                  </div>
+                  {useRealImage && (
+                    <div>
+                      <Label className="mb-2 block">HuggingFace API 키</Label>
+                      <Input
+                        type="password"
+                        placeholder="hf_..."
+                        value={hfApiKey}
+                        onChange={(e) => setHfApiKey(e.target.value)}
+                      />
+                      <p className="mt-1.5 text-xs text-muted-foreground">
+                        이 브라우저 세션에서만 사용되고 서버에 저장되지 않습니다. 콜드스타트로 10~30초 걸릴 수 있어요.
+                      </p>
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>

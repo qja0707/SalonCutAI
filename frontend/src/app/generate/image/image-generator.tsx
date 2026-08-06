@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ResultPlaceholder } from "@/components/result-placeholder";
 import { DevNote } from "@/components/dev-note";
+import { IS_PUBLIC_PREVIEW, PUBLIC_PREVIEW_NOTICE } from "@/lib/public-preview";
 
 export function ImageGenerator() {
   const searchParams = useSearchParams();
@@ -80,22 +81,29 @@ export function ImageGenerator() {
                   onChange={(e) => setPrompt(e.target.value)}
                 />
               </div>
-              <div>
-                <Label className="mb-2 block">HuggingFace API 키</Label>
-                <Input
-                  type="password"
-                  placeholder="hf_..."
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                />
-                <p className="mt-1.5 text-xs text-muted-foreground">
-                  이 브라우저 세션에서만 사용되고 서버에 저장되지 않습니다. 콜드스타트로 10~30초 걸릴 수 있어요.
-                </p>
-              </div>
+              {/* 공개 미리보기에서는 키 입력을 숨긴다. 평문 HTTP 구간 노출 방지. */}
+              {IS_PUBLIC_PREVIEW ? (
+                <Alert>
+                  <AlertDescription>{PUBLIC_PREVIEW_NOTICE}</AlertDescription>
+                </Alert>
+              ) : (
+                <div>
+                  <Label className="mb-2 block">HuggingFace API 키</Label>
+                  <Input
+                    type="password"
+                    placeholder="hf_..."
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                  />
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    이 브라우저 세션에서만 사용되고 서버에 저장되지 않습니다. 콜드스타트로 10~30초 걸릴 수 있어요.
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          <Button className="w-full" size="lg" onClick={handleGenerate} disabled={generating}>
+          <Button className="w-full" size="lg" onClick={handleGenerate} disabled={generating || IS_PUBLIC_PREVIEW}>
             {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             이미지 생성하기
           </Button>
