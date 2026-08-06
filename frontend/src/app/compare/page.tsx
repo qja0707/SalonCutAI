@@ -60,7 +60,7 @@ export default function ComparePage() {
         같은 사진을 여러 모델·설정으로 돌려서 나란히 비교합니다. Colab이나 HuggingFace에서 미리 뽑아둔
         결과가 있으면 업로드하고, 없으면 자리 표시로 구조만 봅니다.
       </p>
-      <Badge variant="secondary" className="mt-3">팀 회의·의사결정용 화면 — R2 수민 실험 공유용</Badge>
+      <Badge variant="secondary" className="mt-3">팀 회의·의사결정용 화면</Badge>
 
       <Card className="mt-8">
         <CardHeader><CardTitle className="text-base">1. 기준 사진</CardTitle></CardHeader>
