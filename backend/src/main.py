@@ -1,7 +1,10 @@
 from fastapi import FastAPI
 from src.api.api import api_router
+from src.db_session.db import Base, engine
 
 app = FastAPI()
+
+Base.metadata.create_all(bind=engine)
 
 app.include_router(api_router)
 
