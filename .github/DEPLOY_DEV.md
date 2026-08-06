@@ -52,4 +52,6 @@ DEPLOY_USER ALL=(root) NOPASSWD: /usr/bin/systemctl restart salon-web
 
 운영 비밀값은 Git에 올리지 않는 `frontend/.env.production.local` 등 별도 환경파일로 관리할 수 있습니다. 자동 배포는 환경파일을 덮어쓰지 않고 빌드 명령에 `NEXT_PUBLIC_PUBLIC_PREVIEW=1`만 직접 전달하므로 기존 값이 보존됩니다.
 
+빌드 명령의 `NEXT_PUBLIC_PUBLIC_PREVIEW=1`은 `.env*`보다 우선하고 `NEXT_PUBLIC_*` 값은 빌드 결과에 고정됩니다. 인증·HTTPS 적용 후 공개 미리보기 모드를 끌 때는 `.env*`만 바꾸지 말고 워크플로의 검사 빌드와 이 배포 스크립트에서 해당 환경변수 주입을 함께 제거하거나 명시적으로 변경해야 합니다.
+
 운영 전 `workflow_dispatch`로 한 번 검증한 뒤 `dev` 자동 실행을 사용합니다.
