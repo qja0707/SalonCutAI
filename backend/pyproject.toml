@@ -16,6 +16,7 @@ dependencies = [
     "pyjwt>=2.13.0",
     "pytest>=9.1.1",
     "python-dotenv==1.2.2",
+    "ruff>=0.16.1",
     "safetensors==0.8.0",
     "sqlalchemy>=2.0.51",
     "torch==2.11.0",

@@ -1,0 +1,4 @@
+#!/bin/bash
+# .githooks/pre-commit 파일 내용
+echo "=== Running Quality Checks before commit ==="
+cd backend && uv run ruff check --fix . && uv run python -m pytest
