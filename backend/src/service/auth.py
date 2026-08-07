@@ -44,18 +44,12 @@ def signin_user(request: SigninRequest, db:Session)->SigninResponse | None:
     access_token = create_jwt(data={"sub": user.id}, expires_delta=timedelta(minutes=access_token_expire_minutes))
     refresh_token = create_jwt(data={"sub": user.id}, expires_delta=timedelta(days=refresh_token_expire_days))
 
-    print(f"user id: {user.id}")
-
     stmt = select(RefreshTokenModel).where(RefreshTokenModel.user_id == user.id)
     old_refresh_token_obj = db.scalars(stmt).first()
-
-    print(f"old_refresh_token_obj: {old_refresh_token_obj}")
     
     if old_refresh_token_obj:
-        print(f"exist")
         old_refresh_token_obj.token = refresh_token
     else:
-        print(f"not exist")
         new_refresh_token_obj = RefreshTokenModel(user_id=user.id, token=refresh_token)
         db.add(new_refresh_token_obj)
 
