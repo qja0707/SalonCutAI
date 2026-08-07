@@ -10,12 +10,21 @@ from src.db_session.refresh_token_model import RefreshTokenModel
 from src.schemas.auth import SigninResponse, SigninRequest
 
 load_dotenv()
-secret_key = os.getenv("SECRET_KEY")
+
 algoritm = "HS256"
 access_token_expire_minutes = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES","30"))
 refresh_token_expire_days = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS","7"))
 
 password_hash = PasswordHash.recommended()
+
+def get_secret_key()->str:
+    secret_key = os.getenv("SECRET_KEY")
+
+    if not secret_key:
+        raise Exception("SECRET_KEY is not set")
+    
+    return secret_key
+
 
 def create_jwt(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
@@ -24,6 +33,9 @@ def create_jwt(data: dict, expires_delta: timedelta | None = None):
     else:
         expire = datetime.now(timezone.utc) + timedelta(minutes=15)
     to_encode.update({"exp": expire})
+
+    secret_key = get_secret_key()
+    
     encoded_jwt = jwt.encode(to_encode, secret_key, algorithm=algoritm)
 
     return encoded_jwt
