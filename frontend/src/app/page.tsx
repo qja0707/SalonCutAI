@@ -90,7 +90,7 @@ export default function Home() {
       </Link>
 
       <p className="mt-12 text-xs text-muted-foreground">
-        실제 모델 연동 전 UI 흐름 확인용 프로토타입 · R5 혜리 작업 중 · 최종 업데이트 2026-08-04
+        실제 모델 연동 전 UI 흐름 확인용 프로토타입 · 최종 업데이트 2026-08-06
       </p>
     </div>
   );

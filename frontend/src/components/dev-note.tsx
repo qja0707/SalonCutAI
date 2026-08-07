@@ -5,6 +5,7 @@ import { ChevronRight, Wrench } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { PreserveChangeChips } from "@/components/preserve-change";
 import { Badge } from "@/components/ui/badge";
+import { IS_PUBLIC_PREVIEW } from "@/lib/public-preview";
 import { cn } from "@/lib/utils";
 
 export function DevNote({
@@ -28,6 +29,11 @@ export function DevNote({
   livePrompt?: string | null;
 }) {
   const [open, setOpen] = useState(false);
+
+  if (IS_PUBLIC_PREVIEW) {
+    return null;
+  }
+
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="mt-10 border-t border-border pt-4">
       <CollapsibleTrigger className="flex w-full items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
