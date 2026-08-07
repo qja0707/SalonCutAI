@@ -9,3 +9,4 @@ class RefreshTokenModel(Base):
     token = Column(String, nullable=False)
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
     updated_at = Column(DateTime, onupdate=datetime.now())
+    

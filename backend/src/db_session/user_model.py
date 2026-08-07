@@ -10,3 +10,4 @@ class UserModel(Base):
     username = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.now())
     is_active = Column(Boolean, default=True)
+    
