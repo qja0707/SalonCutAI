@@ -23,7 +23,7 @@ import { sampleAvatarFile } from "@/lib/sample-assets";
 const BG_STYLES = ["화이트 스튜디오", "우드톤 인테리어", "그린 식물 배경"];
 const TONES = ["차분하게", "발랄하게", "전문적으로", "친근하게"];
 const TERMINAL = new Set(["completed", "partial", "failed"]);
-const EXPECTED_SECONDS = 14;
+const EXPECTED_SECONDS = 16;
 
 function progressMessage(job: JobResponse | null, elapsedSeconds: number): string {
   if (job?.image.status === "queued" && job.image.queue_position) {
