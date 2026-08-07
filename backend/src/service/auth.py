@@ -47,7 +47,7 @@ def signin_user(request: SigninRequest, db:Session)->SigninResponse | None:
     token_info = TokenInfo(user_id=user.id, expire=None)
 
     access_token = create_jwt(token_info, expires_delta=timedelta(minutes=access_token_expire_minutes))
-    refresh_token = create_jwt(token_info, expires_delta=timedelta(days=7))
+    refresh_token = create_jwt(token_info, expires_delta=timedelta(days=refresh_token_expire_days))
 
     stmt = select(RefreshTokenModel).where(RefreshTokenModel.user_id == user.id)
     old_refresh_token_obj = db.scalars(stmt).first()
