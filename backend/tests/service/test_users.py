@@ -60,3 +60,4 @@ def test_delete_user():
     result = delete_user(TEST_USER_INFO.id, db)
 
     assert result
+    
