@@ -9,8 +9,8 @@ from sqlalchemy.orm import Session
 
 from src.db_session.refresh_token_model import RefreshTokenModel
 from src.db_session.user_model import UserModel
-from src.schemas.auth import SigninRequest, SigninResponse
 from src.exceptions.system import SystemStartError
+from src.schemas.auth import SigninRequest, SigninResponse
 
 load_dotenv()
 
