@@ -3,7 +3,6 @@ from datetime import UTC, datetime, timedelta
 
 import jwt
 from dotenv import load_dotenv
-from fastapi.security import APIKeyHeader
 from pwdlib import PasswordHash
 from sqlalchemy import select
 from sqlalchemy.orm import Session
