@@ -1,10 +1,10 @@
 import type {
-  CreateJobPayload,
-  CreateJobResponse,
+  CreateFaceSwapJobPayload,
+  CreateFaceSwapJobResponse,
   ErrorEnvelope,
-  JobResponse,
+  FaceSwapJobResponse,
   MockScenario,
-  RetryJobResponse,
+  RetryFaceSwapJobResponse,
 } from "@/lib/api-client/types";
 
 async function parseResponse<T>(response: Response): Promise<T> {
@@ -18,17 +18,17 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return data as T;
 }
 
-export async function createJob(
+export async function createFaceSwapJob(
   image: File,
-  payload: CreateJobPayload,
+  payload: CreateFaceSwapJobPayload,
   scenario: MockScenario = "normal",
-): Promise<CreateJobResponse> {
+): Promise<CreateFaceSwapJobResponse> {
   const form = new FormData();
   form.append("image", image);
   form.append("payload", JSON.stringify(payload));
 
-  return parseResponse<CreateJobResponse>(
-    await fetch("/api/v1/jobs", {
+  return parseResponse<CreateFaceSwapJobResponse>(
+    await fetch("/api/v1/face-swap-jobs", {
       method: "POST",
       headers: { "X-Mock-Scenario": scenario },
       body: form,
@@ -36,24 +36,19 @@ export async function createJob(
   );
 }
 
-export async function getJob(jobId: string): Promise<JobResponse> {
-  return parseResponse<JobResponse>(await fetch(`/api/v1/jobs/${encodeURIComponent(jobId)}`, { cache: "no-store" }));
-}
-
-export async function retryJob(
-  jobId: string,
-  components: ("image" | "blog")[],
-): Promise<RetryJobResponse> {
-  return parseResponse<RetryJobResponse>(
-    await fetch(`/api/v1/jobs/${encodeURIComponent(jobId)}/retry`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ components }),
-    }),
+export async function getFaceSwapJob(jobId: string): Promise<FaceSwapJobResponse> {
+  return parseResponse<FaceSwapJobResponse>(
+    await fetch(`/api/v1/face-swap-jobs/${encodeURIComponent(jobId)}`, { cache: "no-store" }),
   );
 }
 
-export async function deleteJob(jobId: string): Promise<void> {
-  const response = await fetch(`/api/v1/jobs/${encodeURIComponent(jobId)}`, { method: "DELETE" });
+export async function retryFaceSwapJob(jobId: string): Promise<RetryFaceSwapJobResponse> {
+  return parseResponse<RetryFaceSwapJobResponse>(
+    await fetch(`/api/v1/face-swap-jobs/${encodeURIComponent(jobId)}/retry`, { method: "POST" }),
+  );
+}
+
+export async function deleteFaceSwapJob(jobId: string): Promise<void> {
+  const response = await fetch(`/api/v1/face-swap-jobs/${encodeURIComponent(jobId)}`, { method: "DELETE" });
   if (!response.ok) await parseResponse<never>(response);
 }

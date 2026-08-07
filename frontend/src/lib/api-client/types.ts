@@ -1,9 +1,8 @@
 export const RATIOS = ["1:1", "4:5", "9:16"] as const;
 
 export type Ratio = (typeof RATIOS)[number];
-export type JobStatus = "queued" | "processing" | "completed" | "partial" | "failed";
-export type ComponentStatus = Exclude<JobStatus, "partial">;
-export type MockScenario = "normal" | "blog-fail" | "image-fail" | "both-fail" | "slow";
+export type JobStatus = "queued" | "processing" | "completed" | "failed";
+export type MockScenario = "normal" | "image-fail" | "face-not-detected" | "slow";
 
 export type ApiError = {
   code: string;
@@ -16,6 +15,7 @@ export type ErrorEnvelope = {
   request_id: string;
 };
 
+// 블로그 전용 화면의 복사 유틸이 사용한다. 비동기 blog job 계약은 별도 PR에서 연결한다.
 export type BlogResult = {
   title: string;
   body: string;
@@ -27,24 +27,15 @@ export type ImageResult = {
   format_mode: "crop" | "fit_pad";
 };
 
-export type JobResponse = {
+export type FaceSwapJobResponse = {
   job_id: string;
   test_code: string;
   status: JobStatus;
-  image: {
-    status: ComponentStatus;
-    attempt: number;
-    queue_position: number | null;
-    results: Record<Ratio, ImageResult> | null;
-    meta: { seed: number; gen_sec: number } | null;
-    error: ApiError | null;
-  };
-  blog: {
-    status: ComponentStatus;
-    attempt: number;
-    result: BlogResult | null;
-    error: ApiError | null;
-  };
+  attempt: number;
+  queue_position: number | null;
+  results: Record<Ratio, ImageResult> | null;
+  meta: { seed: number; gen_sec: number } | null;
+  error: ApiError | null;
   consent_recorded_at: string;
   created_at: string;
   updated_at: string;
@@ -53,39 +44,27 @@ export type JobResponse = {
   request_id: string;
 };
 
-export type CreateJobResponse = Pick<
-  JobResponse,
+export type CreateFaceSwapJobResponse = Pick<
+  FaceSwapJobResponse,
   "job_id" | "test_code" | "status" | "created_at" | "request_id"
 >;
 
-export type RetryJobResponse = {
+export type RetryFaceSwapJobResponse = {
   job_id: string;
   status: "processing";
-  retried: { component: "image" | "blog"; attempt: number }[];
+  attempt: number;
   request_id: string;
 };
 
-export type CreateJobPayload = {
+export type CreateFaceSwapJobPayload = {
   consent: {
     agreed: true;
     consent_version: string;
   };
-  blog_input: {
-    hair_length: string;
-    hair_texture: string;
-    hair_thickness: string;
-    damage_level: string;
-    customer_pain_point: string;
-    base_cut: string;
-    main_treatment: string;
-    design_point: string;
-    region_keyword: string;
-    designer_name?: string;
-    duration_minutes?: number;
-    special_product?: string;
-  };
   options: {
     ratios: Ratio[];
     seed: number | null;
+    background_mode: "preserve" | "replace";
+    background_style: string | null;
   };
 };
