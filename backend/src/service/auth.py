@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session
 
 from src.db_session.refresh_token_model import RefreshTokenModel
 from src.db_session.user_model import UserModel
-from src.schemas.auth import SigninRequest, SigninResponse
+from src.exceptions.auth import InvalidTokenError, TokenExpiredError
+from src.schemas.auth import SigninRequest, SigninResponse, TokenInfo
 
 load_dotenv()
 secret_key = os.getenv("SECRET_KEY")
@@ -19,14 +20,14 @@ refresh_token_expire_days = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS","7"))
 
 password_hash = PasswordHash.recommended()
 
-def create_jwt(data: dict, expires_delta: timedelta | None = None):
-    to_encode = data.copy()
+def create_jwt(data: TokenInfo, expires_delta: timedelta | None = None):
+    to_encode = data
     if expires_delta:
         expire = datetime.now(UTC) + expires_delta
     else:
         expire = datetime.now(UTC) + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, secret_key, algorithm=algoritm)
+    to_encode.expire = expire.isoformat()
+    encoded_jwt = jwt.encode(to_encode.model_dump(), secret_key, algorithm=algoritm)
 
     return encoded_jwt
 
@@ -43,8 +44,10 @@ def signin_user(request: SigninRequest, db:Session)->SigninResponse | None:
         return None
 
     # make jwt
-    access_token = create_jwt(data={"sub": user.id}, expires_delta=timedelta(minutes=access_token_expire_minutes))
-    refresh_token = create_jwt(data={"sub": user.id}, expires_delta=timedelta(days=refresh_token_expire_days))
+    token_info = TokenInfo(user_id=user.id, expire=None)
+
+    access_token = create_jwt(token_info, expires_delta=timedelta(minutes=access_token_expire_minutes))
+    refresh_token = create_jwt(token_info, expires_delta=timedelta(days=7))
 
     stmt = select(RefreshTokenModel).where(RefreshTokenModel.user_id == user.id)
     old_refresh_token_obj = db.scalars(stmt).first()
@@ -58,3 +61,20 @@ def signin_user(request: SigninRequest, db:Session)->SigninResponse | None:
     db.commit()
 
     return SigninResponse(access_token=access_token, refresh_token=refresh_token)
+
+def verify_access_token(token:str)->TokenInfo | None:
+    try:
+        payload = jwt.decode(token, secret_key, algorithms=[algoritm])
+    except jwt.PyJWTError:
+        raise InvalidTokenError
+
+    token_data = TokenInfo(**payload)
+
+    dt = datetime.fromisoformat(token_data.expire)
+
+    if dt < datetime.now(UTC):
+        raise TokenExpiredError
+    
+    return token_data
+
+
