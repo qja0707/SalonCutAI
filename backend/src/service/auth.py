@@ -3,7 +3,6 @@ from datetime import UTC, datetime, timedelta
 
 import jwt
 from dotenv import load_dotenv
-from fastapi.security import APIKeyHeader
 from pwdlib import PasswordHash
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -12,10 +11,8 @@ from src.db_session.refresh_token_model import RefreshTokenModel
 from src.db_session.user_model import UserModel
 from src.schemas.auth import SigninRequest, SigninResponse
 
-api_key_header = APIKeyHeader(name="SECRET_KEY", auto_error=False)
-
 load_dotenv()
-secret_key = os.getenv("SECRET_KEY","")
+secret_key = os.getenv("SECRET_KEY")
 algoritm = "HS256"
 access_token_expire_minutes = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES","30"))
 refresh_token_expire_days = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS","7"))
@@ -47,20 +44,14 @@ def signin_user(request: SigninRequest, db:Session)->SigninResponse | None:
 
     # make jwt
     access_token = create_jwt(data={"sub": user.id}, expires_delta=timedelta(minutes=access_token_expire_minutes))
-    refresh_token = create_jwt(data={"sub": user.id}, expires_delta=timedelta(days=7))
-
-    print(f"user id: {user.id}")
+    refresh_token = create_jwt(data={"sub": user.id}, expires_delta=timedelta(days=refresh_token_expire_days))
 
     stmt = select(RefreshTokenModel).where(RefreshTokenModel.user_id == user.id)
     old_refresh_token_obj = db.scalars(stmt).first()
-
-    print(f"old_refresh_token_obj: {old_refresh_token_obj}")
     
     if old_refresh_token_obj:
-        print("exist")
         old_refresh_token_obj.token = refresh_token
     else:
-        print("not exist")
         new_refresh_token_obj = RefreshTokenModel(user_id=user.id, token=refresh_token)
         db.add(new_refresh_token_obj)
 
