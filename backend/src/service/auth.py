@@ -1,4 +1,3 @@
-from fastapi.security import APIKeyHeader
 from dotenv import load_dotenv
 import os
 from pwdlib import PasswordHash
@@ -10,10 +9,8 @@ import jwt
 from src.db_session.refresh_token_model import RefreshTokenModel
 from src.schemas.auth import SigninResponse, SigninRequest
 
-api_key_header = APIKeyHeader(name="SECRET_KEY", auto_error=False)
-
 load_dotenv()
-secret_key = os.getenv("SECRET_KEY","")
+secret_key = os.getenv("SECRET_KEY")
 algoritm = "HS256"
 access_token_expire_minutes = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES","30"))
 refresh_token_expire_days = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS","7"))
@@ -45,7 +42,7 @@ def signin_user(request: SigninRequest, db:Session)->SigninResponse | None:
 
     # make jwt
     access_token = create_jwt(data={"sub": user.id}, expires_delta=timedelta(minutes=access_token_expire_minutes))
-    refresh_token = create_jwt(data={"sub": user.id}, expires_delta=timedelta(days=7))
+    refresh_token = create_jwt(data={"sub": user.id}, expires_delta=timedelta(days=refresh_token_expire_days))
 
     print(f"user id: {user.id}")
 
