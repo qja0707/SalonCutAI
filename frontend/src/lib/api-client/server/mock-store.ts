@@ -88,8 +88,8 @@ function topStatus(image: ComponentStatus, blog: ComponentStatus): JobStatus {
 function imageError(status: ComponentStatus): ApiError | null {
   if (status !== "failed") return null;
   return {
-    code: "IMAGE_GENERATION_FAILED",
-    message: "홍보 이미지 생성에 실패했습니다. 다른 사진으로 다시 시도해주세요.",
+    code: "FACE_NOT_DETECTED",
+    message: "얼굴을 찾지 못했습니다. 정면에 가까운 사진으로 다시 시도해주세요.",
     retryable: false,
   };
 }

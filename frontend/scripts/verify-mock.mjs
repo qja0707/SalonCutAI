@@ -1,7 +1,7 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { Buffer } from "node:buffer";
 
-const port = 3100;
+const port = 30_000 + Math.floor(Math.random() * 10_000);
 const base = `http://127.0.0.1:${port}`;
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 const nextBin = "node_modules/next/dist/bin/next";
@@ -85,6 +85,8 @@ async function verify() {
   for (const scenario of scenarios) {
     assert(jobs[scenario].status === expected[scenario], `${scenario}: ${jobs[scenario].status}`);
   }
+  assert(jobs["image-fail"].image.error?.code === "FACE_NOT_DETECTED", "비재시도 이미지 오류 코드");
+  assert(jobs["image-fail"].image.error?.retryable === false, "비재시도 이미지 retryable");
 
   const normalId = created.normal.job_id;
   for (const ratio of ["1x1", "4x5", "9x16"]) {
@@ -140,5 +142,10 @@ async function verify() {
 try {
   await verify();
 } finally {
-  server.kill("SIGTERM");
+  if (process.platform === "win32") {
+    spawnSync("taskkill", ["/pid", String(server.pid), "/t", "/f"], { stdio: "ignore", timeout: 5_000 });
+  } else {
+    server.kill("SIGTERM");
+  }
+  server.unref();
 }
