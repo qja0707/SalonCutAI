@@ -29,7 +29,7 @@ import { sampleAvatarFile } from "@/lib/sample-assets";
 
 const BG_STYLES = ["화이트 스튜디오", "우드톤 인테리어", "그린 식물 배경"];
 const TERMINAL = new Set(["completed", "failed"]);
-const EXPECTED_SECONDS = 14;
+const EXPECTED_SECONDS = 16;
 
 function progressMessage(job: FaceSwapJobResponse | null, elapsedSeconds: number): string {
   if (job?.status === "queued" && job.queue_position) {
