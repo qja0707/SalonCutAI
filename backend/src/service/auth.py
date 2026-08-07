@@ -8,7 +8,7 @@ from src.db_session.user_model import UserModel
 from datetime import datetime, timedelta, timezone
 import jwt
 from src.db_session.refresh_token_model import RefreshTokenModel
-from src.schemas.auth import LoginResponse
+from src.schemas.auth import SigninResponse, SigninRequest
 
 api_key_header = APIKeyHeader(name="SECRET_KEY", auto_error=False)
 
@@ -31,7 +31,10 @@ def create_jwt(data: dict, expires_delta: timedelta | None = None):
 
     return encoded_jwt
 
-def signin_user(id:str, plain_password:str, db:Session)->LoginResponse | None:
+def signin_user(request: SigninRequest, db:Session)->SigninResponse | None:
+    id = request.id
+    plain_password = request.pw
+
     user = db.get(UserModel, id)
 
     if not user:
@@ -61,4 +64,4 @@ def signin_user(id:str, plain_password:str, db:Session)->LoginResponse | None:
 
     db.commit()
 
-    return LoginResponse(access_token=access_token, refresh_token=refresh_token)
+    return SigninResponse(access_token=access_token, refresh_token=refresh_token)
