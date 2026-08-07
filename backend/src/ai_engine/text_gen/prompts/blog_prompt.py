@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 
+
 class BlogGenerationRequest(BaseModel):
     hair_length: str
     hair_texture: str

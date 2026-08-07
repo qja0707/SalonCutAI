@@ -1,10 +1,9 @@
-from fastapi import APIRouter
-from src.service.auth import signin_user
-from fastapi import HTTPException
-from src.schemas.auth import SigninRequest, SigninResponse, RefreshRequest
-from src.schemas.common import ErrorResponse
+from fastapi import APIRouter, Depends, HTTPException
+
 from src.db_session.db import get_db
-from fastapi import Depends
+from src.schemas.auth import RefreshRequest, SigninRequest, SigninResponse
+from src.schemas.common import ErrorResponse
+from src.service.auth import signin_user
 
 router = APIRouter(prefix="/auth", tags=["유저 로그인 및 토큰 재발급등 인증 관련"])
 

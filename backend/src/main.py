@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+
 from src.api.api import api_router
 from src.db_session.db import Base, engine
 

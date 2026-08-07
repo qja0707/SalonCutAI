@@ -1,8 +1,9 @@
 from pathlib import Path
-from typing import Type, Any
+from typing import Any
+
 from fastapi import HTTPException, status
 from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker, declarative_base, Session
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 # 1. 상대 경로 문제를 해결하기 위한 절대 경로 계산
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent # 환경에 맞게 조절
@@ -29,7 +30,7 @@ def get_db():
         db.close()
 
 # 3. id 타입을 Any로 명시하고 404 메시지에 모델명 포함 (디버깅 용이)
-def get_object_or_404(db: Session, model: Type, id: Any):
+def get_object_or_404(db: Session, model: type, id: Any):
     obj = db.get(model, id)
             
     if not obj:

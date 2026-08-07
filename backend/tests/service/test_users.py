@@ -1,9 +1,8 @@
 from src.db_session.db import get_db
-from src.service.users import signup_user, delete_user
-from src.schemas.users import SignupRequest
 from src.schemas.auth import SigninRequest
+from src.schemas.users import SignupRequest
 from src.service.auth import signin_user
-
+from src.service.users import delete_user, signup_user
 
 TEST_USER_INFO = SignupRequest(id="test_user_test123123", pw="123", username="test")
 

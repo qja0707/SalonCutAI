@@ -1,9 +1,14 @@
 import json
-from unittest.mock import patch, MagicMock
-from src.ai_engine.text_gen.generation.keyward_to_long_text import generate_blog_post
-from src.ai_engine.text_gen.prompts.blog_prompt import BlogGenerationRequest, BlogGenerationResponse
+from unittest.mock import MagicMock, patch
 
-@patch('src.ai_engine.text_gen.generation.keyward_to_long_text.openAI')
+from src.ai_engine.text_gen.generation.keyword_to_long_text import generate_blog_post
+from src.ai_engine.text_gen.prompts.blog_prompt import (
+    BlogGenerationRequest,
+    BlogGenerationResponse,
+)
+
+
+@patch('src.ai_engine.text_gen.generation.keyword_to_long_text.openAI')
 def test_generate_blog_post_success(mock_openai):
     """
     Tests the successful generation of a blog post, mocking the OpenAI API call.
@@ -46,7 +51,7 @@ def test_generate_blog_post_success(mock_openai):
     # 3. Assert
     # Verify that the OpenAI API was called once with the expected model
     mock_openai.chat.completions.create.assert_called_once()
-    called_args, called_kwargs = mock_openai.chat.completions.create.call_args
+    _, called_kwargs = mock_openai.chat.completions.create.call_args
     assert called_kwargs.get("model") == "gpt-4o-mini"
     assert called_kwargs.get("response_format") == {"type": "json_object"}
 

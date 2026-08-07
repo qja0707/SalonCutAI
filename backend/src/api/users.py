@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends
-from src.db_session.db import get_db
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+
+from src.db_session.db import get_db
 from src.schemas.common import CommonResponse, ErrorResponse
 from src.schemas.users import SignupRequest
 from src.service.users import signup_user
-from fastapi import HTTPException
 
 router = APIRouter(prefix="/users", tags=["유저 관리"])
 

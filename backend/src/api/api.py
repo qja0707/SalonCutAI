@@ -1,5 +1,6 @@
 from fastapi import APIRouter
-from src.api import text_gen, auth, users
+
+from src.api import auth, text_gen, users
 
 # 메인 총괄 라우터 생성
 api_router = APIRouter()

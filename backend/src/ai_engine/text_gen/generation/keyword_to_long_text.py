@@ -1,6 +1,12 @@
-from src.ai_engine.text_gen.prompts.blog_prompt import BlogGenerationRequest, BlogGenerationResponse, BlogPrompt
-from src.ai_engine.text_gen.model import openAI
 import json
+
+from src.ai_engine.text_gen.model import openAI
+from src.ai_engine.text_gen.prompts.blog_prompt import (
+    BlogGenerationRequest,
+    BlogGenerationResponse,
+    BlogPrompt,
+)
+
 
 def generate_blog_post(
     request: BlogGenerationRequest

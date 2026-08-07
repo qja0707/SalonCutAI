@@ -1,8 +1,9 @@
-from src.schemas.common import CommonResponse
-from src.schemas.users import SignupRequest
-from src.db_session.user_model import UserModel
 from sqlalchemy.orm import Session
+
+from src.db_session.user_model import UserModel
+from src.schemas.users import SignupRequest
 from src.service.auth import password_hash
+
 
 def signup_user(request: SignupRequest, db: Session)->bool:
     user = db.get(UserModel, request.id)

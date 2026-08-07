@@ -9,7 +9,7 @@ import gc
 import time
 
 import torch
-from diffusers import AutoPipelineForText2Image, AutoPipelineForInpainting
+from diffusers import AutoPipelineForInpainting, AutoPipelineForText2Image
 
 # 조합마다 파이프라인 종류가 달라 매핑으로 관리
 TASK_MAP = {

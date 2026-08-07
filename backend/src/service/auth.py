@@ -1,14 +1,16 @@
-from fastapi.security import APIKeyHeader
-from dotenv import load_dotenv
 import os
-from pwdlib import PasswordHash
-from sqlalchemy.orm import Session
-from sqlalchemy import select
-from src.db_session.user_model import UserModel
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+
 import jwt
+from dotenv import load_dotenv
+from fastapi.security import APIKeyHeader
+from pwdlib import PasswordHash
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
 from src.db_session.refresh_token_model import RefreshTokenModel
-from src.schemas.auth import SigninResponse, SigninRequest
+from src.db_session.user_model import UserModel
+from src.schemas.auth import SigninRequest, SigninResponse
 
 api_key_header = APIKeyHeader(name="SECRET_KEY", auto_error=False)
 
@@ -23,9 +25,9 @@ password_hash = PasswordHash.recommended()
 def create_jwt(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+        expire = datetime.now(UTC) + timedelta(minutes=15)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, secret_key, algorithm=algoritm)
 
@@ -55,10 +57,10 @@ def signin_user(request: SigninRequest, db:Session)->SigninResponse | None:
     print(f"old_refresh_token_obj: {old_refresh_token_obj}")
     
     if old_refresh_token_obj:
-        print(f"exist")
+        print("exist")
         old_refresh_token_obj.token = refresh_token
     else:
-        print(f"not exist")
+        print("not exist")
         new_refresh_token_obj = RefreshTokenModel(user_id=user.id, token=refresh_token)
         db.add(new_refresh_token_obj)
 

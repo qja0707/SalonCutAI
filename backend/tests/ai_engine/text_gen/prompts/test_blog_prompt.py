@@ -1,4 +1,5 @@
-from src.ai_engine.text_gen.prompts.blog_prompt import BlogPrompt, BlogGenerationRequest
+from src.ai_engine.text_gen.prompts.blog_prompt import BlogGenerationRequest, BlogPrompt
+
 
 def test_blog_prompt_generation():
     """
