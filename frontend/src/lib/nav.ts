@@ -10,6 +10,7 @@ import {
   ImageIcon,
   NotebookPen,
   Camera,
+  Clapperboard,
 } from "lucide-react";
 
 export type NavItem = {
@@ -29,5 +30,6 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/generate/image", label: "이미지 생성", icon: ImageIcon, section: "tools" },
   { href: "/generate/blog", label: "블로그 글 생성", icon: NotebookPen, section: "tools" },
   { href: "/generate/caption", label: "인스타 캡션 생성", icon: Camera, section: "tools" },
+  { href: "/generate/shorts", label: "AI 숏츠 만들기", icon: Clapperboard, section: "tools" },
   { href: "/compare", label: "모델 비교", icon: FlaskConical, section: "team" },
 ];

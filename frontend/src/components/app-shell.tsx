@@ -54,17 +54,51 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="mt-auto px-3 pt-6 text-xs text-muted-foreground">
-          R5 혜리 작업 중 · 프로토타입
+          서비스 UI · 프로토타입
         </div>
       </aside>
 
       <div className="flex min-h-screen flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-border px-4 py-3 md:hidden">
-          <span className="font-semibold text-sm">💇 미용실 AI 마케팅 서비스</span>
+        <header className="border-b border-border md:hidden">
+          <Link href="/" className="flex items-center px-4 py-3 font-semibold text-sm">
+            💇 미용실 AI 마케팅 서비스
+          </Link>
+          <nav
+            aria-label="모바일 메뉴"
+            className="flex gap-2 overflow-x-auto border-t border-border px-3 py-2"
+          >
+            {NAV_ITEMS.map((item) => (
+              <MobileNavLink key={item.href} item={item} active={pathname === item.href} />
+            ))}
+          </nav>
         </header>
         <main className="flex-1">{children}</main>
       </div>
     </div>
+  );
+}
+
+function MobileNavLink({
+  item,
+  active,
+}: {
+  item: (typeof NAV_ITEMS)[number];
+  active: boolean;
+}) {
+  const Icon = item.icon;
+  return (
+    <Link
+      href={item.href}
+      className={cn(
+        "flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-colors",
+        active
+          ? "bg-primary text-primary-foreground"
+          : "bg-muted text-muted-foreground hover:text-foreground"
+      )}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {item.label}
+    </Link>
   );
 }
 
