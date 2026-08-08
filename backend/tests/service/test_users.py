@@ -1,5 +1,3 @@
-from src.service.users import signup_user, delete_user
-from src.schemas.users import SignupRequest
 from src.schemas.auth import SigninRequest
 from src.schemas.users import SignupRequest
 from src.service.auth import signin_user

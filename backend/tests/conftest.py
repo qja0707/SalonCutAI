@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
-from src.db_session.refresh_token_model import RefreshTokenModel
+from sqlalchemy.orm import sessionmaker
+
 from src.db_session.db import Base
 
 # db for test
