@@ -1,0 +1,26 @@
+# .pre-commit-config.yaml (프로젝트 최상위 루트에 위치)
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: 🧹 Ruff Linter (Staged Only)
+        entry: >
+          bash -c 'cd backend && uv run ruff check --fix $(echo "$@" | sed "s|backend/||g")' --
+        language: system
+        types: [python]
+        files: ^backend/
+
+      - id: ruff-format
+        name: ✨ Ruff Formatter (Staged Only)
+        entry: >
+          bash -c 'cd backend && uv run ruff format $(echo "$@" | sed "s|backend/||g")' --
+        language: system
+        types: [python]
+        files: ^backend/
+
+      - id: pytest
+        name: 🧪 Pytest Verification (Staged Context)
+        entry: bash -c "cd backend && uv run python -m pytest"
+        language: system
+        pass_filenames: false
+        always_run: true

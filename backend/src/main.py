@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI
 
 from src.api.api import api_router
@@ -12,6 +11,7 @@ Base.metadata.create_all(bind=engine)
 app.include_router(api_router)
 
 get_secret_key()
+
 
 @app.get("/")
 def root():

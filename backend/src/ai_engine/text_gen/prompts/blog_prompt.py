@@ -15,15 +15,18 @@ class BlogGenerationRequest(BaseModel):
     special_product: str
     region_keyword: str
 
+
 class BlogGenerationResponse(BaseModel):
     title: str = Field(..., description="블로그 제목 (지역 키워드 포함, 20~40자)")
     body: str = Field(..., description="전체 본문 텍스트 (줄바꿈 \\n\\n 포함)")
     hashtags: list[str] = Field(..., description="해시태그 목록")
-    
+
+
 class BlogPrompt:
-    def __init__(self,
-                request: BlogGenerationRequest,
-                ):
+    def __init__(
+        self,
+        request: BlogGenerationRequest,
+    ):
         self.system_prompt = """
             너는 10년 이상 경력의 미용실 블로그 전문 카피라이터야.
             제공된 정보를 바탕으로 네이버 블로그 게시글 한 편을 작성해.
@@ -91,4 +94,3 @@ class BlogPrompt:
 
     def get_prompt(self):
         return self.system_prompt, self.user_prompt
-

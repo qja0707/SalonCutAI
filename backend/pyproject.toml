@@ -27,3 +27,8 @@ dependencies = [
 [tool.ruff.lint.flake8-bugbear]
 # B008 경고에서 fastapi의 Depends 구문은 예외로 처리합니다.
 extend-immutable-calls = ["fastapi.Depends", "fastapi.params.Depends"]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.6.1",
+]
