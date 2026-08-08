@@ -4,3 +4,4 @@ gha-creds-*.json
 # database
 database/*
 !database/.gitkeep
+.DS_Store
