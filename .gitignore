@@ -1,3 +1,6 @@
 # google-github-actions/auth가 만드는 임시 인증 파일
 gha-creds-*.json
 
+# database
+database/*
+!database/.gitkeep
