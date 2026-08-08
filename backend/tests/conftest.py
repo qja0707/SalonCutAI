@@ -1,15 +1,23 @@
 import pytest
+from pathlib import Path
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
-from src.db_session.refresh_token_model import RefreshTokenModel
+from sqlalchemy.orm import sessionmaker
 from src.db_session.db import Base
 
 # db for test
-TEST_DATABASE_URL = "sqlite:///../database/test.db"
+BASE_DIR = Path(__file__).resolve().parents[2]
+print(f"base dir:{BASE_DIR}")
+DB_DIR = BASE_DIR / "database"
+DB_DIR.mkdir(parents=True, exist_ok=True) # 폴더가 없으면 자동 생성
+TEST_DATABASE_URL = f"sqlite:///{DB_DIR}/test.db"
 
 engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+@pytest.fixture(autouse=True)
+def test_secret_key(monkeypatch):
+    monkeypatch.setenv("SECRET_KEY", "test-only-secret-key-at-least-32-bytes")
+    
 @pytest.fixture(scope="session")
 def setup_database():
     """전체 테스트 시작 시 기존 테이블을 삭제 후 새로 만들고 종료 후 삭제"""
