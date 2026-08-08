@@ -47,6 +47,38 @@ def create_jwt(data: dict, expires_delta: timedelta | None = None):
     return encoded_jwt
 
 
+def make_tokens(user_id: str):
+    # make jwt
+    access_token_info = {"sub": user_id, "token_type": "access"}
+    refresh_token_info = {"sub": user_id, "token_type": "refresh"}
+
+    access_token = create_jwt(
+        access_token_info, expires_delta=timedelta(minutes=access_token_expire_minutes)
+    )
+    refresh_token = create_jwt(
+        refresh_token_info, expires_delta=timedelta(days=refresh_token_expire_days)
+    )
+
+    return access_token, refresh_token
+
+
+def record_refresh_token(user_id: str, refresh_token: str, db: Session):
+    hashed_refresh_token = password_hash.hash(refresh_token)
+
+    stmt = select(RefreshTokenModel).where(RefreshTokenModel.user_id == user_id)
+    old_refresh_token_obj = db.scalars(stmt).first()
+
+    if old_refresh_token_obj:
+        old_refresh_token_obj.token = hashed_refresh_token
+    else:
+        new_refresh_token_obj = RefreshTokenModel(
+            user_id=user_id, token=hashed_refresh_token
+        )
+        db.add(new_refresh_token_obj)
+
+    db.commit()
+
+
 def signin_user(request: SigninRequest, db: Session) -> SigninResponse | None:
     id = request.id
     plain_password = request.pw
@@ -59,27 +91,9 @@ def signin_user(request: SigninRequest, db: Session) -> SigninResponse | None:
     if not password_hash.verify(plain_password, user.password):
         return None
 
-    # make jwt
-    access_token_info = {"sub": user.id, "token_type": "access"}
-    refresh_token_info = {"sub": user.id, "token_type": "refresh"}
+    access_token, refresh_token = make_tokens(user.id)
 
-    access_token = create_jwt(
-        access_token_info, expires_delta=timedelta(minutes=access_token_expire_minutes)
-    )
-    refresh_token = create_jwt(
-        refresh_token_info, expires_delta=timedelta(days=refresh_token_expire_days)
-    )
-
-    stmt = select(RefreshTokenModel).where(RefreshTokenModel.user_id == user.id)
-    old_refresh_token_obj = db.scalars(stmt).first()
-
-    if old_refresh_token_obj:
-        old_refresh_token_obj.token = refresh_token
-    else:
-        new_refresh_token_obj = RefreshTokenModel(user_id=user.id, token=refresh_token)
-        db.add(new_refresh_token_obj)
-
-    db.commit()
+    record_refresh_token(user.id, refresh_token, db)
 
     return SigninResponse(access_token=access_token, refresh_token=refresh_token)
 
@@ -100,3 +114,34 @@ def verify_access_token(token: str) -> TokenInfo | None:
         raise jwt.InvalidTokenError("access token 이 아닙니다")
 
     return token_data
+
+
+def token_refresh_with_verify(token: str, db: Session) -> SigninResponse:
+    secret_key = get_secret_key()
+
+    payload = jwt.decode(
+        token,
+        secret_key,
+        algorithms=[algoritm],
+        options={"require": ["sub", "exp", "token_type"]},
+    )
+
+    token_data = TokenInfo(**payload)
+
+    if token_data.token_type != "refresh":
+        raise jwt.InvalidTokenError("refresh token 이 아닙니다")
+
+    stmt = select(RefreshTokenModel).where(token_data.sub == RefreshTokenModel.user_id)
+    refresh_token_obj = db.scalars(stmt).first()
+
+    if not refresh_token_obj:
+        raise jwt.InvalidTokenError("로그인 기록이 없는 사용자입니다")
+
+    if not password_hash.verify(token, refresh_token_obj.token):
+        raise jwt.InvalidTokenError("기존 리프레시 토큰과 일치하지 않습니다")
+
+    access_token, refresh_token = make_tokens(token_data.sub)
+
+    record_refresh_token(token_data.sub, refresh_token, db)
+
+    return SigninResponse(access_token=access_token, refresh_token=refresh_token)
