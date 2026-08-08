@@ -9,7 +9,7 @@ import gc
 import time
 
 import torch
-from diffusers import AutoPipelineForText2Image, AutoPipelineForInpainting
+from diffusers import AutoPipelineForInpainting, AutoPipelineForText2Image
 
 # 조합마다 파이프라인 종류가 달라 매핑으로 관리
 TASK_MAP = {
@@ -35,12 +35,16 @@ def load_pipeline(model_id, task="text2img"):
     torch.cuda.reset_peak_memory_stats()
     t0 = time.time()
 
-    pipe = TASK_MAP[task].from_pretrained(
-        model_id,
-        torch_dtype=torch.float16,   # L4에서 fp16으로 VRAM 절반 사용
-        variant="fp16",              # fp16 전용 가중치 (제공하지 않는 모델도 있음)
-        use_safetensors=True,
-    ).to("cuda")
+    pipe = (
+        TASK_MAP[task]
+        .from_pretrained(
+            model_id,
+            torch_dtype=torch.float16,  # L4에서 fp16으로 VRAM 절반 사용
+            variant="fp16",  # fp16 전용 가중치 (제공하지 않는 모델도 있음)
+            use_safetensors=True,
+        )
+        .to("cuda")
+    )
 
     meta = {
         "model_id": model_id,

@@ -1,5 +1,16 @@
 # backend
 
+## 개발환경 세팅
+### 패키지 설치
+```bash
+uv sync
+```
+
+### git hook 등록 (필수)
+```bash
+uv run pre-commit install
+```
+
 ## how to run
 ### local (test 용도)
 ```bash

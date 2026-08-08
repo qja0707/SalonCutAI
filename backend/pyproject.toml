@@ -16,9 +16,19 @@ dependencies = [
     "pyjwt>=2.13.0",
     "pytest>=9.1.1",
     "python-dotenv==1.2.2",
+    "ruff>=0.16.1",
     "safetensors==0.8.0",
     "sqlalchemy>=2.0.51",
     "torch==2.11.0",
     "transformers==5.14.1",
     "uvicorn>=0.52.1",
+]
+
+[tool.ruff.lint.flake8-bugbear]
+# B008 경고에서 fastapi의 Depends 구문은 예외로 처리합니다.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.params.Depends"]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.6.1",
 ]
