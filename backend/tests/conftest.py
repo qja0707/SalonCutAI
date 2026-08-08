@@ -6,7 +6,6 @@ from src.db_session.db import Base
 
 # db for test
 BASE_DIR = Path(__file__).resolve().parents[2]
-print(f"base dir:{BASE_DIR}")
 DB_DIR = BASE_DIR / "database"
 DB_DIR.mkdir(parents=True, exist_ok=True) # 폴더가 없으면 자동 생성
 TEST_DATABASE_URL = f"sqlite:///{DB_DIR}/test.db"
