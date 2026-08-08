@@ -5,15 +5,26 @@ function normalizeHashtag(value: string): string {
 }
 
 export function buildBlogPlainText(result: BlogResult): string {
-  return [result.title, "", result.body, "", result.hashtags.map(normalizeHashtag).join(" ")].join("\n");
+  return [
+    result.title,
+    "",
+    result.intro,
+    "",
+    ...result.sections.flatMap((section) => [`■ ${section.heading}`, section.body, ""]),
+    result.closing,
+    "",
+    result.hashtags.map(normalizeHashtag).join(" "),
+  ].join("\n");
 }
 
 export function buildBlogHtml(result: BlogResult): string {
   const escape = (value: string) =>
     value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-  const body = escape(result.body).replaceAll("\n", "<br>");
+  const sections = result.sections
+    .map((section) => `<h2>${escape(section.heading)}</h2><p>${escape(section.body).replaceAll("\n", "<br>")}</p>`)
+    .join("");
   const hashtags = result.hashtags.map((tag) => escape(normalizeHashtag(tag))).join(" ");
-  return `<h1>${escape(result.title)}</h1><p>${body}</p><p>${hashtags}</p>`;
+  return `<h1>${escape(result.title)}</h1><p>${escape(result.intro)}</p>${sections}<p>${escape(result.closing)}</p><p>${hashtags}</p>`;
 }
 
 export async function copyBlogResult(result: BlogResult): Promise<void> {

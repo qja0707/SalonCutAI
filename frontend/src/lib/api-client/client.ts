@@ -1,9 +1,14 @@
 import type {
+  BlogJobResponse,
+  BlogMockScenario,
+  CreateBlogJobPayload,
+  CreateBlogJobResponse,
   CreateFaceSwapJobPayload,
   CreateFaceSwapJobResponse,
   ErrorEnvelope,
   FaceSwapJobResponse,
   MockScenario,
+  RetryBlogJobResponse,
   RetryFaceSwapJobResponse,
 } from "@/lib/api-client/types";
 
@@ -50,5 +55,35 @@ export async function retryFaceSwapJob(jobId: string): Promise<RetryFaceSwapJobR
 
 export async function deleteFaceSwapJob(jobId: string): Promise<void> {
   const response = await fetch(`/api/v1/face-swap-jobs/${encodeURIComponent(jobId)}`, { method: "DELETE" });
+  if (!response.ok) await parseResponse<never>(response);
+}
+
+export async function createBlogJob(
+  payload: CreateBlogJobPayload,
+  scenario: BlogMockScenario = "normal",
+): Promise<CreateBlogJobResponse> {
+  return parseResponse<CreateBlogJobResponse>(
+    await fetch("/api/v1/blog-jobs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Mock-Scenario": scenario },
+      body: JSON.stringify(payload),
+    }),
+  );
+}
+
+export async function getBlogJob(jobId: string): Promise<BlogJobResponse> {
+  return parseResponse<BlogJobResponse>(
+    await fetch(`/api/v1/blog-jobs/${encodeURIComponent(jobId)}`, { cache: "no-store" }),
+  );
+}
+
+export async function retryBlogJob(jobId: string): Promise<RetryBlogJobResponse> {
+  return parseResponse<RetryBlogJobResponse>(
+    await fetch(`/api/v1/blog-jobs/${encodeURIComponent(jobId)}/retry`, { method: "POST" }),
+  );
+}
+
+export async function deleteBlogJob(jobId: string): Promise<void> {
+  const response = await fetch(`/api/v1/blog-jobs/${encodeURIComponent(jobId)}`, { method: "DELETE" });
   if (!response.ok) await parseResponse<never>(response);
 }

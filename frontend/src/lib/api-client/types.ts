@@ -1,8 +1,11 @@
 export const RATIOS = ["1:1", "4:5", "9:16"] as const;
+export const BLOG_TONES = ["친근하게", "차분하게", "발랄하게", "전문적으로"] as const;
 
 export type Ratio = (typeof RATIOS)[number];
+export type BlogTone = (typeof BLOG_TONES)[number];
 export type JobStatus = "queued" | "processing" | "completed" | "failed";
 export type MockScenario = "normal" | "image-fail" | "face-not-detected" | "slow";
+export type BlogMockScenario = "normal" | "blog-fail" | "slow";
 
 export type ApiError = {
   code: string;
@@ -15,11 +18,44 @@ export type ErrorEnvelope = {
   request_id: string;
 };
 
-// 블로그 전용 화면의 복사 유틸이 사용한다. 비동기 blog job 계약은 별도 PR에서 연결한다.
 export type BlogResult = {
   title: string;
-  body: string;
+  intro: string;
+  sections: { heading: string; body: string }[];
+  closing: string;
   hashtags: string[];
+};
+
+export type CreateBlogJobPayload = {
+  topic: string;
+  theme?: string;
+  tone: BlogTone;
+  domainContext?: string;
+};
+
+export type BlogJobResponse = {
+  job_id: string;
+  test_code: string;
+  status: JobStatus;
+  attempt: number;
+  result: BlogResult | null;
+  error: ApiError | null;
+  created_at: string;
+  updated_at: string;
+  result_expires_at: string;
+  request_id: string;
+};
+
+export type CreateBlogJobResponse = Pick<
+  BlogJobResponse,
+  "job_id" | "test_code" | "status" | "created_at" | "request_id"
+>;
+
+export type RetryBlogJobResponse = {
+  job_id: string;
+  status: "processing";
+  attempt: number;
+  request_id: string;
 };
 
 export type ImageResult = {
