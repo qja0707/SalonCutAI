@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -5,10 +7,18 @@ from sqlalchemy.orm import sessionmaker
 from src.db_session.db import Base
 
 # db for test
-TEST_DATABASE_URL = "sqlite:///../database/test.db"
+BASE_DIR = Path(__file__).resolve().parents[2]
+DB_DIR = BASE_DIR / "database"
+DB_DIR.mkdir(parents=True, exist_ok=True)  # 폴더가 없으면 자동 생성
+TEST_DATABASE_URL = f"sqlite:///{DB_DIR}/test.db"
 
 engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+@pytest.fixture(autouse=True)
+def test_secret_key(monkeypatch):
+    monkeypatch.setenv("SECRET_KEY", "test-only-secret-key-at-least-32-bytes")
 
 
 @pytest.fixture(scope="session")
