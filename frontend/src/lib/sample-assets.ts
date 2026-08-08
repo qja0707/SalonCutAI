@@ -29,7 +29,7 @@ function svgToDataUrl(svg: string): string {
 }
 
 export async function sampleAvatarFile(): Promise<File> {
-  return dataUrlToFile(svgToDataUrl(AVATAR_SVG), "sample-avatar.svg", "image/svg+xml");
+  return svgToPngFile(AVATAR_SVG, "sample-avatar.png");
 }
 
 export async function sampleSketchFile(): Promise<File> {
@@ -40,4 +40,26 @@ async function dataUrlToFile(dataUrl: string, filename: string, mime: string): P
   const res = await fetch(dataUrl);
   const blob = await res.blob();
   return new File([blob], filename, { type: mime });
+}
+
+async function svgToPngFile(svg: string, filename: string): Promise<File> {
+  const source = new Blob([svg], { type: "image/svg+xml" });
+  const sourceUrl = URL.createObjectURL(source);
+  try {
+    const image = new Image();
+    image.src = sourceUrl;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = 640;
+    canvas.height = 640;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("예시 이미지를 준비하지 못했습니다.");
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const png = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("예시 이미지를 준비하지 못했습니다."))), "image/png");
+    });
+    return new File([png], filename, { type: "image/png" });
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+  }
 }

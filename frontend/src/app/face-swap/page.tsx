@@ -1,52 +1,116 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ArrowRight, Loader2, Sparkles, Download } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Download, Loader2, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Separator } from "@/components/ui/separator";
-import { UploadDropzone } from "@/components/upload-dropzone";
-import { BeforeAfter } from "@/components/before-after";
-import { ResultPlaceholder } from "@/components/result-placeholder";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DevNote } from "@/components/dev-note";
-import { sampleAvatarFile } from "@/lib/sample-assets";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { UploadDropzone } from "@/components/upload-dropzone";
+import {
+  createFaceSwapJob,
+  deleteFaceSwapJob,
+  getFaceSwapJob,
+  retryFaceSwapJob,
+} from "@/lib/api-client/client";
+import {
+  RATIOS,
+  type CreateFaceSwapJobPayload,
+  type FaceSwapJobResponse,
+  type MockScenario,
+} from "@/lib/api-client/types";
 import { IS_PUBLIC_PREVIEW, PUBLIC_PREVIEW_NOTICE } from "@/lib/public-preview";
+import { sampleAvatarFile } from "@/lib/sample-assets";
 
 const BG_STYLES = ["화이트 스튜디오", "우드톤 인테리어", "그린 식물 배경"];
-const TONES = ["차분하게", "발랄하게", "전문적으로", "친근하게"];
+const TERMINAL = new Set(["completed", "failed"]);
+const EXPECTED_SECONDS = 16;
+
+function progressMessage(job: FaceSwapJobResponse | null, elapsedSeconds: number): string {
+  if (job?.status === "queued" && job.queue_position) {
+    return `대기 순번 ${job.queue_position}번 · 사진을 확인하고 있어요`;
+  }
+  if (elapsedSeconds < 5) return "사진을 확인하고 있어요";
+  if (elapsedSeconds <= EXPECTED_SECONDS) return `얼굴을 바꾸고 있어요 · ${elapsedSeconds}초`;
+  return "평소보다 오래 걸리고 있어요";
+}
 
 export default function FaceSwapPage() {
   const [photo, setPhoto] = useState<File | null>(null);
-  const [ratio, setRatio] = useState("1:1 (인스타 피드)");
   const [cleanBg, setCleanBg] = useState(false);
   const [bgStyle, setBgStyle] = useState(BG_STYLES[0]);
+  const [scenario, setScenario] = useState<MockScenario>("normal");
 
-  const [copyMode, setCopyMode] = useState<"ai" | "manual">("ai");
-  const [copyText, setCopyText] = useState("");
-  const [tone, setTone] = useState(TONES[0]);
-  const [domainContext, setDomainContext] = useState("");
+  const [requesting, setRequesting] = useState(false);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [job, setJob] = useState<FaceSwapJobResponse | null>(null);
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [requestError, setRequestError] = useState<string | null>(null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
 
-  const [useRealImage, setUseRealImage] = useState(false);
-  const [hfApiKey, setHfApiKey] = useState("");
+  const jobStatus = job?.status;
+  const active = Boolean(jobId && (!jobStatus || !TERMINAL.has(jobStatus)));
+  const resultImages = useMemo(() => (job?.status === "completed" ? job.results : null), [job]);
 
-  const [generating, setGenerating] = useState(false);
-  const [generated, setGenerated] = useState(false);
-  const [resultImageUrl, setResultImageUrl] = useState<string | null>(null);
-  const [imageError, setImageError] = useState<string | null>(null);
+  useEffect(() => {
+    return () => {
+      if (photoUrl) URL.revokeObjectURL(photoUrl);
+    };
+  }, [photoUrl]);
 
-  const photoUrl = photo ? URL.createObjectURL(photo) : null;
+  useEffect(() => {
+    if (!active || startedAt === null) return;
+    const update = () => setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1_000));
+    update();
+    const timer = window.setInterval(update, 1_000);
+    return () => window.clearInterval(timer);
+  }, [active, startedAt]);
+
+  useEffect(() => {
+    if (!jobId || (jobStatus && TERMINAL.has(jobStatus))) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const next = await getFaceSwapJob(jobId);
+        if (!cancelled) setJob(next);
+      } catch (error) {
+        if (!cancelled) setRequestError(error instanceof Error ? error.message : "작업 상태를 불러오지 못했습니다.");
+      }
+    };
+    void poll();
+    const timer = window.setInterval(poll, 2_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [jobId, jobStatus]);
+
+  function handlePhotoChange(nextPhoto: File | null) {
+    setPhoto(nextPhoto);
+    setPhotoUrl(nextPhoto ? URL.createObjectURL(nextPhoto) : null);
+  }
 
   async function handleUseSample() {
-    setPhoto(await sampleAvatarFile());
+    handlePhotoChange(await sampleAvatarFile());
+  }
+
+  function buildPayload(): CreateFaceSwapJobPayload {
+    return {
+      // TODO(CONSENT-UI): 다음 작업에서 실제 동의 화면의 값을 연결한다.
+      consent: { agreed: true, consent_version: "2026-08-07" },
+      options: {
+        ratios: [...RATIOS],
+        seed: null,
+        background_mode: cleanBg ? "replace" : "preserve",
+        background_style: cleanBg ? bgStyle : null,
+      },
+    };
   }
 
   async function handleGenerate() {
@@ -54,283 +118,197 @@ export default function FaceSwapPage() {
       toast.warning("먼저 시술 사진을 업로드하거나 예시 사진을 사용해주세요.");
       return;
     }
-    setGenerating(true);
-    setImageError(null);
-    setResultImageUrl(null);
-
-    if (useRealImage) {
-      if (!hfApiKey) {
-        setImageError("실제 이미지 생성을 켜셨으면 HuggingFace API 키가 필요합니다.");
-      } else {
-        try {
-          const fd = new FormData();
-          fd.append("apiKey", hfApiKey);
-          fd.append("image", photo);
-          fd.append("strength", "0.55");
-          fd.append(
-            "prompt",
-            `a different person, natural, photorealistic${cleanBg ? `, background changed to ${bgStyle}` : ", same background"}`
-          );
-          const res = await fetch("/api/generate-image", { method: "POST", body: fd });
-          if (!res.ok) {
-            const data = await res.json().catch(() => ({}));
-            throw new Error(data.error || `요청 실패 (${res.status})`);
-          }
-          const blob = await res.blob();
-          setResultImageUrl(URL.createObjectURL(blob));
-        } catch (e) {
-          setImageError(e instanceof Error ? e.message : "알 수 없는 오류");
-        }
-      }
-    } else {
-      await new Promise((r) => setTimeout(r, 400));
+    setRequesting(true);
+    setRequestError(null);
+    setJob(null);
+    setJobId(null);
+    setElapsedSeconds(0);
+    setStartedAt(Date.now());
+    try {
+      const created = await createFaceSwapJob(photo, buildPayload(), scenario);
+      setJobId(created.job_id);
+    } catch (error) {
+      setRequestError(error instanceof Error ? error.message : "작업을 시작하지 못했습니다.");
+      setStartedAt(null);
+    } finally {
+      setRequesting(false);
     }
+  }
 
-    setGenerated(true);
-    setGenerating(false);
+  async function handleRetry() {
+    if (!jobId) return;
+    try {
+      await retryFaceSwapJob(jobId);
+      setJob(await getFaceSwapJob(jobId));
+      setStartedAt(Date.now());
+      setElapsedSeconds(0);
+      toast.success("얼굴 교체 이미지를 다시 만들고 있어요.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "다시 시도하지 못했습니다.");
+    }
+  }
+
+  async function handleDelete() {
+    if (!jobId) return;
+    try {
+      await deleteFaceSwapJob(jobId);
+      setJobId(null);
+      setJob(null);
+      setStartedAt(null);
+      setElapsedSeconds(0);
+      toast.success("원본과 생성 결과를 삭제했습니다.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "결과를 삭제하지 못했습니다.");
+    }
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
+    <div className="mx-auto max-w-6xl px-6 py-10">
       <h1 className="text-2xl font-semibold tracking-tight">💇 얼굴 교체 홍보 이미지</h1>
-      <p className="mt-2 max-w-xl text-muted-foreground">
-        시술 사진 속 얼굴만 가상 인물로 바꿔드려요. 배경·헤어·의상은 그대로라, 고객 동의를 받은 사진을
-        더 안전하게 홍보에 쓸 수 있습니다. 촬영·활용 동의는 반드시 먼저 받아주세요.
+      <p className="mt-2 max-w-2xl text-muted-foreground">
+        고객의 헤어·의상·배경은 유지하고 얼굴만 가상 인물로 바꾼 뒤 세 가지 홍보 이미지 규격을 만듭니다.
+        촬영·활용 동의는 반드시 먼저 받아주세요.
       </p>
 
-      {IS_PUBLIC_PREVIEW && (
-        <Alert className="mt-4">
-          <AlertDescription>{PUBLIC_PREVIEW_NOTICE}</AlertDescription>
-        </Alert>
-      )}
+      {IS_PUBLIC_PREVIEW && <Alert className="mt-4"><AlertDescription>{PUBLIC_PREVIEW_NOTICE}</AlertDescription></Alert>}
 
-      <div className="mt-8 grid gap-8 lg:grid-cols-2">
-        {/* 입력 */}
+      <div className="mt-8 grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
         <div className="space-y-6">
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">1. 사진 업로드</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle className="text-base">1. 시술 사진</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              <UploadDropzone label="시술 사진" file={photo} onChange={setPhoto} />
-              <Button variant="outline" size="sm" className="w-full" onClick={handleUseSample}>
-                📷 예시 사진으로 체험하기 (미팅 시연용)
-              </Button>
+              <UploadDropzone label="시술 사진" file={photo} onChange={handlePhotoChange} />
+              <Button variant="outline" size="sm" className="w-full" onClick={handleUseSample}>📷 예시 사진으로 체험하기</Button>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">2. 옵션</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle className="text-base">2. 홍보 이미지 옵션</CardTitle></CardHeader>
             <CardContent className="space-y-5">
               <div>
                 <Label className="mb-2 block">출력 비율</Label>
-                <RadioGroup value={ratio} onValueChange={setRatio} className="flex flex-wrap gap-4">
-                  {["1:1 (인스타 피드)", "4:5 (인스타 세로)", "9:16 (스토리)"].map((r) => (
-                    <div key={r} className="flex items-center gap-2">
-                      <RadioGroupItem value={r} id={r} />
-                      <Label htmlFor={r} className="font-normal">{r}</Label>
-                    </div>
-                  ))}
-                </RadioGroup>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary">1:1 인스타 피드</Badge>
+                  <Badge variant="secondary">4:5 인스타 세로</Badge>
+                  <Badge variant="secondary">9:16 스토리 · fit_pad</Badge>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">한 번 생성한 결과를 세 규격으로 후처리합니다.</p>
               </div>
-
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-4">
                 <div>
-                  <Label htmlFor="clean-bg">배경도 함께 깔끔하게 정리하기</Label>
-                  <p className="text-xs text-muted-foreground">끄면 원래 배경은 그대로 두고 얼굴만 바뀝니다.</p>
+                  <Label htmlFor="clean-bg">배경도 함께 정리하기</Label>
+                  <p className="text-xs text-muted-foreground">끄면 얼굴만 바꾸고 원래 배경을 유지합니다.</p>
                 </div>
                 <Switch id="clean-bg" checked={cleanBg} onCheckedChange={setCleanBg} />
               </div>
-
               {cleanBg && (
-                <Select value={bgStyle} onValueChange={(v) => v && setBgStyle(v)}>
+                <Select value={bgStyle} onValueChange={(value) => value && setBgStyle(value)}>
                   <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {BG_STYLES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                  </SelectContent>
+                  <SelectContent>{BG_STYLES.map((style) => <SelectItem key={style} value={style}>{style}</SelectItem>)}</SelectContent>
                 </Select>
               )}
-
-              {/* 공개 미리보기에서는 키 입력과 실제 호출을 숨긴다. 평문 HTTP 구간 노출 방지. */}
-              {!IS_PUBLIC_PREVIEW && (
-                <>
-                  <Separator />
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label htmlFor="real-image">실제 이미지 생성 시도 (실험)</Label>
-                      <p className="text-xs text-muted-foreground">
-                        HuggingFace로 실제 호출합니다. 아직 얼굴 마스킹 전이라 사진 전체가 변환돼요.
-                      </p>
-                    </div>
-                    <Switch id="real-image" checked={useRealImage} onCheckedChange={setUseRealImage} />
-                  </div>
-                  {useRealImage && (
-                    <div>
-                      <Label className="mb-2 block">HuggingFace API 키</Label>
-                      <Input
-                        type="password"
-                        placeholder="hf_..."
-                        value={hfApiKey}
-                        onChange={(e) => setHfApiKey(e.target.value)}
-                      />
-                      <p className="mt-1.5 text-xs text-muted-foreground">
-                        이 브라우저 세션에서만 사용되고 서버에 저장되지 않습니다. 콜드스타트로 10~30초 걸릴 수 있어요.
-                      </p>
-                    </div>
-                  )}
-                </>
-              )}
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">3. 카드에 들어갈 문구</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <RadioGroup value={copyMode} onValueChange={(v) => setCopyMode(v as "ai" | "manual")} className="flex gap-4">
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="ai" id="mode-ai" />
-                  <Label htmlFor="mode-ai" className="font-normal">AI가 생성</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="manual" id="mode-manual" />
-                  <Label htmlFor="mode-manual" className="font-normal">직접 입력</Label>
-                </div>
-              </RadioGroup>
+          {!IS_PUBLIC_PREVIEW && (
+            <Card>
+              <CardHeader><CardTitle className="text-base">개발용 mock 시나리오</CardTitle></CardHeader>
+              <CardContent>
+                <Select value={scenario} onValueChange={(value) => value && setScenario(value as MockScenario)}>
+                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="normal">정상</SelectItem>
+                    <SelectItem value="image-fail">생성 실패 · 재시도 가능</SelectItem>
+                    <SelectItem value="face-not-detected">얼굴 미검출 · 재시도 불가</SelectItem>
+                    <SelectItem value="slow">느린 처리</SelectItem>
+                  </SelectContent>
+                </Select>
+              </CardContent>
+            </Card>
+          )}
 
-              {copyMode === "manual" ? (
-                <Textarea
-                  placeholder="예: 가을 웜톤 브라운 펌 · 예약 문의 DM"
-                  value={copyText}
-                  onChange={(e) => setCopyText(e.target.value)}
-                />
-              ) : (
-                <div className="space-y-4">
-                  <div>
-                    <Label className="mb-2 block">톤 앤 매너</Label>
-                    <Select value={tone} onValueChange={(v) => v && setTone(v)}>
-                      <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {TONES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="mb-2 block">우리 샵 소개 (선택)</Label>
-                    <Textarea
-                      placeholder="예: 20대 여성 타겟, 미니멀 감성, 성수동 감성 살롱"
-                      value={domainContext}
-                      onChange={(e) => setDomainContext(e.target.value)}
-                    />
-                  </div>
-
-                  <Separator />
-
-                  <Link
-                    href={`/generate/caption?${new URLSearchParams({
-                      context: domainContext,
-                      tone,
-                      label: "페이스 스왑",
-                    }).toString()}`}
-                    className={buttonVariants({ variant: "outline", size: "sm", className: "w-full" })}
-                  >
-                    인스타 캡션 도구에서 만들기 <ArrowRight className="h-3.5 w-3.5" />
-                  </Link>
-                  <p className="text-xs text-muted-foreground">
-                    위 내용을 그대로 가져가서 실제 LLM으로 카드 문구·캡션을 생성합니다.
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Button className="w-full" size="lg" onClick={handleGenerate} disabled={generating}>
-            {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            홍보 이미지 만들기
+          <Button className="w-full" size="lg" onClick={handleGenerate} disabled={requesting || active}>
+            {requesting || active ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {active ? progressMessage(job, elapsedSeconds) : "얼굴 교체 이미지 만들기"}
           </Button>
         </div>
 
-        {/* 결과 */}
-        <div>
-          <h2 className="mb-4 text-base font-semibold">결과</h2>
-          {!generated ? (
+        <div className="space-y-5">
+          <h2 className="text-base font-semibold">결과</h2>
+          {requestError && <Alert variant="destructive"><AlertDescription>{requestError}</AlertDescription></Alert>}
+
+          {!jobId ? (
             <Card className="flex aspect-square items-center justify-center border-dashed">
-              <p className="max-w-[220px] text-center text-sm text-muted-foreground">
-                왼쪽에서 사진과 옵션을 채운 뒤 버튼을 누르면 결과가 여기 표시됩니다.
-              </p>
+              <p className="max-w-[260px] text-center text-sm text-muted-foreground">사진과 옵션을 채운 뒤 버튼을 누르면 얼굴 교체 이미지 결과가 표시됩니다.</p>
             </Card>
           ) : (
-            <div className="space-y-5">
-              {imageError && (
-                <Alert variant="destructive">
-                  <AlertDescription>{imageError}</AlertDescription>
+            <>
+              {active && (
+                <Alert>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <AlertDescription>{progressMessage(job, elapsedSeconds)}</AlertDescription>
                 </Alert>
               )}
-              <BeforeAfter
-                originalUrl={photoUrl}
-                after={
-                  resultImageUrl ? (
-                    <div className="space-y-1.5">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={resultImageUrl} alt="생성 결과" className="aspect-square w-full rounded-lg border border-primary/40 object-cover" />
-                      <p className="text-center text-[11px] text-muted-foreground">
-                        실제 모델 결과 · 마스킹 전이라 사진 전체가 변환됐습니다
-                      </p>
-                    </div>
-                  ) : (
-                    <ResultPlaceholder
-                      title="얼굴 교체 홍보 이미지"
-                      meta={[ratio, cleanBg ? `배경 정리 · ${bgStyle}` : "배경 유지"]}
-                    />
-                  )
-                }
-              />
-              {resultImageUrl ? (
-                <a href={resultImageUrl} download="face-swap-result.png">
-                  <Button variant="outline" size="sm" className="w-full">
-                    <Download className="h-3.5 w-3.5" /> 이미지 다운로드
-                  </Button>
-                </a>
-              ) : (
-                <Button variant="outline" size="sm" className="w-full" disabled>
-                  <Download className="h-3.5 w-3.5" /> 이미지 다운로드 (모델 연동 후 활성화)
-                </Button>
+
+              {photoUrl && (
+                <Card>
+                  <CardHeader><CardTitle className="text-base">원본</CardTitle></CardHeader>
+                  <CardContent>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={photoUrl} alt="업로드한 원본" className="max-h-72 w-full rounded-lg object-contain" />
+                  </CardContent>
+                </Card>
               )}
 
-              {copyMode === "manual" && (
-                <div>
-                  <p className="mb-1.5 text-sm font-medium">카드에 들어갈 문구</p>
-                  <Alert><AlertDescription>{copyText || "(입력된 문구 없음)"}</AlertDescription></Alert>
-                </div>
+              <Card>
+                <CardHeader className="flex-row items-center justify-between">
+                  <CardTitle className="text-base">홍보 이미지</CardTitle>
+                  <Badge variant="secondary">시도 {job?.attempt ?? 1}회</Badge>
+                </CardHeader>
+                <CardContent>
+                  {resultImages ? (
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      {RATIOS.map((ratio) => {
+                        const result = resultImages[ratio];
+                        return (
+                          <div key={ratio} className="space-y-2">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={result.url} alt={`${ratio} 홍보 이미지`} className="h-56 w-full rounded-lg border bg-muted object-contain" />
+                            <div className="flex items-center justify-between text-xs"><span>{ratio}</span><Badge variant="outline">{result.format_mode}</Badge></div>
+                            <a href={result.url} download><Button variant="outline" size="sm" className="w-full"><Download className="h-3.5 w-3.5" />다운로드</Button></a>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : job?.status === "failed" ? (
+                    <div className="space-y-3">
+                      <Alert variant="destructive"><AlertDescription>{job.error?.message}</AlertDescription></Alert>
+                      {job.error?.retryable && <Button variant="outline" onClick={handleRetry}><RotateCcw className="h-4 w-4" />다시 만들기</Button>}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">얼굴 교체 이미지를 만들고 있습니다.</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {job && TERMINAL.has(job.status) && (
+                <Button variant="outline" size="sm" className="w-full" onClick={handleDelete}><Trash2 className="h-3.5 w-3.5" />원본과 생성 결과 삭제</Button>
               )}
-            </div>
+            </>
           )}
         </div>
       </div>
 
       <DevNote
-        guideExample="가이드 예시 ④ · 이미지 보존"
-        owner="R2 수민 · R4 영한"
-        engines={[
-          "HuggingFace Inference API (실제 연동 — 마스킹 전 image-to-image)",
-          "얼굴 검출 (MediaPipe, 미구현 — TODO)",
-          "Stable Diffusion Inpainting (마스킹 완료 후 전환 예정)",
-          "인스타 캡션은 /generate/caption 범용 도구로 분리됨 (context/tone/label 쿼리로 연결)",
-        ]}
-        preserve="배경 · 헤어 · 의상 · 포즈 전체 (배경 정리 옵션 끈 경우, 마스킹 붙기 전까진 전체 변환됨)"
-        change="얼굴(신원)만 · 배경 정리 옵션 켠 경우 배경도 포함"
-        steps={[
-          "사용자가 시술 사진 업로드 + 출력 비율·배경 옵션 선택",
-          "'실제 이미지 생성 시도'를 켜면 사진(FormData)과 프롬프트를 /api/generate-image로 전송",
-          "서버가 HuggingFace InferenceClient.imageToImage()를 실제 호출 (마스킹 전이라 사진 전체가 변환됨)",
-          "생성된 이미지를 그대로 화면에 표시 · 다운로드 가능",
-          "카드 문구는 이 페이지에서 직접 생성하지 않고, '인스타 캡션 도구에서 만들기' 링크로 /generate/caption에 연결",
-        ]}
-        codeHint={`// 이미지: /api/generate-image/route.ts — HF InferenceClient.imageToImage() 실제 호출 중\n// TODO(R2/R4): 얼굴 마스크(MediaPipe) 붙이면 image_to_image -> inpainting 전용 호출로 교체\n\n// 캡션: /generate/caption 페이지에서 /api/caption 호출 (이 페이지에서는 링크로만 연결)`}
+        guideExample="MOCK-001 · 얼굴 교체 job 종단 흐름"
+        owner="이미지 생성 · 서비스·UI · 서빙·인프라 담당"
+        engines={["Next.js Route Handler mock", "MediaPipe + SDXL 인페인팅(후속 VM 프록시 연결)"]}
+        preserve="헤어 · 의상 · 배경 · 포즈"
+        change="얼굴(신원)만"
+        steps={["사진과 옵션을 multipart로 /api/v1/face-swap-jobs에 전송", "2초마다 얼굴 교체 job 상태 확인", "완료된 3규격 이미지 표시", "재시도 가능한 job 전체 재시도", "완료 뒤 원본과 결과 삭제 가능"]}
+        codeHint={`// 얼굴 교체·블로그·영상은 각각 독립 job
+// 서버 기본값 mock, 인증·HTTPS 준비 후 proxy 구현
+// 진행 시간은 안내 문구에만 사용하고 실패는 서버 상태로 판정`}
       />
     </div>
   );
