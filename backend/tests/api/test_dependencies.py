@@ -9,7 +9,7 @@ from src.service.auth import algoritm, create_jwt
 
 
 # A simple mock for the Request object's scope
-def mock_scope(access_token: str):
+def mock_scope(access_token: str, empty_header=False):
     scope = {
         "type": "http",
         "method": "GET",
@@ -17,6 +17,9 @@ def mock_scope(access_token: str):
         "headers": [(b"authorization", f"Bearer {access_token}".encode())],
         "state": {},  # request.state를 쓰기 위해 필요
     }
+
+    if empty_header:
+        scope["headers"] = []
 
     return scope
 
@@ -39,7 +42,7 @@ async def test_check_auth_token_success():
 @pytest.mark.asyncio
 async def test_check_auth_token_no_header():
     """헤더에 토큰이 없는 경우 테스트"""
-    request = Request(mock_scope(""))
+    request = Request(mock_scope("", empty_header=True))
 
     with pytest.raises(HTTPException) as exc_info:
         await check_auth_token(request)
@@ -63,8 +66,7 @@ async def test_check_auth_token_invalid_signature():
     invalid_secret = "a-different-secret-key-that-is-not-the-correct-one"
     invalid_token = jwt.encode(to_encode, invalid_secret, algorithm=algoritm)
 
-    headers = {"Authorization": f"Bearer {invalid_token}"}
-    request = Request(mock_scope(headers))
+    request = Request(mock_scope(invalid_token))
 
     with pytest.raises(HTTPException) as exc_info:
         await check_auth_token(request)
@@ -99,8 +101,7 @@ async def test_check_auth_token_is_refresh_token():
     token_payload = {"sub": user_id, "token_type": "refresh"}
     refresh_token = create_jwt(token_payload, expires_delta=timedelta(days=7))
 
-    headers = {"Authorization": f"Bearer {refresh_token}"}
-    request = Request(mock_scope(headers))
+    request = Request(mock_scope(refresh_token))
 
     with pytest.raises(HTTPException) as exc_info:
         await check_auth_token(request)
