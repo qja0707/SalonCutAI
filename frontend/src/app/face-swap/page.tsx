@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Download, Loader2, RotateCcw, Sparkles, Trash2 } from "lucide-react";
+import { ChevronDown, Download, Loader2, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DevNote } from "@/components/dev-note";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -26,6 +27,7 @@ import {
 } from "@/lib/api-client/types";
 import { IS_PUBLIC_PREVIEW, PUBLIC_PREVIEW_NOTICE } from "@/lib/public-preview";
 import { sampleAvatarFile } from "@/lib/sample-assets";
+import { CONSENT_CONTENT, CONSENT_VERSION } from "@/lib/consent";
 
 const BG_STYLES = ["화이트 스튜디오", "우드톤 인테리어", "그린 식물 배경"];
 const TERMINAL = new Set(["completed", "failed"]);
@@ -45,6 +47,8 @@ export default function FaceSwapPage() {
   const [cleanBg, setCleanBg] = useState(false);
   const [bgStyle, setBgStyle] = useState(BG_STYLES[0]);
   const [scenario, setScenario] = useState<MockScenario>("normal");
+  const [consentAgreed, setConsentAgreed] = useState(false);
+  const [consentOpen, setConsentOpen] = useState(false);
 
   const [requesting, setRequesting] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -94,6 +98,7 @@ export default function FaceSwapPage() {
   function handlePhotoChange(nextPhoto: File | null) {
     setPhoto(nextPhoto);
     setPhotoUrl(nextPhoto ? URL.createObjectURL(nextPhoto) : null);
+    setConsentAgreed(false);
   }
 
   async function handleUseSample() {
@@ -102,8 +107,7 @@ export default function FaceSwapPage() {
 
   function buildPayload(): CreateFaceSwapJobPayload {
     return {
-      // TODO(CONSENT-UI): 다음 작업에서 실제 동의 화면의 값을 연결한다.
-      consent: { agreed: true, consent_version: "2026-08-07" },
+      consent: { agreed: consentAgreed, consent_version: CONSENT_VERSION },
       options: {
         ratios: [...RATIOS],
         seed: null,
@@ -116,6 +120,10 @@ export default function FaceSwapPage() {
   async function handleGenerate() {
     if (!photo) {
       toast.warning("먼저 시술 사진을 업로드하거나 예시 사진을 사용해주세요.");
+      return;
+    }
+    if (!consentAgreed) {
+      toast.warning("고객의 사진 활용 동의를 받은 뒤 확인해주세요.");
       return;
     }
     setRequesting(true);
@@ -183,7 +191,42 @@ export default function FaceSwapPage() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-base">2. 홍보 이미지 옵션</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">2. {CONSENT_CONTENT.title}</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">{CONSENT_CONTENT.introduction}</p>
+              <Collapsible open={consentOpen} onOpenChange={setConsentOpen}>
+                <CollapsibleTrigger className="flex w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm font-medium hover:bg-muted/60">
+                  동의 내용 전체 보기
+                  <ChevronDown className={`h-4 w-4 transition-transform ${consentOpen ? "rotate-180" : ""}`} />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-3">
+                  <ul className="space-y-2 rounded-md bg-muted/40 p-4 text-sm text-muted-foreground">
+                    {CONSENT_CONTENT.details.map((detail) => <li key={detail}>· {detail}</li>)}
+                  </ul>
+                </CollapsibleContent>
+              </Collapsible>
+              <div className="flex items-start gap-3 rounded-md border p-4">
+                <input
+                  id="consent-agreed"
+                  type="checkbox"
+                  checked={consentAgreed}
+                  onChange={(event) => setConsentAgreed(event.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+                />
+                <Label htmlFor="consent-agreed" className="cursor-pointer leading-5">
+                  {CONSENT_CONTENT.confirmation}
+                </Label>
+              </div>
+              {!consentAgreed && (
+                <p id="consent-required" role="status" className="text-sm text-amber-700 dark:text-amber-400">
+                  고객의 사진 활용 동의를 확인해야 이미지를 만들 수 있습니다.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="text-base">3. 홍보 이미지 옵션</CardTitle></CardHeader>
             <CardContent className="space-y-5">
               <div>
                 <Label className="mb-2 block">출력 비율</Label>
@@ -227,7 +270,13 @@ export default function FaceSwapPage() {
             </Card>
           )}
 
-          <Button className="w-full" size="lg" onClick={handleGenerate} disabled={requesting || active}>
+          <Button
+            className="w-full"
+            size="lg"
+            onClick={handleGenerate}
+            disabled={requesting || active || !consentAgreed}
+            aria-describedby={!consentAgreed ? "consent-required" : undefined}
+          >
             {requesting || active ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             {active ? progressMessage(job, elapsedSeconds) : "얼굴 교체 이미지 만들기"}
           </Button>
@@ -266,6 +315,11 @@ export default function FaceSwapPage() {
                   <Badge variant="secondary">시도 {job?.attempt ?? 1}회</Badge>
                 </CardHeader>
                 <CardContent>
+                  {job?.consent_recorded_at && (
+                    <p className="mb-4 text-xs text-muted-foreground">
+                      동의 확인 기록: {new Date(job.consent_recorded_at).toLocaleString("ko-KR")}
+                    </p>
+                  )}
                   {resultImages ? (
                     <div className="grid gap-4 sm:grid-cols-3">
                       {RATIOS.map((ratio) => {

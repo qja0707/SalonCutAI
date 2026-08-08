@@ -31,7 +31,7 @@ async function waitForServer() {
 }
 
 const payload = {
-  consent: { agreed: true, consent_version: "2026-08-07" },
+  consent: { agreed: true, consent_version: "mock-test-v1" },
   options: {
     ratios: ["1:1", "4:5", "9:16"],
     seed: null,
@@ -40,25 +40,46 @@ const payload = {
   },
 };
 
-async function createFaceSwapJob(scenario) {
+async function postFaceSwapJob(scenario, requestPayload = payload) {
   const form = new FormData();
   const pixel = Buffer.from(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nL8AAAAASUVORK5CYII=",
     "base64",
   );
   form.append("image", new Blob([pixel], { type: "image/png" }), "test.png");
-  form.append("payload", JSON.stringify(payload));
-  const response = await fetch(`${base}/api/v1/face-swap-jobs`, {
+  form.append("payload", JSON.stringify(requestPayload));
+  return fetch(`${base}/api/v1/face-swap-jobs`, {
     method: "POST",
     headers: { "X-Mock-Scenario": scenario },
     body: form,
   });
+}
+
+async function createFaceSwapJob(scenario) {
+  const response = await postFaceSwapJob(scenario);
   assert(response.status === 202, `${scenario} 생성 응답: ${response.status}`);
   return response.json();
 }
 
+async function verifyConsentValidation() {
+  let response = await postFaceSwapJob("normal", {
+    ...payload,
+    consent: { agreed: false, consent_version: "mock-test-v1" },
+  });
+  let body = await response.json();
+  assert(response.status === 400, `동의 거부 응답: ${response.status}`);
+  assert(body.error?.code === "CONSENT_REQUIRED", "동의 거부 오류 코드");
+
+  const payloadWithoutConsent = { options: payload.options };
+  response = await postFaceSwapJob("normal", payloadWithoutConsent);
+  body = await response.json();
+  assert(response.status === 400, `동의 누락 응답: ${response.status}`);
+  assert(body.error?.code === "CONSENT_REQUIRED", "동의 누락 오류 코드");
+}
+
 async function verify() {
   await waitForServer();
+  await verifyConsentValidation();
   const scenarios = ["normal", "image-fail", "face-not-detected"];
   const entries = await Promise.all(scenarios.map(async (scenario) => [scenario, await createFaceSwapJob(scenario)]));
   const created = Object.fromEntries(entries);
@@ -76,6 +97,8 @@ async function verify() {
   for (const scenario of scenarios) {
     assert(jobs[scenario].status === expected[scenario], `${scenario}: ${jobs[scenario].status}`);
   }
+  assert(typeof jobs.normal.consent_recorded_at === "string", "정상 동의 기록 시각");
+  assert(!Number.isNaN(Date.parse(jobs.normal.consent_recorded_at)), "정상 동의 기록 시각 형식");
   assert(jobs["image-fail"].error?.code === "IMAGE_GENERATION_FAILED", "재시도 가능 이미지 오류 코드");
   assert(jobs["image-fail"].error?.retryable === true, "재시도 가능 이미지 retryable");
   assert(jobs["face-not-detected"].error?.code === "FACE_NOT_DETECTED", "얼굴 미검출 오류 코드");
@@ -115,6 +138,7 @@ async function verify() {
         imageRetry: { status: retried.status, attempt: retried.attempt },
         nonRetryableImage: 409,
         images: 3,
+        consent: { rejected: 400, missing: 400, accepted: 202, recordedAt: true },
         delete: 204,
         health: "ok",
       },

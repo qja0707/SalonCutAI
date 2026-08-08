@@ -58,7 +58,7 @@ export type RetryFaceSwapJobResponse = {
 
 export type CreateFaceSwapJobPayload = {
   consent: {
-    agreed: true;
+    agreed: boolean;
     consent_version: string;
   };
   options: {
