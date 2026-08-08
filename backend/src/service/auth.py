@@ -96,4 +96,7 @@ def verify_access_token(token: str) -> TokenInfo | None:
 
     token_data = TokenInfo(**payload)
 
+    if token_data.token_type != "access":
+        raise jwt.InvalidTokenError("access token 이 아닙니다")
+
     return token_data

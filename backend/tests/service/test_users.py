@@ -1,9 +1,11 @@
+from datetime import UTC, datetime, timedelta
+
 import jwt
 import pytest
 
 from src.schemas.auth import SigninRequest, TokenInfo
 from src.schemas.users import SignupRequest
-from src.service.auth import signin_user, verify_access_token
+from src.service.auth import create_jwt, signin_user, verify_access_token
 from src.service.users import delete_user, signup_user
 
 TEST_USER_INFO = SignupRequest(id="test_user_test123123", pw="123", username="test")
@@ -13,7 +15,16 @@ def test_invalid_access_token():
     """
     Tests that an invalid access token raises an InvalidTokenError.
     """
-    invalid_token = "ewogICJhbGciOiAiSFMyNTYiLAogICJ0eXAiOiAiSldUIgp9.ewogICJzdWIiOiAiZ3l1YmVvbSIsCiAgInRva2VuX3R5cGUiOiAiYWNjZXNzX3Rva2VuIiwKICAiZXhwIjogMjUyNDYwODAwMAp9.mBNQGFzBPsBk-yGzinuw0WPVCuiei-4Wnye2w__j7C4"
+
+    invalid_token = jwt.encode(
+        {
+            "sub": "gyubeom",
+            "token_type": "access",
+            "exp": datetime.now(UTC) + timedelta(minutes=15),
+        },
+        "asdf",
+        algorithm="HS256",
+    )
 
     result = jwt.decode(invalid_token, "asdf", algorithms=["HS256"])
 
@@ -88,7 +99,9 @@ def test_expired_access_token():
     Tests that an expired access token raises a TokenExpiredError.
     """
 
-    with pytest.raises(jwt.ExpiredSignatureError):
-        expired_token = "ewogICJhbGciOiAiSFMyNTYiLAogICJ0eXAiOiAiSldUIgp9.ewogICJzdWIiOiAiZ3l1YmVvbSIsCiAgInRva2VuX3R5cGUiOiAiYWNjZXNzX3Rva2VuIiwKICAiZXhwIjogMTUyNDYwODAwMAp9.UHP6gQ1gNZRBRZdexaHHHUZUsQd1iTNBfxZa1ciLErk"
+    expired_token = create_jwt(
+        {"sub": "gyubeom", "token_type": "access"}, timedelta(-1)
+    )
 
+    with pytest.raises(jwt.ExpiredSignatureError):
         verify_access_token(expired_token)

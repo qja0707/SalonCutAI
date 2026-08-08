@@ -28,5 +28,3 @@ def signin(payload: SigninRequest, db=Depends(get_db)):
         )
 
     return token
-
-    return token

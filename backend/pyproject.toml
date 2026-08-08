@@ -24,11 +24,12 @@ dependencies = [
     "uvicorn>=0.52.1",
 ]
 
-[tool.ruff.lint.flake8-bugbear]
-# B008 경고에서 fastapi의 Depends 구문은 예외로 처리합니다.
-extend-immutable-calls = ["fastapi.Depends", "fastapi.params.Depends"]
-
 [dependency-groups]
 dev = [
     "pre-commit>=4.6.1",
+    "pytest-asyncio>=1.4.0",
 ]
+
+[tool.ruff.lint.flake8-bugbear]
+# B008 경고에서 fastapi의 Depends 구문은 예외로 처리합니다.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.params.Depends"]
