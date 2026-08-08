@@ -1,25 +1,25 @@
-# .pre-commit-config.yaml
+# .pre-commit-config.yaml (프로젝트 최상위 루트에 위치)
 repos:
   - repo: local
     hooks:
       - id: ruff-check
         name: 🧹 Ruff Linter (Staged Only)
-        # 💡 pre-commit이 스테이지된 파일들만 ruff 뒤에 인자로 붙여서 실행합니다.
-        entry: bash -c "cd backend && uv run ruff check --fix \"\$@\"" --
+        entry: >
+          bash -c 'cd backend && uv run ruff check --fix $(echo "$@" | sed "s|backend/||g")' --
         language: system
         types: [python]
         files: ^backend/
 
       - id: ruff-format
         name: ✨ Ruff Formatter (Staged Only)
-        entry: bash -c "cd backend && uv run ruff format \"\$@\"" --
+        entry: >
+          bash -c 'cd backend && uv run ruff format $(echo "$@" | sed "s|backend/||g")' --
         language: system
         types: [python]
         files: ^backend/
 
       - id: pytest
         name: 🧪 Pytest Verification (Staged Context)
-        # 💡 라이브러리가 Unstaged 파일을 숨겨주었으므로, 이 테스트는 완벽히 스테이지된 코드로만 돌아갑니다.
         entry: bash -c "cd backend && uv run python -m pytest"
         language: system
         pass_filenames: false

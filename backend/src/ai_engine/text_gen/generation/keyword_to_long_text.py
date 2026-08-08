@@ -8,9 +8,7 @@ from src.ai_engine.text_gen.prompts.blog_prompt import (
 )
 
 
-def generate_blog_post(
-    request: BlogGenerationRequest
-):
+def generate_blog_post(request: BlogGenerationRequest):
     """
     Generates a blog post using the BlogPrompt class and OpenAI API.
     """
@@ -41,7 +39,8 @@ def generate_blog_post(
     response = BlogGenerationResponse(
         title=result_dict["title"],
         body=result_dict["body"],
-        hashtags=result_dict["hashtags"])
+        hashtags=result_dict["hashtags"],
+    )
 
     # 4. 결과 출력
     return response
@@ -62,7 +61,7 @@ if __name__ == "__main__":
         designer_name="규범",
         duration_minutes="180",
         special_product="모로칸 오일",
-        region_keyword="학동역 1번출구"
+        region_keyword="학동역 1번출구",
     )
 
     result = generate_blog_post(request)

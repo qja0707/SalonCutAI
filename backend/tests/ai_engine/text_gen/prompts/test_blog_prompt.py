@@ -18,7 +18,7 @@ def test_blog_prompt_generation():
         designer_name="규범",
         duration_minutes="180",
         special_product="모로칸 오일",
-        region_keyword="학동역"
+        region_keyword="학동역",
     )
 
     # 2. Act: Generate the prompt
