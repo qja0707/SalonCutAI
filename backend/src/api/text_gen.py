@@ -1,14 +1,17 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from src.ai_engine.text_gen.generation.keyword_to_long_text import generate_blog_post
 from src.ai_engine.text_gen.prompts.blog_prompt import (
     BlogGenerationRequest,
     BlogGenerationResponse,
 )
+from src.api.dependencies import check_auth_token
 
 TAG = "text generation"
 
-router = APIRouter(prefix="/text-gen", tags=[TAG])
+router = APIRouter(
+    prefix="/text-gen", tags=[TAG], dependencies=[Depends(check_auth_token)]
+)
 
 
 @router.post(

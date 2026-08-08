@@ -13,3 +13,9 @@ class RefreshRequest(BaseModel):
 class SigninResponse(BaseModel):
     access_token: str
     refresh_token: str
+
+
+class TokenInfo(BaseModel):
+    sub: str
+    exp: int
+    token_type: str
