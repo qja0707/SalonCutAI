@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.db_session.db import get_db
-from src.schemas.auth import RefreshRequest, SigninRequest, SigninResponse
+from src.schemas.auth import SigninRequest, SigninResponse
 from src.schemas.common import ErrorResponse
 from src.service.auth import signin_user
 
@@ -23,7 +23,3 @@ def signin(payload: SigninRequest, db=Depends(get_db)):
     
     return token
 
-# TODO
-@router.post("/refresh", response_model=SigninResponse) 
-def refresh_token(payload: RefreshRequest):
-    return {"message": "토큰 재발급 성공"}

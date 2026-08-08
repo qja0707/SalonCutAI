@@ -1,10 +1,9 @@
-import os
 
 from fastapi import FastAPI
 
 from src.api.api import api_router
 from src.db_session.db import Base, engine
-from src.exceptions.system import SystemStartError
+from src.service.auth import get_secret_key
 
 app = FastAPI()
 
@@ -12,10 +11,7 @@ Base.metadata.create_all(bind=engine)
 
 app.include_router(api_router)
 
-secret_key = os.getenv("SECRET_KEY")
-
-if secret_key is None:
-    raise SystemStartError("SECRET_KEY is not set")
+get_secret_key()
 
 @app.get("/")
 def root():

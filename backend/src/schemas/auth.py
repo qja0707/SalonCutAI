@@ -13,6 +13,7 @@ class SigninResponse(BaseModel):
     refresh_token: str
 
 class TokenInfo(BaseModel):
-    user_id: str
-    expire: str | None
+    sub: str
+    exp: int
+    token_type: str
     
