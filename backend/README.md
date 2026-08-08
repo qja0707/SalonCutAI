@@ -8,7 +8,7 @@ uv sync
 
 ### git hook 등록 (필수)
 ```bash
-uv ru pre-commit install
+uv run pre-commit install
 ```
 
 ## how to run
