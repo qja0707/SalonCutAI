@@ -26,10 +26,11 @@ def test_blog_prompt_generation():
     system_prompt, user_prompt = blog_prompt_instance.get_prompt()
 
     # 3. Assert: Verify the prompts' content
-    # Check that the system prompt is not empty and contains key instructions
+    # Check that the system prompt is not empty and contains key instructions (Updated to match new prompt)
     assert "너는 10년 이상 경력의 미용실 블로그 전문 카피라이터야" in system_prompt
-    assert "[글 구조 및 소제목 서식]" in system_prompt
+    assert "[글 구조 및 서식]" in system_prompt
     assert "반드시 아래 JSON 형식으로만 응답해" in system_prompt
+    assert '"sections": {' in system_prompt
 
     # Check that the user prompt is formatted with data from the request
     assert "기장: 긴 머리" in user_prompt
