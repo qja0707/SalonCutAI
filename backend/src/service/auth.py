@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from src.db_session.refresh_token_model import RefreshTokenModel
 from src.db_session.user_model import UserModel
 from src.exceptions.system import SystemStartError
-from src.schemas.auth import SigninRequest, SigninResponse
+from src.schemas.auth import SigninRequest, SigninResponse, TokenInfo
 
 load_dotenv()
 
@@ -32,10 +32,12 @@ def get_secret_key() -> str:
 
 def create_jwt(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
+
     if expires_delta:
         expire = datetime.now(UTC) + expires_delta
     else:
         expire = datetime.now(UTC) + timedelta(minutes=15)
+
     to_encode.update({"exp": expire})
 
     secret_key = get_secret_key()
@@ -58,12 +60,14 @@ def signin_user(request: SigninRequest, db: Session) -> SigninResponse | None:
         return None
 
     # make jwt
+    access_token_info = {"sub": user.id, "token_type": "access"}
+    refresh_token_info = {"sub": user.id, "token_type": "refresh"}
+
     access_token = create_jwt(
-        data={"sub": user.id},
-        expires_delta=timedelta(minutes=access_token_expire_minutes),
+        access_token_info, expires_delta=timedelta(minutes=access_token_expire_minutes)
     )
     refresh_token = create_jwt(
-        data={"sub": user.id}, expires_delta=timedelta(days=refresh_token_expire_days)
+        refresh_token_info, expires_delta=timedelta(days=refresh_token_expire_days)
     )
 
     stmt = select(RefreshTokenModel).where(RefreshTokenModel.user_id == user.id)
@@ -78,3 +82,21 @@ def signin_user(request: SigninRequest, db: Session) -> SigninResponse | None:
     db.commit()
 
     return SigninResponse(access_token=access_token, refresh_token=refresh_token)
+
+
+def verify_access_token(token: str) -> TokenInfo | None:
+    secret_key = get_secret_key()
+
+    payload = jwt.decode(
+        token,
+        secret_key,
+        algorithms=[algoritm],
+        options={"require": ["sub", "exp", "token_type"]},
+    )
+
+    token_data = TokenInfo(**payload)
+
+    if token_data.token_type != "access":
+        raise jwt.InvalidTokenError("access token 이 아닙니다")
+
+    return token_data
