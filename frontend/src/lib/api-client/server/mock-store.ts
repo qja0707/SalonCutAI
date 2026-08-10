@@ -2,9 +2,9 @@ import "server-only";
 
 import type {
   ApiError,
-  BlogJobResponse,
+  BlogJobWireResponse,
   BlogMockScenario,
-  BlogResult,
+  BlogWireResult,
   CreateBlogJobPayload,
   CreateBlogJobResponse,
   CreateFaceSwapJobResponse,
@@ -213,22 +213,30 @@ function blogStatus(job: StoredBlogJob, nowMs: number): JobStatus {
   return "completed";
 }
 
-function blogResult(job: StoredBlogJob): BlogResult {
+function blogResult(job: StoredBlogJob): BlogWireResult {
   const theme = job.payload.theme?.trim();
   const context = job.payload.domainContext?.trim();
   return {
     title: `${job.payload.topic.trim()} | 헤어 전문가가 알려드려요`,
     intro: `${theme ? `${theme}에 관심이 있으시다면 ` : ""}${job.payload.topic.trim()}에 대해 궁금하셨을 텐데요. 오늘은 살롱에서 꼭 알아두면 좋은 내용을 ${job.payload.tone} 설명해드릴게요.`,
-    sections: [
-      {
-        heading: "나에게 맞는 방법부터 확인해요",
-        body: "모발 상태와 평소 손질 습관에 따라 어울리는 시술과 관리법이 달라집니다. 방문 전 원하는 분위기와 불편했던 점을 정리해두면 상담이 더 구체적이고 편해져요.",
+    sections: {
+      before: {
+        heading: "시술 전 고민과 모발 상태",
+        body: `고객님은 ${job.payload.topic.trim()}에 대한 고민으로 방문하셨어요. 원하는 분위기와 평소 손질 습관을 함께 확인해 현재 상태에 맞는 방향을 정했습니다.`,
       },
-      {
-        heading: "시술 후 관리가 결과를 오래 지켜줘요",
-        body: `${context ? `${context}의 강점을 살린 맞춤 상담과 함께 ` : ""}집에서도 이어갈 수 있는 간단한 관리법을 안내받아보세요. 작은 습관을 꾸준히 지키는 것이 예쁜 스타일을 오래 유지하는 가장 좋은 방법입니다.`,
+      process: {
+        heading: "상담을 바탕으로 진행한 시술",
+        body: `${theme ? `${theme} 분위기를 살리면서 ` : ""}모발에 부담을 줄이도록 단계별로 상태를 확인하며 시술을 진행했습니다.`,
       },
-    ],
+      after: {
+        heading: "시술 후 달라진 모습",
+        body: `${context ? `${context}의 상담 경험을 바탕으로 ` : ""}고객님이 원하신 방향과 손질 편의성을 함께 확인해 마무리했습니다.`,
+      },
+      home_care: {
+        heading: "집에서 이어가는 홈케어",
+        body: "예쁜 스타일을 오래 유지할 수 있도록 세정과 건조 순서, 손질할 때 주의할 점을 안내해드렸어요. 작은 관리 습관을 꾸준히 지켜주세요.",
+      },
+    },
     closing: "궁금한 점은 편하게 상담해보세요. 현재 모발 상태에 맞는 방법을 함께 찾아드릴게요.",
     hashtags: ["헤어스타일", "미용실추천", "헤어관리", "살롱상담", theme || "뷰티정보"],
   };
@@ -260,7 +268,7 @@ export function createMockBlogJob(
   };
 }
 
-export function getMockBlogJob(jobId: string): BlogJobResponse | null {
+export function getMockBlogJob(jobId: string): BlogJobWireResponse | null {
   const job = blogJobs.get(jobId);
   if (!job) return null;
   const nowMs = Date.now();

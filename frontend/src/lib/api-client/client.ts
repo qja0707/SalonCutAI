@@ -1,15 +1,17 @@
-import type {
-  BlogJobResponse,
-  BlogMockScenario,
-  CreateBlogJobPayload,
-  CreateBlogJobResponse,
-  CreateFaceSwapJobPayload,
-  CreateFaceSwapJobResponse,
-  ErrorEnvelope,
-  FaceSwapJobResponse,
-  MockScenario,
-  RetryBlogJobResponse,
-  RetryFaceSwapJobResponse,
+import {
+  BLOG_SECTION_ORDER,
+  type BlogJobResponse,
+  type BlogJobWireResponse,
+  type BlogMockScenario,
+  type CreateBlogJobPayload,
+  type CreateBlogJobResponse,
+  type CreateFaceSwapJobPayload,
+  type CreateFaceSwapJobResponse,
+  type ErrorEnvelope,
+  type FaceSwapJobResponse,
+  type MockScenario,
+  type RetryBlogJobResponse,
+  type RetryFaceSwapJobResponse,
 } from "@/lib/api-client/types";
 
 async function parseResponse<T>(response: Response): Promise<T> {
@@ -72,9 +74,16 @@ export async function createBlogJob(
 }
 
 export async function getBlogJob(jobId: string): Promise<BlogJobResponse> {
-  return parseResponse<BlogJobResponse>(
+  const response = await parseResponse<BlogJobWireResponse>(
     await fetch(`/api/v1/blog-jobs/${encodeURIComponent(jobId)}`, { cache: "no-store" }),
   );
+  const result = response.result;
+  return {
+    ...response,
+    result: result
+      ? { ...result, sections: BLOG_SECTION_ORDER.map((key) => result.sections[key]) }
+      : null,
+  };
 }
 
 export async function retryBlogJob(jobId: string): Promise<RetryBlogJobResponse> {

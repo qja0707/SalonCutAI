@@ -160,7 +160,8 @@ async function verify() {
   assert(blogJobs["blog-fail"].error?.code === "BLOG_GENERATION_FAILED", "블로그 생성 실패 코드");
   assert(blogJobs["blog-fail"].error?.retryable === true, "블로그 생성 실패 retryable");
   assertExactKeys(blogJobs.normal.result, ["title", "intro", "sections", "closing", "hashtags"], "블로그 결과 구조");
-  assert(blogJobs.normal.result.sections.every((section) => section.heading && section.body), "블로그 섹션 구조");
+  assertExactKeys(blogJobs.normal.result.sections, ["before", "process", "after", "home_care"], "블로그 섹션 키");
+  assert(Object.values(blogJobs.normal.result.sections).every((section) => section.heading && section.body), "블로그 섹션 구조");
 
   const normalId = created.normal.job_id;
   for (const ratio of ["1x1", "4x5", "9x16"]) {
@@ -208,10 +209,14 @@ async function verify() {
 
   const blogUi = readFileSync(resolve("src/app/generate/blog/blog-generator.tsx"), "utf8");
   const blogCopy = readFileSync(resolve("src/lib/api-client/blog-content.ts"), "utf8");
+  const apiClient = readFileSync(resolve("src/lib/api-client/client.ts"), "utf8");
   const legacyRoute = readFileSync(resolve("src/app/api/generate-blog/route.ts"), "utf8");
   assert(["topic", "theme", "label"].every((key) => blogUi.includes(`searchParams.get("${key}")`)), "블로그 query 진입값 유지");
   assert(!blogUi.includes('provider: "openai"'), "클라이언트 provider 고정값 제거");
   assert(["result.title", "result.intro", "result.sections", "result.closing", "result.hashtags"].every((value) => blogCopy.includes(value)), "복사 문자열 결과 구조 일치");
+  assert(blogCopy.includes("<p><br></p>"), "네이버 블록 사이 빈 문단 유지");
+  assert(!blogCopy.includes("<h3>"), "네이버에서 본문 크기로 바뀌는 h3 미사용");
+  assert(apiClient.includes("BLOG_SECTION_ORDER.map"), "블로그 전송 객체를 화면 배열로 변환");
   assert(legacyRoute.includes("export async function POST"), "기존 /api/generate-blog 유지");
 
   console.log(
