@@ -164,9 +164,9 @@ export default function FaceSwapPage() {
       setJob(null);
       setStartedAt(null);
       setElapsedSeconds(0);
-      toast.success("원본과 생성 결과를 삭제했습니다.");
+      toast.success("작업을 삭제했습니다.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "결과를 삭제하지 못했습니다.");
+      toast.error(error instanceof Error ? error.message : "작업을 삭제하지 못했습니다.");
     }
   }
 
@@ -346,7 +346,7 @@ export default function FaceSwapPage() {
               </Card>
 
               {job && TERMINAL.has(job.status) && (
-                <Button variant="outline" size="sm" className="w-full" onClick={handleDelete}><Trash2 className="h-3.5 w-3.5" />원본과 생성 결과 삭제</Button>
+                <Button variant="outline" size="sm" className="w-full" onClick={handleDelete}><Trash2 className="h-3.5 w-3.5" />작업 삭제</Button>
               )}
             </>
           )}
@@ -359,7 +359,7 @@ export default function FaceSwapPage() {
         engines={["Next.js Route Handler mock", "MediaPipe + SDXL 인페인팅(후속 VM 프록시 연결)"]}
         preserve="헤어 · 의상 · 배경 · 포즈"
         change="얼굴(신원)만"
-        steps={["사진과 옵션을 multipart로 /api/v1/face-swap-jobs에 전송", "2초마다 얼굴 교체 job 상태 확인", "완료된 3규격 이미지 표시", "재시도 가능한 job 전체 재시도", "완료 뒤 원본과 결과 삭제 가능"]}
+        steps={["사진과 옵션을 multipart로 /api/v1/face-swap-jobs에 전송", "2초마다 얼굴 교체 job 상태 확인", "완료된 3규격 이미지 표시", "재시도 가능한 job 전체 재시도", "완료 뒤 작업 삭제 가능(진행 중에는 409)"]}
         codeHint={`// 얼굴 교체·블로그·영상은 각각 독립 job
 // 서버 기본값 mock, 인증·HTTPS 준비 후 proxy 구현
 // 진행 시간은 안내 문구에만 사용하고 실패는 서버 상태로 판정`}
