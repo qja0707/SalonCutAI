@@ -6,6 +6,13 @@
 uv sync
 ```
 
+### 환경설정 세팅
+```bash
+cp .env.example .env
+
+# 이후 .env 파일에 적절한 값으로 수정
+```
+
 ### git hook 등록 (필수)
 ```bash
 uv run pre-commit install
