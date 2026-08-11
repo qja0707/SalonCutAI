@@ -4,8 +4,10 @@ set -Eeuo pipefail
 readonly TARGET_SHA="${1:-}"
 readonly APP_DIR="/opt/salon-web/repo"
 readonly FRONTEND_DIR="${APP_DIR}/frontend"
+readonly BACKEND_DIR="${APP_DIR}/backend"  # 추가
 readonly NODE_BIN="/opt/node/bin"
 readonly FRONTEND_SERVICE="salon-web"
+readonly BACKEND_SERVICE="salon-api"      # 추가 (systemd 서비스명)
 
 log() {
   printf '[SalonCutAI 배포] %s\n' "$*"
@@ -26,7 +28,7 @@ readonly APP_HOME="$(getent passwd "${APP_OWNER}" | cut -d: -f6)"
 [[ "$(id -un)" == "${APP_OWNER}" ]] || fail "배포 로그인 사용자와 저장소 소유자가 다릅니다. NOPASSWD:ALL 또는 임의 sudo -u를 추가하지 말고 배포 계정이 저장소를 소유하도록 설정하십시오."
 
 run_as_app_user() {
-  env HOME="${APP_HOME}" PATH="${NODE_BIN}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" "$@"
+  env HOME="${APP_HOME}" PATH="${NODE_BIN}:${APP_HOME}/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" "$@"
 }
 
 log "origin/dev 최신 상태 확인"
@@ -49,6 +51,7 @@ fi
 readonly CHANGED_FILES="$(run_as_app_user git -C "${APP_DIR}" diff --name-only "${BEFORE_SHA}" "${TARGET_SHA}")"
 FRONTEND_ROLLBACK_READY=0
 FRONTEND_RESTART_ATTEMPTED=0
+BACKEND_RESTART_ATTEMPTED=0
 
 rollback_deployment() {
   local reason="${1:-알 수 없는 오류}"
@@ -63,6 +66,12 @@ rollback_deployment() {
   fi
 
   run_as_app_user git -C "${APP_DIR}" reset --hard "${BEFORE_SHA}"
+
+  
+  if [[ "${BACKEND_RESTART_ATTEMPTED}" -eq 1 ]]; then
+    log "백엔드 서비스 복원 시도"
+    sudo -n /usr/bin/systemctl restart "${BACKEND_SERVICE}"
+  fi
 
   if [[ "${FRONTEND_RESTART_ATTEMPTED}" -eq 1 ]]; then
     sudo -n /usr/bin/systemctl restart "${FRONTEND_SERVICE}"
@@ -82,13 +91,45 @@ trap 'rollback_deployment "예기치 않은 오류(행 ${LINENO})"' ERR
 log "저장소를 대상 dev 커밋으로 동기화"
 run_as_app_user git -C "${APP_DIR}" reset --hard "${TARGET_SHA}"
 
+# --- 백엔드 배포 프로세스 ---
 if grep -Eq '^(backend/|pyproject\.toml$)' <<<"${CHANGED_FILES}"; then
-  log "백엔드 소스 문법 검사"
-  run_as_app_user python3 -m compileall -q "${APP_DIR}/backend/src"
-  log "백엔드 소스 동기화 완료. API 헬스체크와 systemd 계약 확정 전까지 자동 재시작은 보류합니다."
+  log "백엔드 의존성 동기화 및 문법 검사 시작"
+  
+  # 💡 [추가] 깃허브 액션이 전송한 임시 env 파일을 백엔드 폴더 내부 .env로 안전하게 복사/이동
+  if [[ -f "/tmp/backend.env.tmp" ]]; then
+    run_as_app_user mv /tmp/backend.env.tmp "${BACKEND_DIR}/.env"
+    run_as_app_user chmod 600 "${BACKEND_DIR}/.env"
+  fi
+
+  # uv sync를 통해 패키지 자동 정렬 및 가상환경 업데이트
+  if [[ -f "${BACKEND_DIR}/pyproject.toml" ]]; then
+    run_as_app_user uv sync --project "${BACKEND_DIR}"
+  fi
+
+  run_as_app_user python3 -m compileall -q "${BACKEND_DIR}/src"
+  
+  log "백엔드 서비스 재시작"
+  BACKEND_RESTART_ATTEMPTED=1
+  sudo -n /usr/bin/systemctl restart "${BACKEND_SERVICE}"
+
+  BACKEND_HEALTH_OK=0
+  for attempt in {1..10}; do
+    # 💡 끊겨 있던 주소를 올바른 8000번 포트 경로로 수정 완료했습니다.
+    if curl --fail --silent --show-error --max-time 3 http://127.0.0.1:8000/docs >/dev/null; then
+      log "백엔드 재시작 및 로컬 상태 확인 완료"
+      BACKEND_HEALTH_OK=1
+      break
+    fi
+    sleep 2
+  done
+
+  if [[ "${BACKEND_HEALTH_OK}" -ne 1 ]]; then
+    rollback_deployment "백엔드 재시작 후 상태 확인 실패 (8000 포트 응답 없음)"
+  fi
 else
   log "백엔드 변경 없음"
 fi
+# --------------------------------
 
 if grep -Eq '^(frontend/|\.github/scripts/deploy-dev\.sh$)' <<<"${CHANGED_FILES}"; then
   log "프론트엔드 빌드 시작"
