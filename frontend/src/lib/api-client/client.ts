@@ -1,10 +1,17 @@
-import type {
-  CreateFaceSwapJobPayload,
-  CreateFaceSwapJobResponse,
-  ErrorEnvelope,
-  FaceSwapJobResponse,
-  MockScenario,
-  RetryFaceSwapJobResponse,
+import {
+  BLOG_SECTION_ORDER,
+  type BlogJobResponse,
+  type BlogJobWireResponse,
+  type BlogMockScenario,
+  type CreateBlogJobPayload,
+  type CreateBlogJobResponse,
+  type CreateFaceSwapJobPayload,
+  type CreateFaceSwapJobResponse,
+  type ErrorEnvelope,
+  type FaceSwapJobResponse,
+  type MockScenario,
+  type RetryBlogJobResponse,
+  type RetryFaceSwapJobResponse,
 } from "@/lib/api-client/types";
 
 async function parseResponse<T>(response: Response): Promise<T> {
@@ -50,5 +57,42 @@ export async function retryFaceSwapJob(jobId: string): Promise<RetryFaceSwapJobR
 
 export async function deleteFaceSwapJob(jobId: string): Promise<void> {
   const response = await fetch(`/api/v1/face-swap-jobs/${encodeURIComponent(jobId)}`, { method: "DELETE" });
+  if (!response.ok) await parseResponse<never>(response);
+}
+
+export async function createBlogJob(
+  payload: CreateBlogJobPayload,
+  scenario: BlogMockScenario = "normal",
+): Promise<CreateBlogJobResponse> {
+  return parseResponse<CreateBlogJobResponse>(
+    await fetch("/api/v1/blog-jobs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Mock-Scenario": scenario },
+      body: JSON.stringify(payload),
+    }),
+  );
+}
+
+export async function getBlogJob(jobId: string): Promise<BlogJobResponse> {
+  const response = await parseResponse<BlogJobWireResponse>(
+    await fetch(`/api/v1/blog-jobs/${encodeURIComponent(jobId)}`, { cache: "no-store" }),
+  );
+  const result = response.result;
+  return {
+    ...response,
+    result: result
+      ? { ...result, sections: BLOG_SECTION_ORDER.map((key) => result.sections[key]) }
+      : null,
+  };
+}
+
+export async function retryBlogJob(jobId: string): Promise<RetryBlogJobResponse> {
+  return parseResponse<RetryBlogJobResponse>(
+    await fetch(`/api/v1/blog-jobs/${encodeURIComponent(jobId)}/retry`, { method: "POST" }),
+  );
+}
+
+export async function deleteBlogJob(jobId: string): Promise<void> {
+  const response = await fetch(`/api/v1/blog-jobs/${encodeURIComponent(jobId)}`, { method: "DELETE" });
   if (!response.ok) await parseResponse<never>(response);
 }
