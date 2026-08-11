@@ -141,6 +141,69 @@ export type RetryFaceSwapJobResponse = {
   request_id: string;
 };
 
+/**
+ * 어떤 얼굴로 바꿀지 지정하는 값 (수민님 8/11 제안, 조합 3·5 하이브리드).
+ *
+ * - reference — 조합 3(InstantID). 미리 만들어둔 가상 얼굴 중에서 고른다
+ * - prompt    — 조합 5(인페인팅). 국적·성별·연령대로 얼굴을 묘사한다
+ *
+ * 두 방식을 한 객체에 평평하게 펼치지 않고 감싼 이유는, 쓰지 않는 쪽을 지울지
+ * 남길지 매번 판단하지 않기 위해서다. `background_mode`/`background_style` 처럼
+ * 짝을 맞춰야 하는 필드가 늘면 검증 조건이 곱으로 늘어난다.
+ */
+export const FACE_MODES = ["reference", "prompt"] as const;
+export type FaceMode = (typeof FACE_MODES)[number];
+
+/**
+ * 값은 한글 그대로 보낸다. 영문 프롬프트 변환은 백엔드 몫이다(8/11 수민님께 전달).
+ * 프론트가 영문 어휘까지 정하면 모델 프롬프트를 손볼 때마다 화면을 같이 고쳐야 한다.
+ */
+export type FacePromptOptions = {
+  ethnicity: string; // 필수
+  gender: string; // 필수
+  age: string; // 필수
+  face_style: string; // 선택 — 미선택 시 빈 문자열
+  skin_type: string; // 선택
+  makeup: string; // 선택
+};
+
+export type FaceReferenceOptions = {
+  reference_face_id: string;
+};
+
+/** 쓰는 쪽만 채우고 반대쪽은 null. 서버 검증도 이 규칙 하나만 본다. */
+export type FaceOption =
+  | { mode: "reference"; reference: FaceReferenceOptions; prompt: null }
+  | { mode: "prompt"; reference: null; prompt: FacePromptOptions };
+
+export const FACE_PROMPT_REQUIRED_KEYS = [
+  "ethnicity",
+  "gender",
+  "age",
+] as const satisfies readonly (keyof FacePromptOptions)[];
+
+export const FACE_PROMPT_OPTIONAL_KEYS = [
+  "face_style",
+  "skin_type",
+  "makeup",
+] as const satisfies readonly (keyof FacePromptOptions)[];
+
+/** 참조 얼굴 목록 항목. `age_group`·`ethnicity` 는 prompt 모드와 같은 보기값을 쓴다. */
+export type ReferenceFace = {
+  id: string;
+  label: string;
+  gender: string;
+  ethnicity: string;
+  age_group: string;
+  thumbnail_url: string;
+};
+
+/** 배열을 그대로 두지 않고 감싼다. 나중에 총 개수나 페이지 정보를 붙일 자리가 생긴다. */
+export type ReferenceFacesResponse = {
+  items: ReferenceFace[];
+  request_id: string;
+};
+
 export type CreateFaceSwapJobPayload = {
   consent: {
     agreed: boolean;
@@ -151,5 +214,6 @@ export type CreateFaceSwapJobPayload = {
     seed: number | null;
     background_mode: "preserve" | "replace";
     background_style: string | null;
+    face: FaceOption;
   };
 };

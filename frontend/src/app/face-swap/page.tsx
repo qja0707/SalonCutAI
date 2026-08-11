@@ -9,6 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DevNote } from "@/components/dev-note";
+import {
+  EMPTY_FACE_VALUES,
+  FaceOptionForm,
+  buildFaceOption,
+  isFaceReady,
+  type FaceOptionValues,
+} from "@/components/face-option-form";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -44,6 +51,7 @@ function progressMessage(job: FaceSwapJobResponse | null, elapsedSeconds: number
 
 export default function FaceSwapPage() {
   const [photo, setPhoto] = useState<File | null>(null);
+  const [face, setFace] = useState<FaceOptionValues>(EMPTY_FACE_VALUES);
   const [cleanBg, setCleanBg] = useState(false);
   const [bgStyle, setBgStyle] = useState(BG_STYLES[0]);
   const [scenario, setScenario] = useState<MockScenario>("normal");
@@ -113,6 +121,7 @@ export default function FaceSwapPage() {
         seed: null,
         background_mode: cleanBg ? "replace" : "preserve",
         background_style: cleanBg ? bgStyle : null,
+        face: buildFaceOption(face),
       },
     };
   }
@@ -124,6 +133,14 @@ export default function FaceSwapPage() {
     }
     if (!consentAgreed) {
       toast.warning("고객의 사진 활용 동의를 받은 뒤 확인해주세요.");
+      return;
+    }
+    if (!isFaceReady(face)) {
+      toast.warning(
+        face.mode === "reference"
+          ? "바꿀 가상 얼굴을 골라주세요."
+          : "국적 · 성별 · 연령대를 골라주세요.",
+      );
       return;
     }
     setRequesting(true);
@@ -226,7 +243,21 @@ export default function FaceSwapPage() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-base">3. 홍보 이미지 옵션</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">3. 바꿀 얼굴</CardTitle></CardHeader>
+            <CardContent>
+              <FaceOptionForm values={face} onChange={setFace} disabled={requesting || active} />
+              {!isFaceReady(face) && (
+                <p id="face-required" role="status" className="mt-4 text-sm text-amber-700 dark:text-amber-400">
+                  {face.mode === "reference"
+                    ? "바꿀 가상 얼굴을 골라야 이미지를 만들 수 있습니다."
+                    : "국적 · 성별 · 연령대를 골라야 이미지를 만들 수 있습니다."}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="text-base">4. 홍보 이미지 옵션</CardTitle></CardHeader>
             <CardContent className="space-y-5">
               <div>
                 <Label className="mb-2 block">출력 비율</Label>
@@ -274,8 +305,10 @@ export default function FaceSwapPage() {
             className="w-full"
             size="lg"
             onClick={handleGenerate}
-            disabled={requesting || active || !consentAgreed}
-            aria-describedby={!consentAgreed ? "consent-required" : undefined}
+            disabled={requesting || active || !consentAgreed || !isFaceReady(face)}
+            aria-describedby={
+              !consentAgreed ? "consent-required" : !isFaceReady(face) ? "face-required" : undefined
+            }
           >
             {requesting || active ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             {active ? progressMessage(job, elapsedSeconds) : "얼굴 교체 이미지 만들기"}
@@ -359,7 +392,7 @@ export default function FaceSwapPage() {
         engines={["Next.js Route Handler mock", "MediaPipe + SDXL 인페인팅(후속 VM 프록시 연결)"]}
         preserve="헤어 · 의상 · 배경 · 포즈"
         change="얼굴(신원)만"
-        steps={["사진과 옵션을 multipart로 /api/v1/face-swap-jobs에 전송", "2초마다 얼굴 교체 job 상태 확인", "완료된 3규격 이미지 표시", "재시도 가능한 job 전체 재시도", "완료 뒤 작업 삭제 가능(진행 중에는 409)"]}
+        steps={["참조 얼굴 목록을 /api/v1/reference-faces에서 조회", "사진과 옵션(얼굴 포함)을 multipart로 /api/v1/face-swap-jobs에 전송", "2초마다 얼굴 교체 job 상태 확인", "완료된 3규격 이미지 표시", "재시도 가능한 job 전체 재시도", "완료 뒤 작업 삭제 가능(진행 중에는 409)"]}
         codeHint={`// 얼굴 교체·블로그·영상은 각각 독립 job
 // 서버 기본값 mock, 인증·HTTPS 준비 후 proxy 구현
 // 진행 시간은 안내 문구에만 사용하고 실패는 서버 상태로 판정`}
