@@ -4,10 +4,10 @@ set -Eeuo pipefail
 readonly TARGET_SHA="${1:-}"
 readonly APP_DIR="/opt/salon-web/repo"
 readonly FRONTEND_DIR="${APP_DIR}/frontend"
-readonly BACKEND_DIR="${APP_DIR}/backend"  # 추가
+readonly BACKEND_DIR="${APP_DIR}/backend"
 readonly NODE_BIN="/opt/node/bin"
 readonly FRONTEND_SERVICE="salon-web"
-readonly BACKEND_SERVICE="salon-api"      # 추가 (systemd 서비스명)
+readonly BACKEND_SERVICE="salon-api"
 
 log() {
   printf '[SalonCutAI 배포] %s\n' "$*"
@@ -40,7 +40,6 @@ if [[ "${TARGET_SHA}" != "${REMOTE_SHA}" ]]; then
   exit 0
 fi
 
-run_as_app_user git -C "${APP_DIR}" cat-file -e "${TARGET_SHA}^{commit}"
 readonly BEFORE_SHA="$(run_as_app_user git -C "${APP_DIR}" rev-parse HEAD)"
 
 if [[ "${BEFORE_SHA}" == "${TARGET_SHA}" ]]; then
@@ -49,59 +48,22 @@ if [[ "${BEFORE_SHA}" == "${TARGET_SHA}" ]]; then
 fi
 
 readonly CHANGED_FILES="$(run_as_app_user git -C "${APP_DIR}" diff --name-only "${BEFORE_SHA}" "${TARGET_SHA}")"
-FRONTEND_ROLLBACK_READY=0
-FRONTEND_RESTART_ATTEMPTED=0
-BACKEND_RESTART_ATTEMPTED=0
 
-rollback_deployment() {
-  local reason="${1:-알 수 없는 오류}"
-  trap - ERR
-  set +e
-
-  log "배포 롤백 시작: ${reason}"
-
-  if [[ "${FRONTEND_ROLLBACK_READY}" -eq 1 && -d "${FRONTEND_DIR}/.next.rollback" ]]; then
-    run_as_app_user rm -rf -- "${FRONTEND_DIR}/.next"
-    run_as_app_user mv "${FRONTEND_DIR}/.next.rollback" "${FRONTEND_DIR}/.next"
-  fi
-
-  run_as_app_user git -C "${APP_DIR}" reset --hard "${BEFORE_SHA}"
-
-  
-  if [[ "${BACKEND_RESTART_ATTEMPTED}" -eq 1 ]]; then
-    log "백엔드 서비스 복원 시도"
-    sudo -n /usr/bin/systemctl restart "${BACKEND_SERVICE}"
-  fi
-
-  if [[ "${FRONTEND_RESTART_ATTEMPTED}" -eq 1 ]]; then
-    sudo -n /usr/bin/systemctl restart "${FRONTEND_SERVICE}"
-    if curl --fail --silent --show-error --max-time 5 http://127.0.0.1:3000/ >/dev/null; then
-      log "직전 프론트엔드 서비스 복원 확인"
-    else
-      log "경고: 직전 서비스 복원 후 상태 확인 실패. journalctl 확인이 필요합니다."
-    fi
-  fi
-
-  log "롤백 완료: 소스=${BEFORE_SHA}"
-  exit 1
-}
-
-trap 'rollback_deployment "예기치 않은 오류(행 ${LINENO})"' ERR
-
-log "저장소를 대상 dev 커밋으로 동기화"
+log "저장소를 대상 dev 커밋으로 동기화 (git reset)"
 run_as_app_user git -C "${APP_DIR}" reset --hard "${TARGET_SHA}"
 
-# --- 백엔드 배포 프로세스 ---
+
+# ==========================================
+# 1. 백엔드 배포 프로세스
+# ==========================================
 if grep -Eq '^(backend/|pyproject\.toml$)' <<<"${CHANGED_FILES}"; then
   log "백엔드 의존성 동기화 및 문법 검사 시작"
   
-  # 💡 [추가] 깃허브 액션이 전송한 임시 env 파일을 백엔드 폴더 내부 .env로 안전하게 복사/이동
   if [[ -f "/tmp/backend.env.tmp" ]]; then
     run_as_app_user mv /tmp/backend.env.tmp "${BACKEND_DIR}/.env"
     run_as_app_user chmod 600 "${BACKEND_DIR}/.env"
   fi
 
-  # uv sync를 통해 패키지 자동 정렬 및 가상환경 업데이트
   if [[ -f "${BACKEND_DIR}/pyproject.toml" ]]; then
     run_as_app_user uv sync --project "${BACKEND_DIR}"
   fi
@@ -109,13 +71,11 @@ if grep -Eq '^(backend/|pyproject\.toml$)' <<<"${CHANGED_FILES}"; then
   run_as_app_user python3 -m compileall -q "${BACKEND_DIR}/src"
   
   log "백엔드 서비스 재시작"
-  BACKEND_RESTART_ATTEMPTED=1
   sudo -n /usr/bin/systemctl restart "${BACKEND_SERVICE}"
 
   BACKEND_HEALTH_OK=0
   for attempt in {1..10}; do
-    # 💡 끊겨 있던 주소를 올바른 8000번 포트 경로로 수정 완료했습니다.
-    if curl --fail --silent --show-error --max-time 3 http://127.0.0.1:8000/docs >/dev/null; then
+    if curl --fail --silent --show-error --max-time 3 http://127.0.0.1:8000/health >/dev/null; then
       log "백엔드 재시작 및 로컬 상태 확인 완료"
       BACKEND_HEALTH_OK=1
       break
@@ -124,13 +84,16 @@ if grep -Eq '^(backend/|pyproject\.toml$)' <<<"${CHANGED_FILES}"; then
   done
 
   if [[ "${BACKEND_HEALTH_OK}" -ne 1 ]]; then
-    rollback_deployment "백엔드 재시작 후 상태 확인 실패 (8000 포트 응답 없음)"
+    fail "백엔드 재시작 후 상태 확인 실패 (8000 포트 응답 없음)"
   fi
 else
   log "백엔드 변경 없음"
 fi
-# --------------------------------
 
+
+# ==========================================
+# 2. 프론트엔드 배포 프로세스
+# ==========================================
 if grep -Eq '^(frontend/|\.github/scripts/deploy-dev\.sh$)' <<<"${CHANGED_FILES}"; then
   log "프론트엔드 빌드 시작"
 
@@ -139,23 +102,15 @@ if grep -Eq '^(frontend/|\.github/scripts/deploy-dev\.sh$)' <<<"${CHANGED_FILES}
     run_as_app_user npm --prefix "${FRONTEND_DIR}" ci --no-audit --no-fund
   fi
 
-  if [[ -d "${FRONTEND_DIR}/.next.rollback" ]]; then
-    run_as_app_user rm -rf -- "${FRONTEND_DIR}/.next.rollback"
-  fi
-  if [[ -d "${FRONTEND_DIR}/.next" ]]; then
-    run_as_app_user mv "${FRONTEND_DIR}/.next" "${FRONTEND_DIR}/.next.rollback"
-    FRONTEND_ROLLBACK_READY=1
-  fi
-
-  # NEXT_PUBLIC_* 값은 빌드 시점에 고정된다. 사람이 관리하는 .env* 파일은 수정하지 않는다.
+  # 단순하게 기존 .next 폴더 위에서 그대로 빌드 진행
   run_as_app_user env NEXT_PUBLIC_PUBLIC_PREVIEW=1 npm --prefix "${FRONTEND_DIR}" run build
 
-  FRONTEND_RESTART_ATTEMPTED=1
+  log "프론트엔드 서비스 재시작"
   sudo -n /usr/bin/systemctl restart "${FRONTEND_SERVICE}"
 
   HEALTH_OK=0
   for attempt in {1..15}; do
-    if curl --fail --silent --show-error --max-time 3 http://127.0.0.1:3000/ >/dev/null; then
+    if curl --fail --silent --show-error --max-time 3 http://127.0.0 >/dev/null; then
       log "프론트엔드 재시작 및 로컬 상태 확인 완료"
       HEALTH_OK=1
       break
@@ -164,15 +119,10 @@ if grep -Eq '^(frontend/|\.github/scripts/deploy-dev\.sh$)' <<<"${CHANGED_FILES}
   done
 
   if [[ "${HEALTH_OK}" -ne 1 ]]; then
-    rollback_deployment "프론트엔드 재시작 후 상태 확인 실패"
+    fail "프론트엔드 재시작 후 상태 확인 실패 (3000 포트 응답 없음)"
   fi
-
-  run_as_app_user rm -rf -- "${FRONTEND_DIR}/.next.rollback"
-  FRONTEND_ROLLBACK_READY=0
 else
   log "프론트엔드 변경 없음"
 fi
-
-trap - ERR
 
 log "배포 완료: ${TARGET_SHA}"
