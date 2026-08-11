@@ -93,10 +93,38 @@ jobs:
       - name: gcloud 설정
         uses: google-github-actions/setup-gcloud@v3
 
-      - name: 배포 스크립트 전송
+      - name: 백엔드 환경 변수 임시 파일 생성
+        id: backend-env
+        shell: bash
+        env:
+          ENV_BACKEND: ${{ secrets.ENV_BACKEND }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+
+          runner_env="$(mktemp "${RUNNER_TEMP}/backend.env.XXXXXX")"
+          printf '%s\n' "${ENV_BACKEND}" > "${runner_env}"
+
+          if ! grep -q '[^[:space:]]' "${runner_env}"; then
+            rm -f -- "${runner_env}"
+            echo "ENV_BACKEND secret이 비어 있습니다." >&2
+            exit 1
+          fi
+
+          echo "path=${runner_env}" >> "${GITHUB_OUTPUT}"
+          echo "remote_path=/tmp/backend.env.${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}" >> "${GITHUB_OUTPUT}"
+
+      - name: 배포 스크립트 및 환경 변수 전송
         run: |
           gcloud compute scp .github/scripts/deploy-dev.sh \
             "${GCP_INSTANCE}:/tmp/saloncutai-deploy-dev.sh" \
+            --project="${GCP_PROJECT_ID}" \
+            --zone="${GCP_ZONE}" \
+            --quiet \
+            --ssh-key-expire-after=10m
+
+          gcloud compute scp "${{ steps.backend-env.outputs.path }}" \
+            "${GCP_INSTANCE}:${{ steps.backend-env.outputs.remote_path }}" \
             --project="${GCP_PROJECT_ID}" \
             --zone="${GCP_ZONE}" \
             --quiet \
@@ -109,5 +137,19 @@ jobs:
             --zone="${GCP_ZONE}" \
             --quiet \
             --ssh-key-expire-after=10m \
-            --command="chmod 700 /tmp/saloncutai-deploy-dev.sh && /tmp/saloncutai-deploy-dev.sh '${GITHUB_SHA}'"
+            --command="chmod 700 /tmp/saloncutai-deploy-dev.sh && /tmp/saloncutai-deploy-dev.sh '${GITHUB_SHA}' '${{ steps.backend-env.outputs.remote_path }}'"
 
+      - name: VM 임시 파일 정리
+        if: ${{ always() && steps.backend-env.outputs.remote_path != '' }}
+        continue-on-error: true
+        run: |
+          gcloud compute ssh "${GCP_INSTANCE}" \
+            --project="${GCP_PROJECT_ID}" \
+            --zone="${GCP_ZONE}" \
+            --quiet \
+            --ssh-key-expire-after=10m \
+            --command="rm -f -- '${{ steps.backend-env.outputs.remote_path }}' /tmp/saloncutai-deploy-dev.sh"
+
+      - name: runner 임시 파일 정리
+        if: ${{ always() && steps.backend-env.outputs.path != '' }}
+        run: rm -f -- "${{ steps.backend-env.outputs.path }}"
