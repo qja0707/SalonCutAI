@@ -36,6 +36,7 @@ import {
   writeBlogProfile,
   type BlogProfile,
 } from "@/lib/blog-profile";
+import type { CreateBlogJobPayload } from "@/lib/api-client/types";
 
 /** 폼이 직접 들고 있는 10개. 나머지 2개는 매장 프로필에서 온다. */
 export type BlogFieldValues = {
@@ -51,11 +52,8 @@ export type BlogFieldValues = {
   special_product: string;
 };
 
-/** 백엔드 BlogGenerationRequest 와 같은 12필드. */
-export type BlogPayload = BlogFieldValues & {
-  designer_name: string;
-  region_keyword: string;
-};
+// 12필드 계약은 api-client/types.ts 가 정본이다. 여기서 다시 정의하면 두 벌이 된다.
+export type { CreateBlogJobPayload } from "@/lib/api-client/types";
 
 export const EMPTY_BLOG_FIELDS: BlogFieldValues = {
   hair_length: "",
@@ -71,7 +69,7 @@ export const EMPTY_BLOG_FIELDS: BlogFieldValues = {
 };
 
 /** 전송 직전에 폼 값과 매장 프로필을 합쳐 12필드를 만든다. 선택 미입력은 빈 문자열 그대로 간다. */
-export function buildBlogPayload(values: BlogFieldValues, profile: BlogProfile): BlogPayload {
+export function buildBlogPayload(values: BlogFieldValues, profile: BlogProfile): CreateBlogJobPayload {
   return {
     ...values,
     designer_name: profile.designerName,

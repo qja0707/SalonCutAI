@@ -46,11 +46,21 @@ const payload = {
   },
 };
 
+// 백엔드 BlogGenerationRequest 와 같은 12필드.
+// special_product 를 빈 문자열로 두어, 선택 필드 미입력이 접수되는 것도 함께 검사한다.
 const blogPayload = {
-  topic: "장마철 슬릭펌 관리법",
-  theme: "장마철 곱슬 케어",
-  tone: "친근하게",
-  domainContext: "20대 여성 고객이 많은 성수동 살롱",
+  hair_length: "단발",
+  hair_texture: "직모",
+  hair_thickness: "가는 편",
+  damage_level: "약간 손상",
+  customer_pain_point: "모발이 얇고 힘이 없어 아침마다 정수리가 눌렸습니다",
+  base_cut: "레이어드 컷",
+  main_treatment: "C컬 펌",
+  design_point: "얼굴형을 보완하는 C컬 볼륨",
+  designer_name: "김서연",
+  duration_minutes: "120",
+  special_product: "",
+  region_keyword: "성수동 미용실",
 };
 
 async function postFaceSwapJob(scenario, requestPayload = payload) {
@@ -109,7 +119,7 @@ async function verify() {
   let response = await fetch(`${base}/api/v1/blog-jobs`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...blogPayload, topic: "" }),
+    body: JSON.stringify({ ...blogPayload, main_treatment: "" }),
   });
   assert(response.status === 422, `블로그 입력 검증 응답: ${response.status}`);
   const invalidBlog = await response.json();
@@ -211,7 +221,13 @@ async function verify() {
   const blogCopy = readFileSync(resolve("src/lib/api-client/blog-content.ts"), "utf8");
   const apiClient = readFileSync(resolve("src/lib/api-client/client.ts"), "utf8");
   const legacyRoute = readFileSync(resolve("src/app/api/generate-blog/route.ts"), "utf8");
-  assert(["topic", "theme", "label"].every((key) => blogUi.includes(`searchParams.get("${key}")`)), "블로그 query 진입값 유지");
+  const blogFields = readFileSync(resolve("src/app/generate/blog/blog-fields.tsx"), "utf8");
+  assert(blogUi.includes('searchParams.get("label")'), "블로그 연결 컨텍스트 배지 유지");
+  assert(blogUi.includes("buildBlogPayload(fields, profile)"), "12필드 payload 로 전송");
+  assert(blogUi.includes("isBlogFieldsReady(fields)"), "필수 4개 미입력 시 제출 차단");
+  assert(!blogUi.includes("BLOG_TONES"), "톤 앤 매너 입력 제거 (12필드에 없음)");
+  assert(blogFields.includes("formatDuration"), "소요 시간 표시값과 전송값 분리");
+  assert(blogFields.includes("buildRegionKeyword"), "region_keyword 지역+업종 조합");
   assert(!blogUi.includes('provider: "openai"'), "클라이언트 provider 고정값 제거");
   assert(["result.title", "result.intro", "result.sections", "result.closing", "result.hashtags"].every((value) => blogCopy.includes(value)), "복사 문자열 결과 구조 일치");
   assert(blogCopy.includes("<p><br></p>"), "네이버 블록 사이 빈 문단 유지");
