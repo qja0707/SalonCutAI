@@ -99,8 +99,15 @@ jobs:
 
       - name: 배포 스크립트 및 환경 변수 전송
         run: |
-          gcloud compute scp .github/scripts/deploy-dev.sh /tmp/backend.env.tmp \
-            "${GCP_INSTANCE}:/tmp/" \
+          gcloud compute scp .github/scripts/deploy-dev.sh \
+            "${GCP_INSTANCE}:/tmp/saloncutai-deploy-dev.sh" \
+            --project="${GCP_PROJECT_ID}" \
+            --zone="${GCP_ZONE}" \
+            --quiet \
+            --ssh-key-expire-after=10m
+
+          gcloud compute scp /tmp/backend.env.tmp \
+            "${GCP_INSTANCE}:/tmp/backend.env.tmp" \
             --project="${GCP_PROJECT_ID}" \
             --zone="${GCP_ZONE}" \
             --quiet \
