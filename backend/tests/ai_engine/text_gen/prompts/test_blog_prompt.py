@@ -34,7 +34,8 @@ def test_blog_prompt_generation():
 
     # Check that the user prompt is formatted with data from the request
     assert "기장: 긴 머리" in user_prompt
-    assert "모질/굵기: 직모 / 두꺼움" in user_prompt
+    assert "모질: 직모" in user_prompt
+    assert "굵기: 두꺼움" in user_prompt
     assert "시술 전 불편함: 축 처지는 모발" in user_prompt
     assert "메인 시술: C컬 펌" in user_prompt
     assert "디자이너: 규범" in user_prompt
