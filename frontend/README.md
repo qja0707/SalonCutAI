@@ -3,7 +3,7 @@
 미용실 AI 마케팅 서비스의 클라이언트 웹 앱입니다. Next.js 16 (App Router) + shadcn/ui + Tailwind v4.
 
 **배포본**: http://34.56.138.255:3000/ (dev VM)
-`dev` 브랜치에 push되면 `.github/workflows/deploy-dev.yml`이 자동 배포합니다. 배포 이력은 Actions 탭에서 확인합니다.
+`dev` push 시 `.github/workflows/deploy-dev.yml`의 frontend·backend 검사는 자동 실행되고, **GCP VM 반영은 WIF·IAM 설정 후에만 동작하며 현재는 수동 배포**입니다. 실행 이력은 Actions 탭에서 확인합니다.
 
 ## 실행 방법
 
@@ -53,7 +53,7 @@ cd backend && cp .env.example .env
 |---|---|---|
 | `/face-swap` | ① 얼굴 교체 | job 기반 mock 완성 (접수→폴링→재시도→3규격→삭제). 동의 확인 화면 포함. 실제 모델 연동은 backend 대기 |
 | `/generate/blog` | ② 블로그 글 생성 | 프론트 자체 `/api/generate-blog`(OpenAI 직접 호출)로 동작 중. job 기반 전환은 PR #37 진행 중 |
-| `/generate/shorts` | ③ AI 숏츠 | 화면 구조만. 생성 방식 협의 중 |
+| `/generate/shorts` | ③ AI 숏츠 | MVP 설계 확정. 역할 기반 편집 엔진 구현 착수, 화면·API 연결 전 |
 
 **확장 (MVP 제외 — 코드는 보존)**
 
