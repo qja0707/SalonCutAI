@@ -10,8 +10,6 @@ on:
       - "pyproject.toml"
       - ".github/workflows/deploy-dev.yml"
       - ".github/scripts/deploy-dev.sh"
-      - ".github/scripts/pull-deploy-dev.sh"
-      - ".github/systemd/**"
   workflow_dispatch:
 
 permissions:

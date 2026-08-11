@@ -26,9 +26,7 @@ cleanup() {
 }
 
 [[ "${TARGET_SHA}" =~ ^[0-9a-f]{40}$ ]] || fail "올바른 Git 커밋 SHA가 필요합니다."
-if [[ -n "${BACKEND_ENV_TMP}" ]]; then
-  [[ "${BACKEND_ENV_TMP}" =~ ^/tmp/backend\.env\.[0-9]+\.[0-9]+$ ]] || fail "올바른 백엔드 환경 변수 임시 경로가 필요합니다."
-fi
+[[ "${BACKEND_ENV_TMP}" =~ ^/tmp/backend\.env\.[0-9]+\.[0-9]+$ ]] || fail "올바른 백엔드 환경 변수 임시 경로가 필요합니다."
 trap cleanup EXIT
 [[ -d "${APP_DIR}/.git" ]] || fail "VM 저장소를 찾을 수 없습니다: ${APP_DIR}"
 [[ "$(readlink -f "${APP_DIR}")" == "/opt/salon-web/repo" ]] || fail "예상하지 못한 저장소 경로입니다."
@@ -60,13 +58,9 @@ run_as_app_user git -C "${APP_DIR}" checkout -f "${TARGET_SHA}"
 # ==========================================
 log "백엔드 의존성 동기화 및 문법 검사 시작"
 
-if [[ -n "${BACKEND_ENV_TMP}" ]]; then
-  [[ -s "${BACKEND_ENV_TMP}" ]] || fail "백엔드 환경 변수 임시 파일이 없거나 비어 있습니다."
-  chmod 600 "${BACKEND_ENV_TMP}"
-  run_as_app_user mv "${BACKEND_ENV_TMP}" "${BACKEND_DIR}/.env"
-else
-  [[ -s "${BACKEND_DIR}/.env" ]] || fail "기존 백엔드 환경 변수 파일이 없거나 비어 있습니다."
-fi
+[[ -s "${BACKEND_ENV_TMP}" ]] || fail "백엔드 환경 변수 임시 파일이 없거나 비어 있습니다."
+chmod 600 "${BACKEND_ENV_TMP}"
+run_as_app_user mv "${BACKEND_ENV_TMP}" "${BACKEND_DIR}/.env"
 run_as_app_user chmod 600 "${BACKEND_DIR}/.env"
 
 if [[ -f "${BACKEND_DIR}/pyproject.toml" ]]; then
