@@ -5,23 +5,23 @@ import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Copy, Loader2, NotebookPen, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DevNote } from "@/components/dev-note";
 import { copyBlogResult } from "@/lib/api-client/blog-content";
 import { createBlogJob, deleteBlogJob, getBlogJob, retryBlogJob } from "@/lib/api-client/client";
-import {
-  BLOG_TONES,
-  type BlogJobResponse,
-  type BlogMockScenario,
-  type BlogTone,
-} from "@/lib/api-client/types";
+import type { BlogJobResponse, BlogMockScenario } from "@/lib/api-client/types";
 import { IS_PUBLIC_PREVIEW } from "@/lib/public-preview";
+import {
+  BlogFields,
+  EMPTY_BLOG_FIELDS,
+  buildBlogPayload,
+  isBlogFieldsReady,
+  useBlogProfile,
+  type BlogFieldValues,
+} from "./blog-fields";
 
 const TERMINAL = new Set(["completed", "failed"]);
 const EXPECTED_SECONDS = 16;
@@ -35,11 +35,9 @@ function progressMessage(elapsedSeconds: number): string {
 export function BlogGenerator() {
   const searchParams = useSearchParams();
   const label = searchParams.get("label");
-  const [topic, setTopic] = useState(searchParams.get("topic") ?? "");
-  const [theme, setTheme] = useState(searchParams.get("theme") ?? "");
-  const [tone, setTone] = useState<BlogTone>(BLOG_TONES[0]);
-  const [domainContext, setDomainContext] = useState("");
+  const [fields, setFields] = useState<BlogFieldValues>(EMPTY_BLOG_FIELDS);
   const [scenario, setScenario] = useState<BlogMockScenario>("normal");
+  const profile = useBlogProfile();
 
   const [requesting, setRequesting] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -80,8 +78,8 @@ export function BlogGenerator() {
   }, [jobId, jobStatus]);
 
   async function handleGenerate() {
-    if (!topic.trim()) {
-      toast.warning("블로그 글감(주제)을 입력해주세요.");
+    if (!isBlogFieldsReady(fields)) {
+      toast.warning("메인 시술 · 베이스 컷 · 디자인 포인트 · 고객이 겪던 불편을 채워주세요.");
       return;
     }
     setRequesting(true);
@@ -91,7 +89,7 @@ export function BlogGenerator() {
     setStartedAt(Date.now());
     setElapsedSeconds(0);
     try {
-      const created = await createBlogJob({ topic, theme, tone, domainContext }, scenario);
+      const created = await createBlogJob(buildBlogPayload(fields, profile), scenario);
       setJobId(created.job_id);
     } catch (error) {
       setRequestError(error instanceof Error ? error.message : "작업을 시작하지 못했습니다.");
@@ -140,48 +138,16 @@ export function BlogGenerator() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight">📝 AI 블로그 글 생성</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">📝 AI 블로그 글쓰기</h1>
       <p className="mt-2 max-w-xl text-muted-foreground">
-        글감 한 줄로 네이버 블로그·홈페이지에 올릴 정보성 글을 만드는 범용 도구예요. 마케팅 캘린더 등에서
-        만든 글감을 그대로 가져와 이어서 생성할 수도 있어요.
+        이번 시술 정보를 입력하면 네이버 블로그에 바로 붙여넣을 수 있는 시술 후기를 만듭니다. 매장 정보는
+        저장돼 다음부터는 채워진 상태로 시작합니다.
       </p>
       {label && <Badge variant="secondary" className="mt-3">연결된 컨텍스트 · {label}</Badge>}
 
       <div className="mt-8 grid gap-8 lg:grid-cols-2">
         <div className="space-y-6">
-          <Card>
-            <CardHeader><CardTitle className="text-base">글감</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label className="mb-2 block">글감(주제)</Label>
-                <Textarea
-                  rows={3}
-                  placeholder="예: 장마철 습도에도 부스스해지지 않는 슬릭펌 효과와 아침 드라이 시간을 줄이는 법"
-                  value={topic}
-                  onChange={(event) => setTopic(event.target.value)}
-                />
-              </div>
-              <div>
-                <Label className="mb-2 block">관련 테마 (선택)</Label>
-                <Input placeholder="예: 장마철 곱슬 케어" value={theme} onChange={(event) => setTheme(event.target.value)} />
-              </div>
-              <div>
-                <Label className="mb-2 block">톤 앤 매너</Label>
-                <Select value={tone} onValueChange={(value) => value && setTone(value as BlogTone)}>
-                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                  <SelectContent>{BLOG_TONES.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="mb-2 block">우리 샵 소개 (선택)</Label>
-                <Textarea
-                  placeholder="예: 20대 여성 타겟, 미니멀 감성, 성수동 감성 살롱"
-                  value={domainContext}
-                  onChange={(event) => setDomainContext(event.target.value)}
-                />
-              </div>
-            </CardContent>
-          </Card>
+          <BlogFields values={fields} onChange={setFields} disabled={requesting || active} />
 
           {!IS_PUBLIC_PREVIEW && (
             <Card>
@@ -199,10 +165,20 @@ export function BlogGenerator() {
             </Card>
           )}
 
-          <Button className="w-full" size="lg" onClick={handleGenerate} disabled={requesting || active}>
+          <Button
+            className="w-full"
+            size="lg"
+            onClick={handleGenerate}
+            disabled={requesting || active || !isBlogFieldsReady(fields)}
+          >
             {requesting || active ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             {active ? progressMessage(elapsedSeconds) : "블로그 글 만들기"}
           </Button>
+          {!isBlogFieldsReady(fields) && (
+            <p className="text-sm text-muted-foreground">
+              메인 시술 · 베이스 컷 · 디자인 포인트 · 고객이 겪던 불편을 채우면 만들 수 있어요.
+            </p>
+          )}
         </div>
 
         <div className="space-y-4">
@@ -243,7 +219,7 @@ export function BlogGenerator() {
           ) : (
             <div className="flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-6 text-center">
               <NotebookPen className="h-6 w-6 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">왼쪽에서 글감을 입력하고 생성하면 블로그 글이 여기 채워집니다.</p>
+              <p className="text-sm text-muted-foreground">왼쪽에서 시술 정보를 입력하고 생성하면 시술 후기가 여기 채워집니다.</p>
             </div>
           )}
           {job && TERMINAL.has(job.status) && (

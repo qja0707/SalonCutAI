@@ -1,9 +1,7 @@
 export const RATIOS = ["1:1", "4:5", "9:16"] as const;
-export const BLOG_TONES = ["친근하게", "차분하게", "발랄하게", "전문적으로"] as const;
 export const BLOG_SECTION_ORDER = ["before", "process", "after", "home_care"] as const;
 
 export type Ratio = (typeof RATIOS)[number];
-export type BlogTone = (typeof BLOG_TONES)[number];
 export type BlogSectionKey = (typeof BLOG_SECTION_ORDER)[number];
 export type JobStatus = "queued" | "processing" | "completed" | "failed";
 export type MockScenario = "normal" | "image-fail" | "face-not-detected" | "slow";
@@ -38,12 +36,48 @@ export type BlogWireResult = {
   hashtags: string[];
 };
 
+/**
+ * 백엔드 BlogGenerationRequest 와 같은 12필드 (Discussion #53).
+ * 선택 필드를 고르지 않으면 빈 문자열을 보낸다 — null 이나 키 생략이 아니다(규범님 8/11).
+ * 톤 앤 매너는 12필드에 없고 프롬프트가 문체를 고정하므로 전송하지 않는다(8/11 회의).
+ */
 export type CreateBlogJobPayload = {
-  topic: string;
-  theme?: string;
-  tone: BlogTone;
-  domainContext?: string;
+  hair_length: string;
+  hair_texture: string;
+  hair_thickness: string;
+  damage_level: string;
+  customer_pain_point: string;
+  base_cut: string;
+  main_treatment: string;
+  design_point: string;
+  designer_name: string;
+  duration_minutes: string;
+  special_product: string;
+  region_keyword: string;
 };
+
+export const BLOG_FIELD_KEYS = [
+  "hair_length",
+  "hair_texture",
+  "hair_thickness",
+  "damage_level",
+  "customer_pain_point",
+  "base_cut",
+  "main_treatment",
+  "design_point",
+  "designer_name",
+  "duration_minutes",
+  "special_product",
+  "region_keyword",
+] as const satisfies readonly (keyof CreateBlogJobPayload)[];
+
+/** 값이 없으면 글이 성립하지 않는 4개. 나머지는 비어도 접수한다. */
+export const BLOG_REQUIRED_FIELDS = [
+  "main_treatment",
+  "base_cut",
+  "design_point",
+  "customer_pain_point",
+] as const satisfies readonly (keyof CreateBlogJobPayload)[];
 
 type BlogJobEnvelope<TResult> = {
   job_id: string;

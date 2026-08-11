@@ -214,31 +214,53 @@ function blogStatus(job: StoredBlogJob, nowMs: number): JobStatus {
 }
 
 function blogResult(job: StoredBlogJob): BlogWireResult {
-  const theme = job.payload.theme?.trim();
-  const context = job.payload.domainContext?.trim();
+  // 선택 필드는 빈 문자열로 올 수 있다. 비면 그 문장을 아예 빼서,
+  // 값이 없을 때 결과가 어떻게 달라지는지 화면에서 바로 보이게 한다.
+  const {
+    main_treatment: treatment,
+    base_cut: baseCut,
+    design_point: designPoint,
+    customer_pain_point: painPoint,
+    designer_name: designer,
+    region_keyword: region,
+    hair_length: hairLength,
+    hair_texture: hairTexture,
+    hair_thickness: hairThickness,
+    damage_level: damage,
+    duration_minutes: duration,
+    special_product: product,
+  } = job.payload;
+
+  const condition = [hairLength, hairTexture, hairThickness, damage].filter(Boolean).join(" · ");
+
   return {
-    title: `${job.payload.topic.trim()} | 헤어 전문가가 알려드려요`,
-    intro: `${theme ? `${theme}에 관심이 있으시다면 ` : ""}${job.payload.topic.trim()}에 대해 궁금하셨을 텐데요. 오늘은 살롱에서 꼭 알아두면 좋은 내용을 ${job.payload.tone} 설명해드릴게요.`,
+    title: `${region ? `${region} ` : ""}${treatment} | ${baseCut}으로 바꾼 스타일`,
+    intro: `${painPoint} 이런 고민으로 찾아주셨는데요. ${baseCut}에 ${treatment}을 더해 ${designPoint} 방향으로 정리해드렸습니다.`,
     sections: {
       before: {
         heading: "시술 전 고민과 모발 상태",
-        body: `고객님은 ${job.payload.topic.trim()}에 대한 고민으로 방문하셨어요. 원하는 분위기와 평소 손질 습관을 함께 확인해 현재 상태에 맞는 방향을 정했습니다.`,
+        body: `${painPoint}${condition ? ` 상담에서 확인한 모발 상태는 ${condition}이었습니다.` : ""}`,
       },
       process: {
-        heading: "상담을 바탕으로 진행한 시술",
-        body: `${theme ? `${theme} 분위기를 살리면서 ` : ""}모발에 부담을 줄이도록 단계별로 상태를 확인하며 시술을 진행했습니다.`,
+        heading: `상담을 바탕으로 진행한 ${treatment}`,
+        body: `${baseCut}으로 기본 형태를 잡고 ${treatment}을 진행했습니다.${product ? ` 시술 전후로 ${product}를 사용해 손상을 줄였습니다.` : ""}${duration ? ` 전체 소요 시간은 ${duration}분이었습니다.` : ""}`,
       },
       after: {
         heading: "시술 후 달라진 모습",
-        body: `${context ? `${context}의 상담 경험을 바탕으로 ` : ""}고객님이 원하신 방향과 손질 편의성을 함께 확인해 마무리했습니다.`,
+        body: `${designPoint} 부분이 살아나면서 아침 손질이 한결 수월해졌습니다.`,
       },
       home_care: {
         heading: "집에서 이어가는 홈케어",
-        body: "예쁜 스타일을 오래 유지할 수 있도록 세정과 건조 순서, 손질할 때 주의할 점을 안내해드렸어요. 작은 관리 습관을 꾸준히 지켜주세요.",
+        body: `${product ? `${product}를 타월 드라이 후 모발 중간부터 도포하고, ` : ""}드라이 바람은 위에서 아래로 향하게 해주세요. 작은 습관이 스타일 유지 기간을 늘려줍니다.`,
       },
     },
-    closing: "궁금한 점은 편하게 상담해보세요. 현재 모발 상태에 맞는 방법을 함께 찾아드릴게요.",
-    hashtags: ["헤어스타일", "미용실추천", "헤어관리", "살롱상담", theme || "뷰티정보"],
+    // "김서연가"처럼 조사가 어긋나지 않도록 이름 뒤에 "디자이너"를 붙여 받침 문제를 피한다.
+    closing: `${region ? `${region}에서 ` : ""}${designer ? `${designer} 디자이너` : "담당 디자이너"}가 상담해드립니다. 현재 모발 상태에 맞는 방법을 함께 찾아드릴게요.`,
+    // 네이버 해시태그는 공백에서 끊긴다. 공백을 지우고, 태그로 쓰기엔 긴 문장(design_point)은 넣지 않는다.
+    hashtags: [region, treatment, baseCut, "헤어관리", "미용실추천"]
+      .filter(Boolean)
+      .map((tag) => tag.replace(/\s+/g, ""))
+      .slice(0, 5),
   };
 }
 
