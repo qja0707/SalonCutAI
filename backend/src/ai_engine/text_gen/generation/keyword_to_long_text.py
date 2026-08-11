@@ -36,11 +36,7 @@ def generate_blog_post(request: BlogGenerationRequest):
 
     result_dict = json.loads(response.choices[0].message.content)
 
-    response = BlogGenerationResponse(
-        title=result_dict["title"],
-        body=result_dict["body"],
-        hashtags=result_dict["hashtags"],
-    )
+    response = BlogGenerationResponse.model_validate(result_dict)
 
     # 4. 결과 출력
     return response
