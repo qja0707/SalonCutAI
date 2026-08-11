@@ -13,18 +13,22 @@ npm install
 npm run dev        # http://localhost:3000
 ```
 
-- ⚠️ **Node 25에서는 `next dev`가 기동되지 않습니다.** Node LTS(22)를 사용하세요 (CI도 Node 22를 씁니다). `npm run build`와 `next start`는 Node 25에서도 동작합니다.
+- ⚠️ **팀 환경에서 Node 25 + Next 16 조합은 `next dev`가 기동되지 않는 것을 확인했습니다.** Node LTS(22)를 사용하세요 (CI도 Node 22를 씁니다). `npm run build`와 `next start`는 Node 25에서도 동작합니다.
 - 타입 에러(`LayoutProps` 등)가 나면 `npx next typegen`을 먼저 실행하세요. Next 16이 생성하는 라우트 타입이 없어서 나는 에러입니다.
 
 ## 검증
 
 ```bash
-npm run lint && npx tsc --noEmit && npm run verify:mock
+npx next typegen && npm run lint && npx tsc --noEmit && npm run build && npm run verify:mock
 ```
 
-`verify:mock`은 내부에서 `next start`를 띄우므로 **`npm run build`를 먼저** 해야 합니다. 얼굴 교체 job 흐름·동의 확인·health 회귀를 검사합니다.
+**앞의 두 단계는 순서가 중요합니다.** 깨끗한 체크아웃에는 `.next`가 없어서, `next typegen` 없이 `tsc`를 돌리면 `LayoutProps`를 찾지 못해 실패합니다. 그리고 `verify:mock`은 내부에서 `next start`만 띄우고 빌드는 하지 않으므로, `npm run build`가 없으면 404가 납니다. 검사 범위는 얼굴 교체 job 흐름·동의 확인·health 회귀입니다.
 
-⚠️ **프론트만 수정해도 커밋 시 backend pytest가 돕니다** (pre-commit `always_run`). `backend/.env`에 `OPENAI_KEY=placeholder` 한 줄이 있으면 통과합니다 (`backend/README.md` 참고).
+⚠️ **프론트만 수정해도 커밋 시 backend pytest가 돕니다** (pre-commit `always_run`). `backend/.env`가 없으면 아래처럼 만들고 `OPENAI_KEY`에 아무 값(`placeholder` 등)이나 채우면 통과합니다. 테스트가 `@patch`로 모킹하므로 실제 키는 필요 없습니다.
+
+```bash
+cd backend && cp .env.example .env
+```
 
 ## 환경변수
 
@@ -55,10 +59,11 @@ npm run lint && npx tsc --noEmit && npm run verify:mock
 
 `/season-banner`, `/generate/caption`, `/style-consult`, `/sketch-consult`, `/marketing-calendar`, `/generate/image`, `/compare`(팀 내부 모델 비교 도구)
 
-## backend 계약 (2026-08-10 합의 상태)
+## backend 계약 (2026-08-11 기준)
 
-- **블로그 입력**: backend `BlogGenerationRequest` **12필드가 정본**. 프론트는 프로필 기본값 3 / 필수 4 / 선택(버튼) 5로 나눠 받기로 함 — 상세는 Discussion #44 회신 참고
-- **블로그 출력**: `sections: [{heading, body}]` 구조로 확정. backend 반환 모델 수정이 PR #45에서 진행 중
+- **블로그 입력**: backend `BlogGenerationRequest` **12필드가 정본**.
+  프론트 입력 UX 분류(프로필 기본값 / 필수 / 선택 버튼)는 Discussion #44에서 논의 중이며 **확정 전입니다 — 이 분류대로 폼을 만들지 마세요.** 선택 필드 미입력 전송 규칙과 `special_product` 처리는 담당자 회신이 모였고 PM 최종 확정 대기 상태입니다
+- **블로그 출력**: backend는 **고정 키 객체** `sections: {before, process, after, home_care}`이고 각 값이 `{heading, body}`입니다. 프론트 화면은 배열을 유지하고, 변환은 api-client 응답 처리에서 `[before, process, after, home_care]` 순서로 합니다. backend 반환 모델은 PR #45, 프론트 어댑터는 PR #37에서 진행 중
 - **동의**: `consent: {agreed, consent_version}`을 job 생성 시 전송. 문구·버전은 `src/lib/consent.ts`가 단일 출처
 - mock 계약 레이어는 `src/lib/api-client/`에 있습니다. `SALON_API_MODE=proxy` 분기에 실제 backend 호출을 채우면 연동됩니다
 
