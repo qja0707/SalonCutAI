@@ -212,7 +212,7 @@ export default function FaceSwapPage() {
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">{CONSENT_CONTENT.introduction}</p>
               <Collapsible open={consentOpen} onOpenChange={setConsentOpen}>
-                <CollapsibleTrigger className="flex w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm font-medium hover:bg-muted/60">
+                <CollapsibleTrigger className="flex min-h-11 w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm font-medium hover:bg-muted/60 sm:min-h-0">
                   동의 내용 전체 보기
                   <ChevronDown className={`h-4 w-4 transition-transform ${consentOpen ? "rotate-180" : ""}`} />
                 </CollapsibleTrigger>

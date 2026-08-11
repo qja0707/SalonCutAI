@@ -220,9 +220,9 @@ function ReferencePicker({
 
   if (!faces) {
     return (
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid gap-2 sm:grid-cols-3 sm:gap-3">
         {[0, 1, 2, 3, 4, 5].map((index) => (
-          <Skeleton key={index} className="aspect-square w-full rounded-lg" />
+          <Skeleton key={index} className="h-12 w-full rounded-lg sm:aspect-square sm:h-auto" />
         ))}
       </div>
     );
@@ -232,8 +232,10 @@ function ReferencePicker({
     return <p className="text-sm text-muted-foreground">고를 수 있는 얼굴이 아직 없습니다.</p>;
   }
 
+  // 폰에서는 썸네일을 감춘다. 3열 격자가 86px까지 줄어들어 얼굴을 알아볼 수 없고,
+  // 좁은 화면에서는 한 줄에 하나씩 라벨로 고르는 편이 누르기도 쉽다.
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid gap-2 sm:grid-cols-3 sm:gap-3">
       {faces.map((face) => {
         const selected = face.id === value;
         return (
@@ -245,13 +247,19 @@ function ReferencePicker({
             onClick={() => onChange(selected ? "" : face.id)}
             className={cn(
               "overflow-hidden rounded-lg border-2 text-left transition-colors",
-              selected ? "border-primary" : "border-transparent hover:border-border",
+              selected ? "border-primary" : "border-border hover:border-foreground/20 sm:border-transparent",
             )}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={face.thumbnail_url} alt={face.label} className="aspect-square w-full object-cover" />
-            <span className="block px-2 py-1.5 text-xs text-muted-foreground">
-              {face.label} · {face.ethnicity}
+            <img
+              src={face.thumbnail_url}
+              alt={face.label}
+              className="hidden aspect-square w-full object-cover sm:block"
+            />
+            {/* 폰은 한 줄에 라벨·국적을 양끝으로, sm 이상은 좁은 칸이라 두 줄로 쌓는다. */}
+            <span className="flex min-h-12 items-center justify-between gap-2 px-4 text-sm sm:min-h-0 sm:flex-col sm:items-start sm:gap-0 sm:px-2 sm:py-1.5 sm:text-xs sm:text-muted-foreground">
+              <span>{face.label}</span>
+              <span className="text-muted-foreground">{face.ethnicity}</span>
             </span>
           </button>
         );
