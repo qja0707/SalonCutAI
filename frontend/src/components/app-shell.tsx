@@ -5,13 +5,9 @@ import { usePathname } from "next/navigation";
 import { Scissors } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/nav";
 import { cn } from "@/lib/utils";
-import { Separator } from "@/components/ui/separator";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const customerItems = NAV_ITEMS.filter((i) => i.section === "customer");
-  const toolsItems = NAV_ITEMS.filter((i) => i.section === "tools");
-  const teamItems = NAV_ITEMS.filter((i) => i.section === "team");
 
   return (
     <div className="flex min-h-screen w-full">
@@ -28,27 +24,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex flex-col gap-1">
-          {customerItems.map((item) => (
-            <NavLink key={item.href} item={item} active={pathname === item.href} />
-          ))}
-        </nav>
-
-        <Separator className="my-4" />
-        <p className="px-3 pb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-          AI 콘텐츠 도구
-        </p>
-        <nav className="flex flex-col gap-1">
-          {toolsItems.map((item) => (
-            <NavLink key={item.href} item={item} active={pathname === item.href} />
-          ))}
-        </nav>
-
-        <Separator className="my-4" />
-        <p className="px-3 pb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-          팀 확인용
-        </p>
-        <nav className="flex flex-col gap-1">
-          {teamItems.map((item) => (
+          {NAV_ITEMS.map((item) => (
             <NavLink key={item.href} item={item} active={pathname === item.href} />
           ))}
         </nav>
