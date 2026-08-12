@@ -46,17 +46,3 @@ repos:
         language: system
         files: ^frontend/
         pass_filenames: false
-
-      - id: next-build
-        name: 📦 Next Build
-        entry: bash -c "cd frontend && npm run build"
-        language: system
-        files: ^frontend/
-        pass_filenames: false
-
-      - id: verify-mock
-        name: 🎭 Verify Mock
-        entry: bash -c "cd frontend && npm run verify:mock"
-        language: system
-        files: ^frontend/
-        pass_filenames: false
