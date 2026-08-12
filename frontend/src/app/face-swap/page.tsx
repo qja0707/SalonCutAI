@@ -132,7 +132,7 @@ export default function FaceSwapPage() {
       return;
     }
     if (!consentAgreed) {
-      toast.warning("고객의 사진 활용 동의를 받은 뒤 확인해주세요.");
+      toast.warning("고객에게 받은 사진 활용 동의를 확인해주세요.");
       return;
     }
     if (!isFaceReady(face)) {
@@ -192,7 +192,7 @@ export default function FaceSwapPage() {
       <h1 className="text-2xl font-semibold tracking-tight">💇 얼굴 교체 홍보 이미지</h1>
       <p className="mt-2 max-w-2xl text-muted-foreground">
         고객의 헤어·의상·배경은 유지하고 얼굴만 가상 인물로 바꾼 뒤 세 가지 홍보 이미지 규격을 만듭니다.
-        촬영·활용 동의는 반드시 먼저 받아주세요.
+        시술 당시 촬영·활용 동의를 받아둔 사진만 사용해주세요.
       </p>
 
       {IS_PUBLIC_PREVIEW && <Alert className="mt-4"><AlertDescription>{PUBLIC_PREVIEW_NOTICE}</AlertDescription></Alert>}
