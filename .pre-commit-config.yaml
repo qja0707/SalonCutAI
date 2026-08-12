@@ -2,6 +2,7 @@
 repos:
   - repo: local
     hooks:
+      # ================= [BACKEND HOOKS] =================
       - id: ruff-check
         name: 🧹 Ruff Linter (Staged Only)
         entry: >
@@ -24,3 +25,24 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+
+      # ================= [FRONTEND HOOKS] =================
+      - id: next-typegen
+        name: 🧬 Next.js Typegen
+        entry: bash -c "cd frontend && npx next typegen"
+        language: system
+        files: ^frontend/
+        pass_filenames: false
+
+      - id: next-lint
+        name: 🔍 Next Lint
+        entry: bash -c "cd frontend && npm run lint"
+        language: system
+        files: ^frontend/
+
+      - id: typescript-check
+        name: 📝 TypeScript Check
+        entry: bash -c "cd frontend && npx tsc --noEmit"
+        language: system
+        files: ^frontend/
+        pass_filenames: false
