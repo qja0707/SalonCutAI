@@ -80,7 +80,7 @@ sudo -n /usr/bin/systemctl restart "${BACKEND_SERVICE}"
 
 BACKEND_HEALTH_OK=0
 for attempt in {1..10}; do
-    if curl --fail --silent --show-error --max-time 3 http://127.0.0.1:8000/health >/dev/null; then
+    if curl --fail --silent --show-error --max-time 3 http://127.0.0.1:8000/api/v1/health >/dev/null; then
     log "백엔드 재시작 및 로컬 상태 확인 완료"
     BACKEND_HEALTH_OK=1
     break
