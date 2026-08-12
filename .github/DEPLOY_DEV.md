@@ -5,7 +5,7 @@
 ## 현재 자동화 범위
 
 - 프론트엔드: `npm ci`, 공개 미리보기 모드 빌드, `salon-web` 재시작, `127.0.0.1:3000` 상태 확인
-- 백엔드: `uv sync`, Python 문법 검사, `salon-api` 재시작, `127.0.0.1:8000/health` 상태 확인
+- 백엔드: `uv sync`, Python 문법 검사, `salon-api` 재시작, `127.0.0.1:8000/api/v1/health` 상태 확인
 - 환경파일: Actions push 방식은 `ENV_BACKEND` Secret을 전달하고, VM pull 방식은 기존 `backend/.env`를 그대로 유지
 - 실패 처리: 성공 SHA를 기록하지 않고 5분 뒤 다시 시도
 
