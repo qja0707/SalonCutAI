@@ -31,12 +31,24 @@ import {
   type CreateFaceSwapJobPayload,
   type FaceSwapJobResponse,
   type MockScenario,
+  type Ratio,
 } from "@/lib/api-client/types";
 import { IS_PUBLIC_PREVIEW, PUBLIC_PREVIEW_NOTICE } from "@/lib/public-preview";
 import { sampleAvatarFile } from "@/lib/sample-assets";
 import { CONSENT_CONTENT, CONSENT_VERSION } from "@/lib/consent";
 
 const BG_STYLES = ["화이트 스튜디오", "우드톤 인테리어", "그린 식물 배경"];
+
+/**
+ * 규격 옆에 쓰임새를 같이 적는다. 숫자만 보고 어디에 올릴 규격인지 아는 사람은 드물다.
+ * 4:5 를 권장으로 표시하는 근거 — Meta 공식 문서상 인스타 피드는 세로로 긴 이미지를
+ * 4:5 로 자동 크롭한다. 그래서 세로 컷은 4:5 로 올려야 잘리지 않는다.
+ */
+const RATIO_USAGE: Record<Ratio, string> = {
+  "1:1": "피드",
+  "4:5": "피드 세로 · 권장",
+  "9:16": "스토리 · 릴스",
+};
 const TERMINAL = new Set(["completed", "failed"]);
 const EXPECTED_SECONDS = 16;
 
@@ -64,6 +76,7 @@ export default function FaceSwapPage() {
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [requestError, setRequestError] = useState<string | null>(null);
+  const [downloadNoticeShown, setDownloadNoticeShown] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
 
   const jobStatus = job?.status;
@@ -173,6 +186,17 @@ export default function FaceSwapPage() {
     }
   }
 
+  /**
+   * AI기본법 제31조 ③항 — 결과물이 AI 생성물임을 이용자가 명확히 인식하게 해야 한다.
+   * 이미지 위 배지로 상시 표시하고, 밖으로 내보내는 시점에 한 번 더 알린다.
+   * 매번 띄우면 잔소리가 되므로 화면당 한 번만 띄운다.
+   */
+  function handleDownloadNotice() {
+    if (downloadNoticeShown) return;
+    setDownloadNoticeShown(true);
+    toast.info("AI로 만든 이미지입니다. 홍보에 쓰실 때 AI 생성 사실을 함께 표시해주세요.");
+  }
+
   async function handleDelete() {
     if (!jobId) return;
     try {
@@ -191,7 +215,7 @@ export default function FaceSwapPage() {
     <div className="mx-auto max-w-6xl px-6 py-10">
       <h1 className="text-2xl font-semibold tracking-tight">💇 얼굴 교체 홍보 이미지</h1>
       <p className="mt-2 max-w-2xl text-muted-foreground">
-        고객의 헤어·의상·배경은 유지하고 얼굴만 가상 인물로 바꾼 뒤 세 가지 홍보 이미지 규격을 만듭니다.
+        생성형 AI로 얼굴을 만듭니다. 고객의 헤어·의상·배경은 유지하고 얼굴만 가상 인물로 바꾼 뒤 세 가지 홍보 이미지 규격을 만듭니다.
         시술 당시 촬영·활용 동의를 받아둔 사진만 사용해주세요.
       </p>
 
@@ -212,7 +236,7 @@ export default function FaceSwapPage() {
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">{CONSENT_CONTENT.introduction}</p>
               <Collapsible open={consentOpen} onOpenChange={setConsentOpen}>
-                <CollapsibleTrigger className="flex min-h-11 w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm font-medium hover:bg-muted/60 sm:min-h-0">
+                <CollapsibleTrigger className="flex min-h-12 w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm font-medium hover:bg-muted/60 sm:min-h-0">
                   동의 내용 전체 보기
                   <ChevronDown className={`h-4 w-4 transition-transform ${consentOpen ? "rotate-180" : ""}`} />
                 </CollapsibleTrigger>
@@ -262,11 +286,15 @@ export default function FaceSwapPage() {
               <div>
                 <Label className="mb-2 block">출력 비율</Label>
                 <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary">1:1 인스타 피드</Badge>
-                  <Badge variant="secondary">4:5 인스타 세로</Badge>
-                  <Badge variant="secondary">9:16 스토리 · fit_pad</Badge>
+                  {RATIOS.map((ratio) => (
+                    <Badge key={ratio} variant="secondary">
+                      {ratio} · {RATIO_USAGE[ratio]}
+                    </Badge>
+                  ))}
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">한 번 생성한 결과를 세 규격으로 후처리합니다.</p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  한 번 생성한 결과를 세 규격으로 후처리합니다. 인스타그램은 세로로 긴 사진을 4:5로 잘라서 보여줍니다.
+                </p>
               </div>
               <div className="flex items-center justify-between gap-4">
                 <div>
@@ -359,10 +387,21 @@ export default function FaceSwapPage() {
                         const result = resultImages[ratio];
                         return (
                           <div key={ratio} className="space-y-2">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={result.url} alt={`${ratio} 홍보 이미지`} className="h-56 w-full rounded-lg border bg-muted object-contain" />
-                            <div className="flex items-center justify-between text-xs"><span>{ratio}</span><Badge variant="outline">{result.format_mode}</Badge></div>
-                            <a href={result.url} download><Button variant="outline" size="sm" className="w-full"><Download className="h-3.5 w-3.5" />다운로드</Button></a>
+                            <div className="relative">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={result.url} alt={`${ratio} 홍보 이미지`} className="h-56 w-full rounded-lg border bg-muted object-contain" />
+                              {/* AI기본법 제31조 ③항 — 실제와 구분하기 어려운 가상 이미지는 가시적으로 표시한다. */}
+                              <span className="pointer-events-none absolute right-2 bottom-2 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                                AI 생성
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-2 text-xs">
+                              <span>{ratio} · {RATIO_USAGE[ratio]}</span>
+                              <Badge variant="outline">{result.format_mode}</Badge>
+                            </div>
+                            <a href={result.url} download onClick={handleDownloadNotice}>
+                              <Button variant="outline" size="sm" className="w-full"><Download className="h-3.5 w-3.5" />다운로드</Button>
+                            </a>
                           </div>
                         );
                       })}

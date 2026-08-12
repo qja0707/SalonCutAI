@@ -36,7 +36,7 @@ export function DevNote({
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="mt-10 border-t border-border pt-4">
-      <CollapsibleTrigger className="flex min-h-11 w-full items-center gap-2 text-sm text-muted-foreground hover:text-foreground sm:min-h-0">
+      <CollapsibleTrigger className="flex min-h-12 w-full items-center gap-2 text-sm text-muted-foreground hover:text-foreground sm:min-h-0">
         <ChevronRight className={cn("h-4 w-4 transition-transform", open && "rotate-90")} />
         <Wrench className="h-3.5 w-3.5" />
         개발자 정보 (팀 확인용 — 실제 서비스엔 안 보입니다)
