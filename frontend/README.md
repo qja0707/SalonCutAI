@@ -36,7 +36,8 @@ cd backend && cp .env.example .env
 
 | 변수 | 용도 | 없으면 |
 |---|---|---|
-| `SALON_API_MODE` | `mock`(기본) 또는 `proxy`. **backend 연동 스위치** — `proxy`는 아직 스텁이라 500을 반환 | mock으로 동작 |
+| `SALON_API_MODE` | `mock`(기본) 또는 `proxy`. **backend 연동 스위치** — `proxy`면 `/api/v1/*` 요청을 `BACKEND_API_URL`로 그대로 넘깁니다 (PR #70) | mock으로 동작 |
+| `BACKEND_API_URL` | `proxy` 모드에서 요청을 넘길 backend 주소. **`SALON_API_MODE=proxy`면 필수** | `undefined`가 URL에 들어가 fetch가 실패하고 500을 반환 |
 | `NEXT_PUBLIC_PUBLIC_PREVIEW` | `1`이면 공개 미리보기 모드 — 사용자 API 키 입력·외부 모델 호출 차단. **인증·HTTPS 없는 공개 배포에서는 반드시 켤 것** | 일반 모드 |
 | `OPENAI_API_KEY` | 블로그·문구 생성 (서버에서만 사용) | LLM 기능이 400 에러 |
 | `OPENAI_MODEL` | 선택. 기본 `gpt-4o-mini` | 기본값 사용 |
@@ -52,22 +53,22 @@ cd backend && cp .env.example .env
 | 라우트 | 기능 | 상태 |
 |---|---|---|
 | `/face-swap` | ① 얼굴 교체 | job 기반 mock 완성 (접수→폴링→재시도→3규격→삭제). 동의 확인 화면 포함. 실제 모델 연동은 backend 대기 |
-| `/generate/blog` | ② 블로그 글 생성 | 프론트 자체 `/api/generate-blog`(OpenAI 직접 호출)로 동작 중. job 기반 전환은 PR #37 진행 중 |
+| `/generate/blog` | ② 블로그 글 생성 | job 기반 mock 완성 (접수→폴링→재시도→삭제). 12필드 입력 폼·매장 프로필 쿠키 포함. 실제 모델 연동은 backend 대기 |
 | `/generate/shorts` | ③ AI 숏츠 | MVP 설계 확정. 역할 기반 편집 엔진 구현 착수, 화면·API 연결 전 |
 
 **확장 (MVP 제외 — 코드는 보존)**
 
 `/season-banner`, `/generate/caption`, `/style-consult`, `/sketch-consult`, `/marketing-calendar`, `/generate/image`, `/compare`(팀 내부 모델 비교 도구)
 
-## backend 계약 (2026-08-11 기준)
+## backend 계약 (2026-08-12 기준)
 
 - **블로그 입력**: backend `BlogGenerationRequest` **12필드가 정본**.
-  프론트 입력 UX 분류(프로필 기본값 / 필수 / 선택 버튼)는 Discussion #44에서 논의 중이며 **확정 전입니다 — 이 분류대로 폼을 만들지 마세요.** 선택 필드 미입력 전송 규칙과 `special_product` 처리는 담당자 회신이 모였고 PM 최종 확정 대기 상태입니다
-- **블로그 출력**: backend는 **고정 키 객체** `sections: {before, process, after, home_care}`이고 각 값이 `{heading, body}`입니다. 프론트 화면은 배열을 유지하고, 변환은 api-client 응답 처리에서 `[before, process, after, home_care]` 순서로 합니다. backend 반환 모델은 PR #45, 프론트 어댑터는 PR #37에서 진행 중
+  프론트 입력 UX 분류(프로필 기본값 / 필수 4개 / 선택 6개)는 Discussion #44 회신을 근거로 PR #56에서 구현했습니다. 선택 필드는 미입력 시 빈 문자열로 전송합니다. **`special_product` 처리는 PM 최종 확정 대기 상태**라, 관련 동작을 바꿀 때는 확인이 필요합니다
+- **블로그 출력**: backend는 **고정 키 객체** `sections: {before, process, after, home_care}`이고 각 값이 `{heading, body}`입니다. 프론트 화면은 배열을 유지하고, 변환은 api-client 응답 처리에서 `[before, process, after, home_care]` 순서로 합니다(`src/lib/api-client/types.ts`의 `BLOG_SECTION_ORDER`). backend 반환 모델(PR #45)과 프론트 어댑터(PR #37) 모두 머지 완료
 - **동의**: `consent: {agreed, consent_version}`을 job 생성 시 전송. 문구·버전은 `src/lib/consent.ts`가 단일 출처
-- mock 계약 레이어는 `src/lib/api-client/`에 있습니다. `SALON_API_MODE=proxy` 분기에 실제 backend 호출을 채우면 연동됩니다
+- mock 계약 레이어는 `src/lib/api-client/`에 있습니다. `SALON_API_MODE=proxy` 분기는 PR #70에서 채워졌습니다 — `src/lib/api-client/server/response.ts`의 `proxyPendingResponse()`가 `BACKEND_API_URL`로 요청을 그대로 넘깁니다
 
-→ PR #37·#45가 머지되기 전에는 `/generate/blog`를 backend API로 갈아끼우지 말아 주세요.
+→ `/api/generate-blog`(OpenAI 직접 호출) 라우트는 남아 있지만 화면에서는 쓰지 않습니다. 제거 시점은 별도로 정합니다.
 
 ## 기타
 
