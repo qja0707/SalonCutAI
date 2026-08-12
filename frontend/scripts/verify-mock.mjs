@@ -49,9 +49,10 @@ const promptFace = {
   prompt: {
     ethnicity: "한국인",
     gender: "여성",
-    age: "20대 초반",
+    age: "20대",
     face_style: "",
-    skin_type: "",
+    expression: "",
+    skin_tone: "",
     makeup: "",
   },
 };
@@ -171,8 +172,10 @@ async function verifyFaceOptionValidation() {
     ["없는 참조 얼굴", withFace({ ...referenceFace, reference: { reference_face_id: "ref-unknown" } })],
     ["목록에 없는 국적", withFace({ ...promptFace, prompt: { ...promptFace.prompt, ethnicity: "화성인" } })],
     ["필수 연령대 누락", withFace({ ...promptFace, prompt: { ...promptFace.prompt, age: "" } })],
-    // 세부는 자유 입력이지만 길이는 막는다. 문단을 통째로 붙여넣으면 프롬프트가 엉킨다.
-    ["세부 길이 초과", withFace({ ...promptFace, prompt: { ...promptFace.prompt, face_style: "가".repeat(41) } })],
+    // 세부도 고정 목록만 받는다(8/12). 목록 밖 한글은 백엔드 매핑표에서 못 찾고
+    // 에러 없이 그 값만 빠지므로, 프론트에서 먼저 막아야 한다.
+    ["목록에 없는 세부 값", withFace({ ...promptFace, prompt: { ...promptFace.prompt, makeup: "스모키" } })],
+    ["옛 연령대 값", withFace({ ...promptFace, prompt: { ...promptFace.prompt, age: "20대 초반" } })],
   ];
 
   for (const [name, invalidPayload] of cases) {
@@ -182,19 +185,25 @@ async function verifyFaceOptionValidation() {
     assert(body.error?.code === "INVALID_FACE_SWAP_INPUT", `${name} 오류 코드`);
   }
 
-  // 세부 3개를 비워둔 prompt 모드는 정상 접수된다.
+  // 세부 4개를 비워둔 prompt 모드는 정상 접수된다. 빈 문자열이 "선택 안 함"이다.
   const accepted = await postFaceSwapJob("normal", withFace(promptFace));
   assert(accepted.status === 202, `prompt 모드 접수 응답: ${accepted.status}`);
 
-  // 세부에 추천 목록에 없는 값을 직접 적어도 접수된다(8/11 확정).
-  const custom = await postFaceSwapJob(
+  // 세부를 목록 안 값으로 채우면 접수된다. 표정·스킨 톤은 8/12 에 새로 생긴 축이다.
+  const filled = await postFaceSwapJob(
     "normal",
     withFace({
       ...promptFace,
-      prompt: { ...promptFace.prompt, face_style: "이목구비가 뚜렷한", makeup: "코랄 톤 립" },
+      prompt: {
+        ...promptFace.prompt,
+        face_style: "고양이상",
+        expression: "도도한",
+        skin_tone: "태닝 톤",
+        makeup: "말린 장미",
+      },
     }),
   );
-  assert(custom.status === 202, `세부 직접 입력 접수 응답: ${custom.status}`);
+  assert(filled.status === 202, `세부 전체 선택 접수 응답: ${filled.status}`);
 }
 
 async function verify() {
@@ -308,13 +317,15 @@ async function verify() {
   const faceForm = readFileSync(resolve("src/components/face-option-form.tsx"), "utf8");
   assert(faceUi.includes("buildFaceOption(face)"), "얼굴 옵션을 payload 로 전송");
   assert(faceUi.includes("!isFaceReady(face)"), "얼굴 미선택 시 제출 차단");
-  // 세부 항목은 자유 입력을 열되 길이 상한이 걸려 있어야 한다.
-  assert(faceForm.includes("maxLength={FACE_CUSTOM_MAX}"), "직접 입력 길이 상한");
-  // 필수 3개는 고정 목록만 받는다. 서버가 목록을 대조하는지 확인한다.
-  assert(
-    readFileSync(resolve("src/app/api/v1/face-swap-jobs/route.ts"), "utf8").includes("FACE_REQUIRED_ALLOWED"),
-    "필수 얼굴 옵션 목록 대조",
-  );
+  // 자유 입력은 닫혔다(8/12). 입력칸이 되살아나면 목록 밖 값이 다시 새어 나간다.
+  assert(!faceForm.includes("직접 입력"), "세부 자유 입력 제거");
+  assert(faceForm.includes("FACE_EXPRESSIONS"), "표정 축 노출");
+  // 필수 3개와 세부 4개 모두 고정 목록만 받는다. 서버가 목록을 대조하는지 확인한다.
+  const faceRoute = readFileSync(resolve("src/app/api/v1/face-swap-jobs/route.ts"), "utf8");
+  assert(faceRoute.includes("FACE_REQUIRED_ALLOWED"), "필수 얼굴 옵션 목록 대조");
+  assert(faceRoute.includes("FACE_OPTIONAL_ALLOWED"), "세부 얼굴 옵션 목록 대조");
+  // 배경 교체는 기능 2로 넘어갔다. 토글이 되살아나면 지원하지 않는 모드가 나간다.
+  assert(faceUi.includes("BACKGROUND_REPLACE_READY = false"), "배경 교체 토글 비활성");
 
   const blogUi = readFileSync(resolve("src/app/generate/blog/blog-generator.tsx"), "utf8");
   const blogCopy = readFileSync(resolve("src/lib/api-client/blog-content.ts"), "utf8");

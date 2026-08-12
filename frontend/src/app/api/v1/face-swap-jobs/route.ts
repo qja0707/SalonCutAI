@@ -4,7 +4,7 @@ import {
   FACE_PROMPT_REQUIRED_KEYS,
   type CreateFaceSwapJobPayload,
 } from "@/lib/api-client/types";
-import { FACE_CUSTOM_MAX, FACE_REQUIRED_ALLOWED } from "@/lib/face-taxonomy";
+import { FACE_OPTIONAL_ALLOWED, FACE_REQUIRED_ALLOWED } from "@/lib/face-taxonomy";
 import { getApiMode } from "@/lib/api-client/server/mode";
 import {
   createMockFaceSwapJob,
@@ -46,11 +46,13 @@ function isFaceOption(value: unknown): boolean {
       const entry = prompt[key];
       return typeof entry === "string" && (FACE_REQUIRED_ALLOWED[key] as readonly string[]).includes(entry);
     });
-    // 세부 3개는 직접 입력을 열어둬서 목록 대조를 하지 않는다. 길이만 막는다 —
-    // 문단을 통째로 붙여넣으면 프롬프트가 엉킨다.
+    // 세부 4개도 고정 목록에서만 온다(8/12). 빈 문자열은 "선택 안 함"이라 통과시킨다.
+    // 목록에 없는 한글이 백엔드로 가면 매핑표에서 못 찾고 그 값만 조용히 빠진다.
     const optional = FACE_PROMPT_OPTIONAL_KEYS.every((key) => {
       const entry = prompt[key];
-      return typeof entry === "string" && entry.length <= FACE_CUSTOM_MAX;
+      if (typeof entry !== "string") return false;
+      if (entry === "") return true;
+      return (FACE_OPTIONAL_ALLOWED[key] as readonly string[]).includes(entry);
     });
     return required && optional;
   }
