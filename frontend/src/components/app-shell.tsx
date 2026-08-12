@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Scissors } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/nav";
 import { cn } from "@/lib/utils";
+import LoginButton from "./login-button";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -19,32 +20,45 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <span className="font-semibold text-sm leading-tight">
             미용실 AI
             <br />
-            <span className="text-muted-foreground font-normal">마케팅 서비스</span>
+            <span className="text-muted-foreground font-normal">
+              마케팅 서비스
+            </span>
           </span>
         </div>
 
         <nav className="flex flex-col gap-1">
           {NAV_ITEMS.map((item) => (
-            <NavLink key={item.href} item={item} active={pathname === item.href} />
+            <NavLink
+              key={item.href}
+              item={item}
+              active={pathname === item.href}
+            />
           ))}
         </nav>
 
-        <div className="mt-auto px-3 pt-6 text-xs text-muted-foreground">
-          서비스 UI · 프로토타입
+        <div className="mt-auto flex flex-col gap-3 pt-6">
+          <LoginButton mode="desktop" />
+
+          <div className="mt-auto px-3 pt-6 text-xs text-muted-foreground">
+            서비스 UI · 프로토타입
+          </div>
         </div>
       </aside>
 
       <div className="flex min-h-screen flex-1 flex-col">
         <header className="border-b border-border md:hidden">
-          <Link href="/" className="flex items-center px-4 py-3 font-semibold text-sm">
-            💇 미용실 AI 마케팅 서비스
-          </Link>
           <nav
             aria-label="모바일 메뉴"
             className="flex gap-2 overflow-x-auto border-t border-border px-3 py-2"
           >
+            <LoginButton mode="mobile" />
+
             {NAV_ITEMS.map((item) => (
-              <MobileNavLink key={item.href} item={item} active={pathname === item.href} />
+              <MobileNavLink
+                key={item.href}
+                item={item}
+                active={pathname === item.href}
+              />
             ))}
           </nav>
         </header>
@@ -69,7 +83,7 @@ function MobileNavLink({
         "flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-colors",
         active
           ? "bg-primary text-primary-foreground"
-          : "bg-muted text-muted-foreground hover:text-foreground"
+          : "bg-muted text-muted-foreground hover:text-foreground",
       )}
     >
       <Icon className="h-3.5 w-3.5" />
@@ -93,7 +107,7 @@ function NavLink({
         "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
         active
           ? "bg-primary/15 text-primary font-medium"
-          : "text-muted-foreground hover:bg-accent hover:text-foreground"
+          : "text-muted-foreground hover:bg-accent hover:text-foreground",
       )}
     >
       <Icon className="h-4 w-4" />

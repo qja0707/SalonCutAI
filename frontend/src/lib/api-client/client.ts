@@ -1,5 +1,6 @@
 import {
   BLOG_SECTION_ORDER,
+  type SigninPayload,
   type BlogJobResponse,
   type BlogJobWireResponse,
   type BlogMockScenario,
@@ -14,14 +15,19 @@ import {
   type ReferenceFacesResponse,
   type RetryBlogJobResponse,
   type RetryFaceSwapJobResponse,
+  SigninResponse,
 } from "@/lib/api-client/types";
 
 async function parseResponse<T>(response: Response): Promise<T> {
-  const data = (await response.json().catch(() => null)) as T | ErrorEnvelope | null;
+  const data = (await response.json().catch(() => null)) as
+    | T
+    | ErrorEnvelope
+    | null;
   if (!response.ok) {
-    const message = data && typeof data === "object" && "error" in data
-      ? (data as ErrorEnvelope).error.message
-      : `요청에 실패했습니다. (${response.status})`;
+    const message =
+      data && typeof data === "object" && "error" in data
+        ? (data as ErrorEnvelope).error.message
+        : `요청에 실패했습니다. (${response.status})`;
     throw new Error(message);
   }
   return data as T;
@@ -53,20 +59,31 @@ export async function createFaceSwapJob(
   );
 }
 
-export async function getFaceSwapJob(jobId: string): Promise<FaceSwapJobResponse> {
+export async function getFaceSwapJob(
+  jobId: string,
+): Promise<FaceSwapJobResponse> {
   return parseResponse<FaceSwapJobResponse>(
-    await fetch(`/api/v1/face-swap-jobs/${encodeURIComponent(jobId)}`, { cache: "no-store" }),
+    await fetch(`/api/v1/face-swap-jobs/${encodeURIComponent(jobId)}`, {
+      cache: "no-store",
+    }),
   );
 }
 
-export async function retryFaceSwapJob(jobId: string): Promise<RetryFaceSwapJobResponse> {
+export async function retryFaceSwapJob(
+  jobId: string,
+): Promise<RetryFaceSwapJobResponse> {
   return parseResponse<RetryFaceSwapJobResponse>(
-    await fetch(`/api/v1/face-swap-jobs/${encodeURIComponent(jobId)}/retry`, { method: "POST" }),
+    await fetch(`/api/v1/face-swap-jobs/${encodeURIComponent(jobId)}/retry`, {
+      method: "POST",
+    }),
   );
 }
 
 export async function deleteFaceSwapJob(jobId: string): Promise<void> {
-  const response = await fetch(`/api/v1/face-swap-jobs/${encodeURIComponent(jobId)}`, { method: "DELETE" });
+  const response = await fetch(
+    `/api/v1/face-swap-jobs/${encodeURIComponent(jobId)}`,
+    { method: "DELETE" },
+  );
   if (!response.ok) await parseResponse<never>(response);
 }
 
@@ -77,7 +94,10 @@ export async function createBlogJob(
   return parseResponse<CreateBlogJobResponse>(
     await fetch("/api/v1/blog-jobs", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Mock-Scenario": scenario },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Mock-Scenario": scenario,
+      },
       body: JSON.stringify(payload),
     }),
   );
@@ -85,24 +105,46 @@ export async function createBlogJob(
 
 export async function getBlogJob(jobId: string): Promise<BlogJobResponse> {
   const response = await parseResponse<BlogJobWireResponse>(
-    await fetch(`/api/v1/blog-jobs/${encodeURIComponent(jobId)}`, { cache: "no-store" }),
+    await fetch(`/api/v1/blog-jobs/${encodeURIComponent(jobId)}`, {
+      cache: "no-store",
+    }),
   );
   const result = response.result;
   return {
     ...response,
     result: result
-      ? { ...result, sections: BLOG_SECTION_ORDER.map((key) => result.sections[key]) }
+      ? {
+          ...result,
+          sections: BLOG_SECTION_ORDER.map((key) => result.sections[key]),
+        }
       : null,
   };
 }
 
-export async function retryBlogJob(jobId: string): Promise<RetryBlogJobResponse> {
+export async function retryBlogJob(
+  jobId: string,
+): Promise<RetryBlogJobResponse> {
   return parseResponse<RetryBlogJobResponse>(
-    await fetch(`/api/v1/blog-jobs/${encodeURIComponent(jobId)}/retry`, { method: "POST" }),
+    await fetch(`/api/v1/blog-jobs/${encodeURIComponent(jobId)}/retry`, {
+      method: "POST",
+    }),
   );
 }
 
 export async function deleteBlogJob(jobId: string): Promise<void> {
-  const response = await fetch(`/api/v1/blog-jobs/${encodeURIComponent(jobId)}`, { method: "DELETE" });
+  const response = await fetch(
+    `/api/v1/blog-jobs/${encodeURIComponent(jobId)}`,
+    { method: "DELETE" },
+  );
   if (!response.ok) await parseResponse<never>(response);
+}
+
+export async function signin(payload: SigninPayload): Promise<SigninResponse> {
+  return parseResponse<SigninResponse>(
+    await fetch("/api/v1/auth/signin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  );
 }
