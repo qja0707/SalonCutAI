@@ -36,6 +36,26 @@ async function waitForServer() {
   throw new Error("mock 검증 서버가 준비되지 않았습니다.");
 }
 
+// 얼굴 옵션은 쓰는 쪽만 채우고 반대쪽은 null 이다. 기본 검사는 참조 모드로 돈다.
+const referenceFace = {
+  mode: "reference",
+  reference: { reference_face_id: "ref-01" },
+  prompt: null,
+};
+
+const promptFace = {
+  mode: "prompt",
+  reference: null,
+  prompt: {
+    ethnicity: "한국인",
+    gender: "여성",
+    age: "20대 초반",
+    face_style: "",
+    skin_type: "",
+    makeup: "",
+  },
+};
+
 const payload = {
   consent: { agreed: true, consent_version: "mock-test-v1" },
   options: {
@@ -43,8 +63,13 @@ const payload = {
     seed: null,
     background_mode: "preserve",
     background_style: null,
+    face: referenceFace,
   },
 };
+
+function withFace(face) {
+  return { ...payload, options: { ...payload.options, face } };
+}
 
 // 백엔드 BlogGenerationRequest 와 같은 12필드.
 // special_product 를 빈 문자열로 두어, 선택 필드 미입력이 접수되는 것도 함께 검사한다.
@@ -112,9 +137,71 @@ async function verifyConsentValidation() {
   assert(body.error?.code === "CONSENT_REQUIRED", "동의 누락 오류 코드");
 }
 
+async function verifyReferenceFaces() {
+  const response = await fetch(`${base}/api/v1/reference-faces`);
+  assert(response.ok, `참조 얼굴 목록 응답: ${response.status}`);
+  const body = await response.json();
+  assert(Array.isArray(body.items) && body.items.length > 0, "참조 얼굴 목록 비어 있음");
+  assert(typeof body.request_id === "string", "참조 얼굴 목록 request_id");
+  assertExactKeys(
+    body.items[0],
+    ["id", "label", "gender", "ethnicity", "age_group", "thumbnail_url"],
+    "참조 얼굴 항목 구조",
+  );
+
+  const thumbnail = await fetch(`${base}${body.items[0].thumbnail_url}`);
+  assert(thumbnail.ok, `참조 얼굴 썸네일 응답: ${thumbnail.status}`);
+  assert(thumbnail.headers.get("content-type")?.startsWith("image/svg+xml"), "참조 얼굴 썸네일 Content-Type");
+  assert((await thumbnail.arrayBuffer()).byteLength > 100, "참조 얼굴 썸네일 바이트");
+
+  const missing = await fetch(`${base}/api/v1/reference-faces/ref-unknown/thumbnail`);
+  assert(missing.status === 404, `없는 참조 얼굴 썸네일 응답: ${missing.status}`);
+
+  return body.items.length;
+}
+
+/** 얼굴 옵션이 없거나 규칙을 어기면 접수되지 않아야 한다. */
+async function verifyFaceOptionValidation() {
+  const noFaceOptions = { ...payload.options };
+  delete noFaceOptions.face;
+  const cases = [
+    ["얼굴 옵션 누락", { ...payload, options: noFaceOptions }],
+    // 반대쪽을 null 로 비우지 않으면 어느 값을 써야 할지 모호해진다.
+    ["양쪽 동시 지정", withFace({ ...referenceFace, prompt: promptFace.prompt })],
+    ["없는 참조 얼굴", withFace({ ...referenceFace, reference: { reference_face_id: "ref-unknown" } })],
+    ["목록에 없는 국적", withFace({ ...promptFace, prompt: { ...promptFace.prompt, ethnicity: "화성인" } })],
+    ["필수 연령대 누락", withFace({ ...promptFace, prompt: { ...promptFace.prompt, age: "" } })],
+    // 세부는 자유 입력이지만 길이는 막는다. 문단을 통째로 붙여넣으면 프롬프트가 엉킨다.
+    ["세부 길이 초과", withFace({ ...promptFace, prompt: { ...promptFace.prompt, face_style: "가".repeat(41) } })],
+  ];
+
+  for (const [name, invalidPayload] of cases) {
+    const response = await postFaceSwapJob("normal", invalidPayload);
+    const body = await response.json();
+    assert(response.status === 422, `${name} 응답: ${response.status}`);
+    assert(body.error?.code === "INVALID_FACE_SWAP_INPUT", `${name} 오류 코드`);
+  }
+
+  // 세부 3개를 비워둔 prompt 모드는 정상 접수된다.
+  const accepted = await postFaceSwapJob("normal", withFace(promptFace));
+  assert(accepted.status === 202, `prompt 모드 접수 응답: ${accepted.status}`);
+
+  // 세부에 추천 목록에 없는 값을 직접 적어도 접수된다(8/11 확정).
+  const custom = await postFaceSwapJob(
+    "normal",
+    withFace({
+      ...promptFace,
+      prompt: { ...promptFace.prompt, face_style: "이목구비가 뚜렷한", makeup: "코랄 톤 립" },
+    }),
+  );
+  assert(custom.status === 202, `세부 직접 입력 접수 응답: ${custom.status}`);
+}
+
 async function verify() {
   await waitForServer();
   await verifyConsentValidation();
+  const referenceFaceCount = await verifyReferenceFaces();
+  await verifyFaceOptionValidation();
 
   let response = await fetch(`${base}/api/v1/blog-jobs`, {
     method: "POST",
@@ -217,6 +304,18 @@ async function verify() {
   response = await fetch(`${base}/api/v1/blog-jobs/${normalBlogId}`);
   assert(response.status === 404, `블로그 삭제 후 조회 응답: ${response.status}`);
 
+  const faceUi = readFileSync(resolve("src/app/face-swap/page.tsx"), "utf8");
+  const faceForm = readFileSync(resolve("src/components/face-option-form.tsx"), "utf8");
+  assert(faceUi.includes("buildFaceOption(face)"), "얼굴 옵션을 payload 로 전송");
+  assert(faceUi.includes("!isFaceReady(face)"), "얼굴 미선택 시 제출 차단");
+  // 세부 항목은 자유 입력을 열되 길이 상한이 걸려 있어야 한다.
+  assert(faceForm.includes("maxLength={FACE_CUSTOM_MAX}"), "직접 입력 길이 상한");
+  // 필수 3개는 고정 목록만 받는다. 서버가 목록을 대조하는지 확인한다.
+  assert(
+    readFileSync(resolve("src/app/api/v1/face-swap-jobs/route.ts"), "utf8").includes("FACE_REQUIRED_ALLOWED"),
+    "필수 얼굴 옵션 목록 대조",
+  );
+
   const blogUi = readFileSync(resolve("src/app/generate/blog/blog-generator.tsx"), "utf8");
   const blogCopy = readFileSync(resolve("src/lib/api-client/blog-content.ts"), "utf8");
   const apiClient = readFileSync(resolve("src/lib/api-client/client.ts"), "utf8");
@@ -245,6 +344,8 @@ async function verify() {
         nonRetryableImage: 409,
         images: 3,
         consent: { rejected: 400, missing: 400, accepted: 202, recordedAt: true },
+        referenceFaces: referenceFaceCount,
+        faceOption: { invalidCases: 422, promptAccepted: 202 },
         delete: { image: 204, blog: 204 },
         invalidBlog: 422,
         uiContract: "ok",
