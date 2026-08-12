@@ -6,8 +6,8 @@ import { proxyPendingResponse, requestId } from "@/lib/api-client/server/respons
 export const dynamic = "force-dynamic";
 
 /** 참조 얼굴 목록. job 과 무관한 정적 목록이라 화면에서 한 번만 불러온다. */
-export async function GET() {
-  if (getApiMode() === "proxy") return proxyPendingResponse();
+export async function GET(request: Request) {
+  if (getApiMode() === "proxy") return proxyPendingResponse(request);
 
   return NextResponse.json(
     { items: listMockReferenceFaces(), request_id: requestId() },
