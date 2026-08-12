@@ -10,6 +10,8 @@ import {
   type ErrorEnvelope,
   type FaceSwapJobResponse,
   type MockScenario,
+  type ReferenceFace,
+  type ReferenceFacesResponse,
   type RetryBlogJobResponse,
   type RetryFaceSwapJobResponse,
 } from "@/lib/api-client/types";
@@ -23,6 +25,14 @@ async function parseResponse<T>(response: Response): Promise<T> {
     throw new Error(message);
   }
   return data as T;
+}
+
+/** 참조 얼굴 목록. 봉투에서 items 만 꺼내 화면에 넘긴다. */
+export async function getReferenceFaces(): Promise<ReferenceFace[]> {
+  const response = await parseResponse<ReferenceFacesResponse>(
+    await fetch("/api/v1/reference-faces", { cache: "no-store" }),
+  );
+  return response.items;
 }
 
 export async function createFaceSwapJob(

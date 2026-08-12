@@ -1,7 +1,16 @@
 import { NextResponse } from "next/server";
-import type { CreateFaceSwapJobPayload } from "@/lib/api-client/types";
+import {
+  FACE_PROMPT_OPTIONAL_KEYS,
+  FACE_PROMPT_REQUIRED_KEYS,
+  type CreateFaceSwapJobPayload,
+} from "@/lib/api-client/types";
+import { FACE_CUSTOM_MAX, FACE_REQUIRED_ALLOWED } from "@/lib/face-taxonomy";
 import { getApiMode } from "@/lib/api-client/server/mode";
-import { createMockFaceSwapJob, parseMockScenario } from "@/lib/api-client/server/mock-store";
+import {
+  createMockFaceSwapJob,
+  hasMockReferenceFace,
+  parseMockScenario,
+} from "@/lib/api-client/server/mock-store";
 import { errorResponse, proxyPendingResponse } from "@/lib/api-client/server/response";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +18,45 @@ export const dynamic = "force-dynamic";
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const ALLOWED_RATIOS = new Set(["1:1", "4:5", "9:16"]);
+
+/**
+ * 얼굴 옵션 검증. 규칙은 하나다 — 쓰는 쪽만 채우고 반대쪽은 null.
+ * 보기값도 함께 확인한다. 목록에 없는 문자열이 프롬프트로 들어가면 결과가 망가진다.
+ */
+function isFaceOption(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const face = value as { mode?: unknown; prompt?: unknown; reference?: unknown };
+
+  if (face.mode === "reference") {
+    if (face.prompt !== null) return false;
+    const reference = face.reference as { reference_face_id?: unknown } | null;
+    return Boolean(
+      reference &&
+        typeof reference.reference_face_id === "string" &&
+        hasMockReferenceFace(reference.reference_face_id),
+    );
+  }
+
+  if (face.mode === "prompt") {
+    if (face.reference !== null) return false;
+    const prompt = face.prompt as Record<string, unknown> | null;
+    if (!prompt || typeof prompt !== "object") return false;
+    // 필수 3개는 고정 목록에서만 온다. 얼굴의 뼈대를 정하는 값이라 흔들리면 안 된다.
+    const required = FACE_PROMPT_REQUIRED_KEYS.every((key) => {
+      const entry = prompt[key];
+      return typeof entry === "string" && (FACE_REQUIRED_ALLOWED[key] as readonly string[]).includes(entry);
+    });
+    // 세부 3개는 직접 입력을 열어둬서 목록 대조를 하지 않는다. 길이만 막는다 —
+    // 문단을 통째로 붙여넣으면 프롬프트가 엉킨다.
+    const optional = FACE_PROMPT_OPTIONAL_KEYS.every((key) => {
+      const entry = prompt[key];
+      return typeof entry === "string" && entry.length <= FACE_CUSTOM_MAX;
+    });
+    return required && optional;
+  }
+
+  return false;
+}
 
 function isPayload(value: unknown): value is CreateFaceSwapJobPayload {
   if (!value || typeof value !== "object") return false;
@@ -25,7 +73,8 @@ function isPayload(value: unknown): value is CreateFaceSwapJobPayload {
     new Set(ratios).size === ratios.length &&
     (payload.options?.seed === null || typeof payload.options?.seed === "number") &&
     ((backgroundMode === "preserve" && backgroundStyle === null) ||
-      (backgroundMode === "replace" && typeof backgroundStyle === "string" && backgroundStyle.length > 0))
+      (backgroundMode === "replace" && typeof backgroundStyle === "string" && backgroundStyle.length > 0)) &&
+    isFaceOption(payload.options?.face)
   );
 }
 
