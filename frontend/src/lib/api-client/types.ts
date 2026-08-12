@@ -6,6 +6,8 @@ export type BlogSectionKey = (typeof BLOG_SECTION_ORDER)[number];
 export type JobStatus = "queued" | "processing" | "completed" | "failed";
 export type MockScenario = "normal" | "image-fail" | "face-not-detected" | "slow";
 export type BlogMockScenario = "normal" | "blog-fail" | "slow";
+export type VideoRole = "before" | "process" | "detail" | "after";
+export type VideoSelection = "start" | "center" | "end";
 
 export type ApiError = {
   code: string;
@@ -140,6 +142,44 @@ export type RetryFaceSwapJobResponse = {
   attempt: number;
   request_id: string;
 };
+
+export type VideoClipOptions = {
+  role: VideoRole;
+  selection: VideoSelection;
+  caption: string;
+};
+
+export type VideoJobResult = {
+  url: string;
+  duration_sec: number;
+  width: number;
+  height: number;
+};
+
+export type VideoJobResponse = {
+  job_id: string;
+  status: JobStatus;
+  progress: number;
+  attempt: number;
+  queue_position: number | null;
+  result: VideoJobResult | null;
+  meta: {
+    processing_sec: number;
+    faces_blurred: number;
+    audio_included: boolean;
+  } | null;
+  error: ApiError | null;
+  created_at: string;
+  updated_at: string;
+  source_expires_at: string;
+  result_expires_at: string;
+  request_id: string;
+};
+
+export type CreateVideoJobResponse = Pick<
+  VideoJobResponse,
+  "job_id" | "status" | "progress" | "created_at" | "request_id"
+>;
 
 /**
  * 어떤 얼굴로 바꿀지 지정하는 값 (수민님 8/11 제안, 조합 3·5 하이브리드).

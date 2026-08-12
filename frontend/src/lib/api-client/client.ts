@@ -14,6 +14,9 @@ import {
   type ReferenceFacesResponse,
   type RetryBlogJobResponse,
   type RetryFaceSwapJobResponse,
+  type CreateVideoJobResponse,
+  type VideoClipOptions,
+  type VideoJobResponse,
 } from "@/lib/api-client/types";
 
 async function parseResponse<T>(response: Response): Promise<T> {
@@ -21,7 +24,9 @@ async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const message = data && typeof data === "object" && "error" in data
       ? (data as ErrorEnvelope).error.message
-      : `요청에 실패했습니다. (${response.status})`;
+      : data && typeof data === "object" && "detail" in data && typeof data.detail === "string"
+        ? data.detail
+        : `요청에 실패했습니다. (${response.status})`;
     throw new Error(message);
   }
   return data as T;
@@ -105,4 +110,35 @@ export async function retryBlogJob(jobId: string): Promise<RetryBlogJobResponse>
 export async function deleteBlogJob(jobId: string): Promise<void> {
   const response = await fetch(`/api/v1/blog-jobs/${encodeURIComponent(jobId)}`, { method: "DELETE" });
   if (!response.ok) await parseResponse<never>(response);
+}
+
+export async function createVideoJob(
+  clips: { file: File; options: VideoClipOptions }[],
+): Promise<CreateVideoJobResponse> {
+  const form = new FormData();
+  for (const clip of clips) form.append("clips", clip.file);
+  form.append(
+    "payload",
+    JSON.stringify({ clips: clips.map((clip) => clip.options), blur_faces: true }),
+  );
+  return parseResponse<CreateVideoJobResponse>(
+    await fetch("/api/v1/video-jobs", { method: "POST", body: form }),
+  );
+}
+
+export async function getVideoJob(jobId: string): Promise<VideoJobResponse> {
+  return parseResponse<VideoJobResponse>(
+    await fetch(`/api/v1/video-jobs/${encodeURIComponent(jobId)}`, { cache: "no-store" }),
+  );
+}
+
+export async function deleteVideoJob(jobId: string): Promise<void> {
+  const response = await fetch(`/api/v1/video-jobs/${encodeURIComponent(jobId)}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) await parseResponse<never>(response);
+}
+
+export function videoJobUrl(jobId: string): string {
+  return `/api/v1/video-jobs/${encodeURIComponent(jobId)}/video`;
 }

@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from src.api import auth, text_gen, users
+from src.api import auth, text_gen, users, video_jobs
 
 # 메인 총괄 라우터 생성
 api_router = APIRouter()
@@ -9,6 +9,7 @@ api_router = APIRouter()
 api_router.include_router(text_gen.router)
 api_router.include_router(auth.router)
 api_router.include_router(users.router)
+api_router.include_router(video_jobs.router)
 
 
 @api_router.get("/health")
