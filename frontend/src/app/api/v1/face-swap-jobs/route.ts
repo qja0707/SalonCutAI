@@ -81,7 +81,7 @@ function isPayload(value: unknown): value is CreateFaceSwapJobPayload {
 export async function POST(request: Request) {
   if (getApiMode() === "proxy") {
     // TODO(MOCK-001 후속): 인증·HTTPS가 준비된 VM API 프록시를 이 경계에 연결한다.
-    return proxyPendingResponse();
+    return proxyPendingResponse(request);
   }
 
   const form = await request.formData().catch(() => null);

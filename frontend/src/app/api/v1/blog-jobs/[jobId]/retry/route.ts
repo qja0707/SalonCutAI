@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ jobId: string }> };
 
 export async function POST(_request: Request, context: Context) {
-  if (getApiMode() === "proxy") return proxyPendingResponse();
+  if (getApiMode() === "proxy") return proxyPendingResponse(_request);
   const { jobId } = await context.params;
   const result = retryMockBlogJob(jobId);
   if (result.reason === "missing") return errorResponse(404, "JOB_NOT_FOUND", "작업을 찾을 수 없습니다.");

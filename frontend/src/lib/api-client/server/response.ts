@@ -19,6 +19,37 @@ export function errorResponse(
   );
 }
 
-export function proxyPendingResponse(): NextResponse<ErrorEnvelope> {
-  return errorResponse(500, "INTERNAL_ERROR", "VM 연동을 준비하고 있습니다. 잠시 후 다시 시도해주세요.", true);
+export async function proxyPendingResponse(req: Request): Promise<NextResponse> {
+  const backendUrl = process.env.BACKEND_API_URL;
+
+  const { pathname, search } = new URL(req.url);
+  const targetUrl = `${backendUrl}${pathname}${search}`;
+
+  const headers = new Headers(req.headers);
+  headers.delete('host');
+
+  try {
+    // GET/HEAD 요청은 body가 없어야 함
+    const hasBody = !['GET', 'HEAD'].includes(req.method);
+    const body = hasBody ? await req.blob() : undefined;
+
+    const response = await fetch(targetUrl, {
+      method: req.method,
+      headers,
+      body,
+      cache: 'no-store', // 프록시 요청 캐시 방지
+    });
+
+    // 백엔드에서 받은 응답 데이터(Blob)와 Status, Header를 그대로 클라이언트에 반환
+    const responseData = await response.blob();
+
+    return new NextResponse(responseData, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
+  } catch (error) {
+    console.log(error)
+    return errorResponse(500, "INTERNAL_ERROR", error ? String(error) : "알 수 없는 오류", true);
+  }
 }

@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ jobId: string; ratio: string }> };
 
 export async function GET(_request: Request, context: Context) {
-  if (getApiMode() === "proxy") return proxyPendingResponse();
+  if (getApiMode() === "proxy") return proxyPendingResponse(_request);
   const { jobId, ratio } = await context.params;
   const job = getMockFaceSwapJob(jobId);
   if (!job) return errorResponse(404, "JOB_NOT_FOUND", "작업을 찾을 수 없습니다.");

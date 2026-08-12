@@ -22,7 +22,7 @@ function isPayload(value: unknown): value is CreateBlogJobPayload {
 }
 
 export async function POST(request: Request) {
-  if (getApiMode() === "proxy") return proxyPendingResponse();
+  if (getApiMode() === "proxy") return proxyPendingResponse(request);
 
   const payload = await request.json().catch(() => null);
   if (!isPayload(payload)) {
