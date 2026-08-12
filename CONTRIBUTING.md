@@ -20,7 +20,22 @@ AI 어시스턴트는 이 프로젝트에 기여할 때 다음 사항을 반드�
 이 지침을 준수함으로써 AI 어시스턴트는 프로젝트의 일관성과 품질 유지에 기여할 수 있습니다.
 
 #### **환경 일치**
-commit 시 린트와 테스트의 자동화를 위해 pre-commit 프레임워크가 설정되어있습니다. 기여자들은 첫 번째 커밋 이전 반드시 다음 명령어를 한번 수행해주세요
+commit 시 린트와 테스트의 자동화를 위해 pre-commit 프레임워크가 설정되어있습니다. 훅은 `.git/hooks/` 에 설치되고 이 경로는 커밋되지 않으므로, 기여자들은 **클론마다** 첫 번째 커밋 이전 반드시 다음 명령어를 한번 수행해주세요.
+
+pre-commit 은 `backend` 의 의존성이고 저장소 루트에는 `pyproject.toml` 이 없습니다. 루트에서 실행하면 실패하므로 `backend` 디렉토리에서 실행해주세요.
 ```bash
-uv run pre-commit install
+cd backend && uv run pre-commit install
+```
+
+설치되면 커밋할 때 아래 훅이 순서대로 돕니다. 프론트엔드 훅 3개는 `frontend/` 파일이 포함된 커밋에서만 돌고, pytest 는 변경 범위와 무관하게 매번 돕니다.
+
+| 훅 | 대상 |
+|---|---|
+| Ruff Linter · Formatter | `backend/` 의 `.py` |
+| Pytest Verification | 항상 |
+| Next.js Typegen · Next Lint · TypeScript Check | `frontend/` |
+
+빌드와 `verify:mock` 은 훅에 없습니다. API 계약이나 검증 규칙을 건드리는 변경이라면 아래를 직접 확인해주세요.
+```bash
+cd frontend && npm run build && npm run verify:mock
 ```
