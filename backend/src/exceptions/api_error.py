@@ -12,10 +12,13 @@
 여기서 만든 핸들러는 ApiError 에만 걸어 그쪽 응답 형식을 건드리지 않는다.
 """
 
+import logging
 import uuid
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
+
+logger = logging.getLogger(__name__)
 
 
 def new_request_id() -> str:
@@ -42,20 +45,24 @@ class ApiError(Exception):
         self.message = message
         self.retryable = retryable
 
-    def to_payload(self) -> dict:
+    def to_payload(self, request_id: str) -> dict:
         return {
             "error": {
                 "code": self.code,
                 "message": self.message,
                 "retryable": self.retryable,
             },
-            "request_id": new_request_id(),
+            "request_id": request_id,
         }
 
 
 async def api_error_handler(request: Request, exc: ApiError) -> JSONResponse:
+    request_id = new_request_id()
+    logger.warning(
+        "%s %s %s %s", request_id, exc.code, request.method, request.url.path
+    )
     return JSONResponse(
         status_code=exc.status_code,
-        content=exc.to_payload(),
+        content=exc.to_payload(request_id),
         headers={"Cache-Control": "no-store"},
     )

@@ -8,13 +8,13 @@
 import os
 from pathlib import Path
 
-# --- 실행 제어 -----------------------------------------------------------
+# --- 실행 제어 ---
 
 # 모델 로딩 여부. 0이면 API 흐름만 돌고 생성 요청은 실패로 처리한다.
 # 로컬 개발과 pytest는 GPU가 없으므로 기본값을 0으로 둔다.
 IMAGE_GEN_ENABLED = os.getenv("IMAGE_GEN_ENABLED", "0") == "1"
 
-# --- 경로 ---------------------------------------------------------------
+# --- 경로 ---
 
 # settings.py -> image_gen -> ai_engine -> src -> backend
 STORAGE_DIR = Path(__file__).resolve().parents[3] / "storage"
@@ -22,14 +22,14 @@ REF_FACES_DIR = STORAGE_DIR / "ref_faces"
 REF_THUMB_DIR = REF_FACES_DIR / "thumb"
 JOB_DIR = STORAGE_DIR / "face_swap"
 
-# --- 결과물 ------------------------------------------------------------
+# --- 결과물 ---
 
 RESULT_TTL_HOURS = 24  # 프론트 mock 과 동일
 OUTPUT_MAX_SIDE = 2048  # 인스타 권장(1080)의 2배
 JPEG_QUALITY = 90
-THUMBNAIL_SIDE = 320  # 참조 얼굴 목록용. 원본 1.2MB 를 그대로 보내지 않는다
+THUMBNAIL_SIDE = 512  # 참조 얼굴 목록용. 원본 1.2MB 를 그대로 보내지 않는다
 
-# --- 조합 5 (프롬프트 모드) ----------------------------------------------
+# --- 조합 5 (프롬프트 모드) ---
 # step1_combo5_inpaint 에서 확정
 
 COMBO5_MODEL = "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
@@ -37,7 +37,7 @@ COMBO5_STRENGTH = 0.8  # 0.6·0.99 와 결과가 같고 0.99 보다 2초 빠르�
 COMBO5_STEPS = 30
 COMBO5_GUIDANCE = 7.5
 
-# --- 조합 3 (참조 얼굴 모드) ---------------------------------------------
+# --- 조합 3 (참조 얼굴 모드) ---
 # step1_combo2_3_instantid 에서 확정
 
 COMBO3_BASE = "SG161222/RealVisXL_V5.0"
@@ -50,7 +50,7 @@ COMBO3_IP_ADAPTER_SCALE = 0.8
 COMBO3_PROMPT = "a person in a hair salon, natural lighting, photorealistic"
 COMBO3_NEGATIVE = "blurry, low quality, deformed, watermark, text"
 
-# --- 공통 ---------------------------------------------------------------
+# --- 공통 ---
 
 FACE_NEGATIVE = "blurry, distorted, deformed face, extra features, cartoon, watermark"
 MIN_FACE_WIDTH = 350  # normal_03 이 365px 로 통과한 실측 기준
@@ -61,7 +61,7 @@ COLOR_ALPHA = 1.0  # 색 정합 강도. 3장 모두 단조 개선, 교차점 없
 HIGHFREQ_STRENGTH = 0.5  # 목 피부와 얼굴이 같은 재질로 보이는 경계
 HIGHFREQ_RADIUS = 3
 
-# --- 비율 ---------------------------------------------------------------
+# --- 비율 ---
 # step1_postprocess 에서 확정
 
 RATIOS = {"1:1": (1, 1), "4:5": (4, 5), "9:16": (9, 16)}
@@ -72,7 +72,7 @@ PAD_BLUR_RATIO = 0.10  # 여백 배경 블러. 짧은 변 대비 비율
 PAD_DARKEN = 0.92  # 원본과 배경의 밝기를 살짝 벌린다
 PAD_FEATHER_RATIO = 0.02  # 경계선이 드러나지 않게 하는 페더링
 
-# --- 워터마크 -----------------------------------------------------------
+# --- 워터마크 ---
 
 WATERMARK_TEXT = "AI 생성 이미지"  # 문구 확정 시 이 줄만 교체
 WATERMARK_WIDTH_RATIO = 0.18
