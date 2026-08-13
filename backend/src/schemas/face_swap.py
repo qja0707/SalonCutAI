@@ -28,13 +28,18 @@ class Consent(BaseModel):
 
 
 class FacePromptOptions(BaseModel):
-    """세부 3개는 선택이라 미지정 시 빈 문자열이 온다. null 이나 키 생략이 아니다."""
+    """선택 4개는 미지정 시 빈 문자열이 온다. null 이나 키 생략이 아니다.
+
+    필드명은 프론트 types.ts 의 FACE_PROMPT_KEYS 와 같아야 한다.
+    이름이 다르면 Pydantic 이 값을 조용히 버려서 프롬프트 매핑까지 가지 못한다.
+    """
 
     ethnicity: str
     gender: str
     age: str
     face_style: str = ""
-    skin_type: str = ""
+    expression: str = ""
+    skin_tone: str = ""
     makeup: str = ""
 
 
