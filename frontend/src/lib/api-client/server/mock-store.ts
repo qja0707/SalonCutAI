@@ -204,12 +204,12 @@ export function mockFaceSwapImage(jobId: string, ratio: string): { bytes: Uint8A
  * 같은 문자열이어야 prompt 모드와 같은 기준으로 걸러낼 수 있다.
  */
 const REFERENCE_FACES: readonly ReferenceFace[] = [
-  { id: "ref-01", label: "20대 초반 여성 A", gender: "여성", ethnicity: "한국인", age_group: "20대 초반" },
-  { id: "ref-02", label: "20대 후반 여성 A", gender: "여성", ethnicity: "한국인", age_group: "20대 후반" },
-  { id: "ref-03", label: "30대 초반 여성 A", gender: "여성", ethnicity: "한국인", age_group: "30대 초반" },
+  { id: "ref-01", label: "20대 여성 A", gender: "여성", ethnicity: "한국인", age_group: "20대" },
+  { id: "ref-02", label: "20대 여성 B", gender: "여성", ethnicity: "한국인", age_group: "20대" },
+  { id: "ref-03", label: "30대 여성 A", gender: "여성", ethnicity: "한국인", age_group: "30대" },
   { id: "ref-04", label: "40대 여성 A", gender: "여성", ethnicity: "한국인", age_group: "40대" },
-  { id: "ref-05", label: "20대 후반 남성 A", gender: "남성", ethnicity: "한국인", age_group: "20대 후반" },
-  { id: "ref-06", label: "30대 초반 남성 A", gender: "남성", ethnicity: "일본인", age_group: "30대 초반" },
+  { id: "ref-05", label: "20대 남성 A", gender: "남성", ethnicity: "한국인", age_group: "20대" },
+  { id: "ref-06", label: "30대 남성 A", gender: "남성", ethnicity: "일본인", age_group: "30대" },
 ].map((face) => ({ ...face, thumbnail_url: `/api/v1/reference-faces/${face.id}/thumbnail` }));
 
 export function listMockReferenceFaces(): ReferenceFace[] {

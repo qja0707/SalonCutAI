@@ -37,6 +37,16 @@ import { IS_PUBLIC_PREVIEW, PUBLIC_PREVIEW_NOTICE } from "@/lib/public-preview";
 import { sampleAvatarFile } from "@/lib/sample-assets";
 import { CONSENT_CONTENT, CONSENT_VERSION } from "@/lib/consent";
 
+/**
+ * 배경 교체는 기능 2로 넘어갔다(8/12 수민님 회신). 이번 MVP 백엔드는 preserve 만 지원한다.
+ *
+ * 토글을 남겨두면 켤 수 있는데, 켜면 `background_mode: "replace"` 로 나가고 서버 검증도
+ * 통과한다 — 지원하지 않는 기능을 손님이 켜는 상태가 된다. 그래서 화면에서만 감춘다.
+ * 지우지 않는 이유는 payload 규칙과 검증이 이미 짝을 맞춰 있어서, 기능 2에서
+ * 이 플래그만 켜면 되기 때문이다. 배경 스타일 후보 9종은 #69 2-9 에 있다.
+ */
+const BACKGROUND_REPLACE_READY = false;
+
 const BG_STYLES = ["화이트 스튜디오", "우드톤 인테리어", "그린 식물 배경"];
 
 /**
@@ -296,18 +306,22 @@ export default function FaceSwapPage() {
                   한 번 생성한 결과를 세 규격으로 후처리합니다.
                 </p>
               </div>
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <Label htmlFor="clean-bg">배경도 함께 정리하기</Label>
-                  <p className="text-xs text-muted-foreground">끄면 얼굴만 바꾸고 원래 배경을 유지합니다.</p>
-                </div>
-                <Switch id="clean-bg" checked={cleanBg} onCheckedChange={setCleanBg} />
-              </div>
-              {cleanBg && (
-                <Select value={bgStyle} onValueChange={(value) => value && setBgStyle(value)}>
-                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                  <SelectContent>{BG_STYLES.map((style) => <SelectItem key={style} value={style}>{style}</SelectItem>)}</SelectContent>
-                </Select>
+              {BACKGROUND_REPLACE_READY && (
+                <>
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <Label htmlFor="clean-bg">배경도 함께 정리하기</Label>
+                      <p className="text-xs text-muted-foreground">끄면 얼굴만 바꾸고 원래 배경을 유지합니다.</p>
+                    </div>
+                    <Switch id="clean-bg" checked={cleanBg} onCheckedChange={setCleanBg} />
+                  </div>
+                  {cleanBg && (
+                    <Select value={bgStyle} onValueChange={(value) => value && setBgStyle(value)}>
+                      <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>{BG_STYLES.map((style) => <SelectItem key={style} value={style}>{style}</SelectItem>)}</SelectContent>
+                    </Select>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>
