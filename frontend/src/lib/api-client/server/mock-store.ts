@@ -2,18 +2,15 @@ import "server-only";
 
 import type {
   ApiError,
-  BlogJobWireResponse,
   BlogMockScenario,
   BlogWireResult,
   CreateBlogJobPayload,
-  CreateBlogJobResponse,
   CreateFaceSwapJobResponse,
   FaceSwapJobResponse,
   JobStatus,
   MockScenario,
   Ratio,
   ReferenceFace,
-  RetryBlogJobResponse,
   RetryFaceSwapJobResponse,
 } from "@/lib/api-client/types";
 import { requestId } from "@/lib/api-client/server/response";
@@ -46,7 +43,8 @@ type GlobalMockStore = typeof globalThis & {
 };
 
 const store = globalThis as GlobalMockStore;
-const jobs = store.__salonFaceSwapMockJobs ?? new Map<string, StoredFaceSwapJob>();
+const jobs =
+  store.__salonFaceSwapMockJobs ?? new Map<string, StoredFaceSwapJob>();
 store.__salonFaceSwapMockJobs = jobs;
 const blogJobs = store.__salonBlogMockJobs ?? new Map<string, StoredBlogJob>();
 store.__salonBlogMockJobs = blogJobs;
@@ -70,9 +68,14 @@ function elapsed(job: StoredFaceSwapJob, nowMs: number): number {
 
 function jobStatus(job: StoredFaceSwapJob, nowMs: number): JobStatus {
   const elapsedMs = elapsed(job, nowMs);
-  if (job.retryAtMs === null && elapsedMs < QUEUED_MS * scale(job)) return "queued";
+  if (job.retryAtMs === null && elapsedMs < QUEUED_MS * scale(job))
+    return "queued";
   if (elapsedMs < IMAGE_DONE_MS * scale(job)) return "processing";
-  if (!job.retried && (job.scenario === "image-fail" || job.scenario === "face-not-detected")) return "failed";
+  if (
+    !job.retried &&
+    (job.scenario === "image-fail" || job.scenario === "face-not-detected")
+  )
+    return "failed";
   return "completed";
 }
 
@@ -81,7 +84,8 @@ function jobError(job: StoredFaceSwapJob, status: JobStatus): ApiError | null {
   if (job.scenario === "face-not-detected") {
     return {
       code: "FACE_NOT_DETECTED",
-      message: "얼굴을 찾지 못했습니다. 정면에 가까운 사진으로 다시 시도해주세요.",
+      message:
+        "얼굴을 찾지 못했습니다. 정면에 가까운 사진으로 다시 시도해주세요.",
       retryable: false,
     };
   }
@@ -92,15 +96,28 @@ function jobError(job: StoredFaceSwapJob, status: JobStatus): ApiError | null {
   };
 }
 
-function imageResults(jobId: string): Record<Ratio, { url: string; format_mode: "crop" | "fit_pad" }> {
+function imageResults(
+  jobId: string,
+): Record<Ratio, { url: string; format_mode: "crop" | "fit_pad" }> {
   return {
-    "1:1": { url: `/api/v1/face-swap-jobs/${jobId}/images/1x1`, format_mode: "crop" },
-    "4:5": { url: `/api/v1/face-swap-jobs/${jobId}/images/4x5`, format_mode: "crop" },
-    "9:16": { url: `/api/v1/face-swap-jobs/${jobId}/images/9x16`, format_mode: "fit_pad" },
+    "1:1": {
+      url: `/api/v1/face-swap-jobs/${jobId}/images/1x1`,
+      format_mode: "crop",
+    },
+    "4:5": {
+      url: `/api/v1/face-swap-jobs/${jobId}/images/4x5`,
+      format_mode: "crop",
+    },
+    "9:16": {
+      url: `/api/v1/face-swap-jobs/${jobId}/images/9x16`,
+      format_mode: "fit_pad",
+    },
   };
 }
 
-export function createMockFaceSwapJob(scenario: MockScenario): CreateFaceSwapJobResponse {
+export function createMockFaceSwapJob(
+  scenario: MockScenario,
+): CreateFaceSwapJobResponse {
   const nowMs = Date.now();
   const id = `face-${crypto.randomUUID()}`;
   const job: StoredFaceSwapJob = {
@@ -150,9 +167,10 @@ export function getMockFaceSwapJob(jobId: string): FaceSwapJobResponse | null {
   };
 }
 
-export function retryMockFaceSwapJob(
-  jobId: string,
-): { response: RetryFaceSwapJobResponse | null; reason: "missing" | "not-retryable" | null } {
+export function retryMockFaceSwapJob(jobId: string): {
+  response: RetryFaceSwapJobResponse | null;
+  reason: "missing" | "not-retryable" | null;
+} {
   const job = jobs.get(jobId);
   if (!job) return { response: null, reason: "missing" };
 
@@ -180,11 +198,19 @@ export function deleteMockFaceSwapJob(jobId: string): boolean {
 }
 
 export function parseMockScenario(value: string | null): MockScenario {
-  if (value === "image-fail" || value === "face-not-detected" || value === "slow") return value;
+  if (
+    value === "image-fail" ||
+    value === "face-not-detected" ||
+    value === "slow"
+  )
+    return value;
   return "normal";
 }
 
-export function mockFaceSwapImage(jobId: string, ratio: string): { bytes: Uint8Array; filename: string } | null {
+export function mockFaceSwapImage(
+  jobId: string,
+  ratio: string,
+): { bytes: Uint8Array; filename: string } | null {
   if (!jobs.has(jobId)) return null;
   const dimensions: Record<string, [number, number, string]> = {
     "1x1": [600, 600, "1:1 · crop"],
@@ -195,7 +221,10 @@ export function mockFaceSwapImage(jobId: string, ratio: string): { bytes: Uint8A
   if (!config) return null;
   const [width, height, label] = config;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#f5d8cf"/><stop offset="1" stop-color="#d9c2ef"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#g)"/><circle cx="${width / 2}" cy="${height * 0.38}" r="${width * 0.2}" fill="#f4c9b4"/><path d="M${width * 0.27} ${height * 0.42} Q${width * 0.5} ${height * 0.08} ${width * 0.73} ${height * 0.42} L${width * 0.68} ${height * 0.68} Q${width * 0.5} ${height * 0.75} ${width * 0.32} ${height * 0.68}Z" fill="#342d35" opacity=".92"/><text x="50%" y="88%" text-anchor="middle" font-family="sans-serif" font-size="${Math.max(18, width * 0.04)}" fill="#4b3d50">MOCK ${label}</text></svg>`;
-  return { bytes: new TextEncoder().encode(svg), filename: `salon-${ratio}-mock.svg` };
+  return {
+    bytes: new TextEncoder().encode(svg),
+    filename: `salon-${ratio}-mock.svg`,
+  };
 }
 
 /**
@@ -204,13 +233,52 @@ export function mockFaceSwapImage(jobId: string, ratio: string): { bytes: Uint8A
  * 같은 문자열이어야 prompt 모드와 같은 기준으로 걸러낼 수 있다.
  */
 const REFERENCE_FACES: readonly ReferenceFace[] = [
-  { id: "ref-01", label: "20대 여성 A", gender: "여성", ethnicity: "한국인", age_group: "20대" },
-  { id: "ref-02", label: "20대 여성 B", gender: "여성", ethnicity: "한국인", age_group: "20대" },
-  { id: "ref-03", label: "30대 여성 A", gender: "여성", ethnicity: "한국인", age_group: "30대" },
-  { id: "ref-04", label: "40대 여성 A", gender: "여성", ethnicity: "한국인", age_group: "40대" },
-  { id: "ref-05", label: "20대 남성 A", gender: "남성", ethnicity: "한국인", age_group: "20대" },
-  { id: "ref-06", label: "30대 남성 A", gender: "남성", ethnicity: "일본인", age_group: "30대" },
-].map((face) => ({ ...face, thumbnail_url: `/api/v1/reference-faces/${face.id}/thumbnail` }));
+  {
+    id: "ref-01",
+    label: "20대 초반 여성 A",
+    gender: "여성",
+    ethnicity: "한국인",
+    age_group: "20대 초반",
+  },
+  {
+    id: "ref-02",
+    label: "20대 후반 여성 A",
+    gender: "여성",
+    ethnicity: "한국인",
+    age_group: "20대 후반",
+  },
+  {
+    id: "ref-03",
+    label: "30대 초반 여성 A",
+    gender: "여성",
+    ethnicity: "한국인",
+    age_group: "30대 초반",
+  },
+  {
+    id: "ref-04",
+    label: "40대 여성 A",
+    gender: "여성",
+    ethnicity: "한국인",
+    age_group: "40대",
+  },
+  {
+    id: "ref-05",
+    label: "20대 후반 남성 A",
+    gender: "남성",
+    ethnicity: "한국인",
+    age_group: "20대 후반",
+  },
+  {
+    id: "ref-06",
+    label: "30대 초반 남성 A",
+    gender: "남성",
+    ethnicity: "일본인",
+    age_group: "30대 초반",
+  },
+].map((face) => ({
+  ...face,
+  thumbnail_url: `/api/v1/reference-faces/${face.id}/thumbnail`,
+}));
 
 export function listMockReferenceFaces(): ReferenceFace[] {
   return REFERENCE_FACES.map((face) => ({ ...face }));
@@ -221,7 +289,9 @@ export function hasMockReferenceFace(faceId: string): boolean {
   return REFERENCE_FACES.some((face) => face.id === faceId);
 }
 
-export function mockReferenceFaceThumbnail(faceId: string): { bytes: Uint8Array; filename: string } | null {
+export function mockReferenceFaceThumbnail(
+  faceId: string,
+): { bytes: Uint8Array; filename: string } | null {
   const index = REFERENCE_FACES.findIndex((face) => face.id === faceId);
   if (index < 0) return null;
   const face = REFERENCE_FACES[index];
@@ -229,7 +299,10 @@ export function mockReferenceFaceThumbnail(faceId: string): { bytes: Uint8Array;
   const hue = (index * 47) % 360;
   const size = 320;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><rect width="100%" height="100%" fill="hsl(${hue} 45% 88%)"/><circle cx="${size / 2}" cy="${size * 0.42}" r="${size * 0.22}" fill="hsl(${hue} 40% 78%)"/><path d="M${size * 0.18} ${size} Q${size * 0.5} ${size * 0.6} ${size * 0.82} ${size}Z" fill="hsl(${hue} 40% 72%)"/><text x="50%" y="${size * 0.93}" text-anchor="middle" font-family="sans-serif" font-size="${size * 0.075}" fill="hsl(${hue} 30% 30%)">${face.label}</text></svg>`;
-  return { bytes: new TextEncoder().encode(svg), filename: `reference-${faceId}-mock.svg` };
+  return {
+    bytes: new TextEncoder().encode(svg),
+    filename: `reference-${faceId}-mock.svg`,
+  };
 }
 
 function blogScale(job: StoredBlogJob): number {
@@ -242,7 +315,8 @@ function blogElapsed(job: StoredBlogJob, nowMs: number): number {
 
 function blogStatus(job: StoredBlogJob, nowMs: number): JobStatus {
   const elapsedMs = blogElapsed(job, nowMs);
-  if (job.retryAtMs === null && elapsedMs < QUEUED_MS * blogScale(job)) return "queued";
+  if (job.retryAtMs === null && elapsedMs < QUEUED_MS * blogScale(job))
+    return "queued";
   if (elapsedMs < BLOG_DONE_MS * blogScale(job)) return "processing";
   if (!job.retried && job.scenario === "blog-fail") return "failed";
   return "completed";
@@ -266,7 +340,9 @@ function blogResult(job: StoredBlogJob): BlogWireResult {
     special_product: product,
   } = job.payload;
 
-  const condition = [hairLength, hairTexture, hairThickness, damage].filter(Boolean).join(" · ");
+  const condition = [hairLength, hairTexture, hairThickness, damage]
+    .filter(Boolean)
+    .join(" · ");
 
   return {
     title: `${region ? `${region} ` : ""}${treatment} | ${baseCut}으로 바꾼 스타일`,
@@ -299,73 +375,33 @@ function blogResult(job: StoredBlogJob): BlogWireResult {
   };
 }
 
-export function createMockBlogJob(
-  payload: CreateBlogJobPayload,
-  scenario: BlogMockScenario,
-): CreateBlogJobResponse {
-  const nowMs = Date.now();
-  const id = `blog-${crypto.randomUUID()}`;
-  const job: StoredBlogJob = {
-    id,
-    testCode: `T-${Math.floor(1_000 + Math.random() * 9_000)}`,
-    scenario,
-    payload,
-    createdAtMs: nowMs,
-    attempt: 1,
-    retryAtMs: null,
-    retried: false,
-  };
-  blogJobs.set(id, job);
+export function createMockBlogJob(): BlogWireResult {
   return {
-    job_id: id,
-    test_code: job.testCode,
-    status: "queued",
-    created_at: iso(nowMs),
-    request_id: requestId(),
+    title: "학동역 레이어드 컷과 C컬 펌으로 완성한 자연스러운 볼륨",
+    intro:
+      "긴 직모를 가진 고객님이 축 처지는 모발로 인한 스타일링의 어려움과 자고 일어난 후 부스스해지는 문제로 고민하고 계셨습니다. 고객님의 얼굴형을 보완하고 자연스러운 볼륨을 더하기 위해 레이어드 컷과 C컬 펌을 제안드렸습니다. 시술 후 고객님은 건강하고 아름다운 스타일을 찾으셨습니다.\n\n",
+    sections: {
+      before: {
+        heading: "고객님의 고민과 상황",
+        body: "고객님은 긴 머리의 직모를 가진 분으로, 모발이 두꺼워 자주 축 처지곤 하셨습니다. 이러한 머리카락은 자고 일어난 후 부스스해져 스타일링이 어려워 불편함을 느끼셨습니다. 특히, 스타일링을 해도 쉽게 풀려버려 매일 같은 스타일을 유지하기 힘든 상황이었습니다. 고객님은 이러한 문제를 해결하기 위해 자연스러운 볼륨과 함께 얼굴형을 보완할 수 있는 시술을 원하셨습니다. 이러한 고민을 해결하기 위해, 고객님과의 상담을 통해 적합한 시술을 계획하게 되었습니다.\n\n",
+      },
+      process: {
+        heading: "디자이너의 기술적 접근",
+        body: "고객님의 모발 상태와 원하는 스타일을 고려하여, 레이어드 컷과 C컬 펌을 조합한 시술을 진행했습니다. 먼저, 레이어드 컷을 통해 모발에 자연스러운 층을 주어 가벼운 느낌을 더했습니다. 이는 모발의 무게감을 줄이고, 전체적인 볼륨을 향상시키는 데 큰 도움이 되었습니다. 레이어드 컷은 고객님의 얼굴형을 더욱 돋보이게 하여 전체적인 조화를 이루도록 했습니다.\n\n이후, C컬 펌을 통해 고객님의 모발에 더욱 생동감 있는 컬을 추가했습니다. C컬 펌은 자연스러운 곡선을 만들어 주어, 무거운 머리카락이 아닌 가벼운 느낌으로 스타일을 완성할 수 있었습니다. 고객님의 모발이 두꺼운 편이라, 펌의 지속성을 고려하여 적절한 열과 시간을 조절하며 시술하였습니다. 또한, 모로칸 오일을 사용하여 모발에 영양을 주고, 손상을 최소화하는 데 중점을 두었습니다. 이 모든 과정은 고객님과의 충분한 상담을 바탕으로 진행되었으며, 고객님이 원하는 스타일을 최우선으로 두었습니다.\n\n",
+      },
+      after: {
+        heading: "시술 후 변화와 만족감",
+        body: "시술이 완료된 후 고객님은 거울을 보며 만족스러운 미소를 지으셨습니다. 레이어드 컷과 C컬 펌의 조합으로 모발에 자연스러운 볼륨이 더해져, 축 처지던 머리카락이 생동감 있게 변모했습니다. 고객님은 자고 일어난 후에도 부스스한 느낌이 줄어들어, 스타일링이 훨씬 수월해졌다고 말씀하셨습니다. 또한, 얼굴형을 보완하는 효과로 인해 더욱 젊고 건강한 인상을 주게 되었습니다. 이러한 변화는 고객님에게 큰 자신감을 주었으며, 일상생활에서도 새로운 스타일을 즐길 수 있는 계기가 되었습니다.\n\n",
+      },
+      home_care: {
+        heading: "홈케어 꿀팁",
+        body: "시술 후에도 모발을 건강하게 유지하기 위해 몇 가지 홈케어 팁을 안내해 드립니다. 첫째, 시술 후 적어도 일주일간은 열기구 사용을 자제하는 것이 좋습니다. 둘째, 샴푸 후에는 반드시 모로칸 오일과 같은 영양이 풍부한 오일을 사용하여 모발에 수분을 공급해 주세요. 이는 컬의 유지와 함께 모발의 건강을 지키는 데 큰 도움이 됩니다. 셋째, 자주 트리트먼트를 통해 손상을 예방하고 건강한 모발을 유지하는 것이 중요합니다. 마지막으로, 스타일링 시에는 열을 최소화하고, 저온에서 천천히 컬을 만드는 것을 추천드립니다. 이러한 홈케어 방법을 통해 시술의 효과를 더욱 오래 지속할 수 있습니다.\n\n",
+      },
+    },
+    closing:
+      "학동역 1번 출구 근처에 위치한 저희 미용실에서는 고객님을 위한 맞춤형 상담과 시술을 제공하고 있습니다. 1:1 상담 및 예약은 전화 또는 온라인으로 가능합니다. 언제든지 편하게 방문해 주세요.\n\n",
+    hashtags: ["학동역미용실", "C컬펌", "레이어드컷", "볼륨펌", "홈케어팁"],
   };
-}
-
-export function getMockBlogJob(jobId: string): BlogJobWireResponse | null {
-  const job = blogJobs.get(jobId);
-  if (!job) return null;
-  const nowMs = Date.now();
-  const status = blogStatus(job, nowMs);
-  return {
-    job_id: job.id,
-    test_code: job.testCode,
-    status,
-    attempt: job.attempt,
-    result: status === "completed" ? blogResult(job) : null,
-    error: status === "failed"
-      ? { code: "BLOG_GENERATION_FAILED", message: "블로그 글 생성에 실패했습니다. 다시 시도해주세요.", retryable: true }
-      : null,
-    created_at: iso(job.createdAtMs),
-    updated_at: iso(nowMs),
-    result_expires_at: iso(job.createdAtMs + TTL_MS),
-    request_id: requestId(),
-  };
-}
-
-export function retryMockBlogJob(
-  jobId: string,
-): { response: RetryBlogJobResponse | null; reason: "missing" | "not-retryable" | null } {
-  const job = blogJobs.get(jobId);
-  if (!job) return { response: null, reason: "missing" };
-  const current = getMockBlogJob(jobId);
-  if (current?.status !== "failed" || !current.error?.retryable) {
-    return { response: null, reason: "not-retryable" };
-  }
-  job.attempt += 1;
-  job.retryAtMs = Date.now();
-  job.retried = true;
-  return {
-    response: { job_id: job.id, status: "processing", attempt: job.attempt, request_id: requestId() },
-    reason: null,
-  };
-}
-
-export function deleteMockBlogJob(jobId: string): boolean {
-  return blogJobs.delete(jobId);
 }
 
 export function parseBlogMockScenario(value: string | null): BlogMockScenario {
