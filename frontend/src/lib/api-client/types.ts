@@ -29,14 +29,6 @@ export type ErrorEnvelope = {
 
 export type BlogSection = { heading: string; body: string };
 
-export type BlogResult = {
-  title: string;
-  intro: string;
-  sections: BlogSection[];
-  closing: string;
-  hashtags: string[];
-};
-
 export type BlogWireResult = {
   title: string;
   intro: string;
@@ -87,34 +79,6 @@ export const BLOG_REQUIRED_FIELDS = [
   "design_point",
   "customer_pain_point",
 ] as const satisfies readonly (keyof CreateBlogJobPayload)[];
-
-type BlogJobEnvelope<TResult> = {
-  job_id: string;
-  test_code: string;
-  status: JobStatus;
-  attempt: number;
-  result: TResult | null;
-  error: ApiError | null;
-  created_at: string;
-  updated_at: string;
-  result_expires_at: string;
-  request_id: string;
-};
-
-export type BlogJobResponse = BlogJobEnvelope<BlogResult>;
-export type BlogJobWireResponse = BlogJobEnvelope<BlogWireResult>;
-
-export type CreateBlogJobResponse = Pick<
-  BlogJobResponse,
-  "job_id" | "test_code" | "status" | "created_at" | "request_id"
->;
-
-export type RetryBlogJobResponse = {
-  job_id: string;
-  status: "processing";
-  attempt: number;
-  request_id: string;
-};
 
 export type ImageResult = {
   url: string;

@@ -1,11 +1,7 @@
 import {
-  BLOG_SECTION_ORDER,
   type SigninPayload,
-  type BlogJobResponse,
-  type BlogJobWireResponse,
   type BlogMockScenario,
   type CreateBlogJobPayload,
-  type CreateBlogJobResponse,
   type CreateFaceSwapJobPayload,
   type CreateFaceSwapJobResponse,
   type ErrorEnvelope,
@@ -13,9 +9,9 @@ import {
   type MockScenario,
   type ReferenceFace,
   type ReferenceFacesResponse,
-  type RetryBlogJobResponse,
   type RetryFaceSwapJobResponse,
   SigninResponse,
+  BlogWireResult,
 } from "@/lib/api-client/types";
 
 async function parseResponse<T>(response: Response): Promise<T> {
@@ -90,9 +86,9 @@ export async function deleteFaceSwapJob(jobId: string): Promise<void> {
 export async function createBlogJob(
   payload: CreateBlogJobPayload,
   scenario: BlogMockScenario = "normal",
-): Promise<CreateBlogJobResponse> {
-  return parseResponse<CreateBlogJobResponse>(
-    await fetch("/api/v1/blog-jobs", {
+): Promise<BlogWireResult> {
+  return parseResponse<BlogWireResult>(
+    await fetch("/api/v1/text-gen/blog-generation", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -101,42 +97,6 @@ export async function createBlogJob(
       body: JSON.stringify(payload),
     }),
   );
-}
-
-export async function getBlogJob(jobId: string): Promise<BlogJobResponse> {
-  const response = await parseResponse<BlogJobWireResponse>(
-    await fetch(`/api/v1/blog-jobs/${encodeURIComponent(jobId)}`, {
-      cache: "no-store",
-    }),
-  );
-  const result = response.result;
-  return {
-    ...response,
-    result: result
-      ? {
-          ...result,
-          sections: BLOG_SECTION_ORDER.map((key) => result.sections[key]),
-        }
-      : null,
-  };
-}
-
-export async function retryBlogJob(
-  jobId: string,
-): Promise<RetryBlogJobResponse> {
-  return parseResponse<RetryBlogJobResponse>(
-    await fetch(`/api/v1/blog-jobs/${encodeURIComponent(jobId)}/retry`, {
-      method: "POST",
-    }),
-  );
-}
-
-export async function deleteBlogJob(jobId: string): Promise<void> {
-  const response = await fetch(
-    `/api/v1/blog-jobs/${encodeURIComponent(jobId)}`,
-    { method: "DELETE" },
-  );
-  if (!response.ok) await parseResponse<never>(response);
 }
 
 export async function signin(payload: SigninPayload): Promise<SigninResponse> {
