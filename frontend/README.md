@@ -24,7 +24,7 @@ npx next typegen && npm run lint && npx tsc --noEmit && npm run build && npm run
 
 **앞의 두 단계는 순서가 중요합니다.** 깨끗한 체크아웃에는 `.next`가 없어서, `next typegen` 없이 `tsc`를 돌리면 `LayoutProps`를 찾지 못해 실패합니다. 그리고 `verify:mock`은 내부에서 `next start`만 띄우고 빌드는 하지 않으므로, `npm run build`가 없으면 404가 납니다. 검사 범위는 얼굴 교체 job 흐름·동의 확인·health 회귀입니다.
 
-⚠️ **프론트만 수정해도 커밋 시 backend pytest가 돕니다** (pre-commit `always_run`). `backend/.env`가 없으면 아래처럼 만들고 `OPENAI_KEY`에 아무 값(`placeholder` 등)이나 채우면 통과합니다. 테스트가 `@patch`로 모킹하므로 실제 키는 필요 없습니다.
+⚠️ **프론트만 수정해도 커밋 시 backend pytest가 돕니다.** 훅 구성과 설치 방법은 루트 `CONTRIBUTING.md`가 정본입니다(PR #78). 여기서는 프론트 쪽에서 걸리는 부분만 적습니다 — `backend/.env`가 없으면 pytest가 실패하므로 아래처럼 만들고 `OPENAI_KEY`에 아무 값(`placeholder` 등)이나 채우면 통과합니다. 테스트가 `@patch`로 모킹하므로 실제 키는 필요 없습니다.
 
 ```bash
 cd backend && cp .env.example .env
@@ -52,15 +52,19 @@ cd backend && cp .env.example .env
 
 | 라우트 | 기능 | 상태 |
 |---|---|---|
-| `/face-swap` | ① 얼굴 교체 | job 기반 mock 완성 (접수→폴링→재시도→3규격→삭제). 동의 확인 화면 포함. 실제 모델 연동은 backend 대기 |
+| `/face-swap` | ① 얼굴 교체 | job 기반 mock 완성 (접수→폴링→재시도→3규격→삭제). 동의 확인 화면, 얼굴 옵션 7축(PR #77), 결과물 AI 생성 배지·규격 쓰임새 병기(PR #75) 포함. 실제 모델 연동은 backend 대기 |
 | `/generate/blog` | ② 블로그 글 생성 | job 기반 mock 완성 (접수→폴링→재시도→삭제). 12필드 입력 폼·매장 프로필 쿠키 포함. 실제 모델 연동은 backend 대기 |
 | `/generate/shorts` | ③ AI 숏츠 | MVP 설계 확정. 역할 기반 편집 엔진 구현 착수, 화면·API 연결 전 |
+
+**공통**
+
+`/user/signin` — 로그인 화면 (PR #76). 사이드바·모바일 헤더의 로그인 버튼에서 진입합니다.
 
 **확장 (MVP 제외 — 코드는 보존)**
 
 `/season-banner`, `/generate/caption`, `/style-consult`, `/sketch-consult`, `/marketing-calendar`, `/generate/image`, `/compare`(팀 내부 모델 비교 도구)
 
-## backend 계약 (2026-08-12 기준)
+## backend 계약 (2026-08-13 기준 · dev `f9c2db6`)
 
 - **블로그 입력**: backend `BlogGenerationRequest` **12필드가 정본**.
   프론트 입력 UX 분류(프로필 기본값 / 필수 4개 / 선택 6개)는 Discussion #44 회신을 근거로 PR #56에서 구현했습니다. 선택 필드는 미입력 시 빈 문자열로 전송합니다. **`special_product` 처리는 PM 최종 확정 대기 상태**라, 관련 동작을 바꿀 때는 확인이 필요합니다
