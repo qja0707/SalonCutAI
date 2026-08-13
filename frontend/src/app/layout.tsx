@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import { Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AppShell } from "@/components/app-shell";
+import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 
 const pretendard = localFont({
@@ -24,10 +25,18 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="ko" className={`${pretendard.variable} ${geistMono.variable} h-full antialiased`}>
+    // 테마 클래스는 브라우저에서 붙는다. 서버가 만든 HTML 과 다를 수밖에 없으므로
+    // 이 한 단계만 경고를 끈다(next-themes 권장). 아래 자식들에는 적용되지 않는다.
+    <html
+      lang="ko"
+      suppressHydrationWarning
+      className={`${pretendard.variable} ${geistMono.variable} h-full antialiased`}
+    >
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <AppShell>{children}</AppShell>
-        <Toaster />
+        <ThemeProvider>
+          <AppShell>{children}</AppShell>
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );
