@@ -14,6 +14,27 @@ import {
   BlogWireResult,
 } from "@/lib/api-client/types";
 
+/**
+ * 응답 실패를 상태 코드까지 실어서 던진다.
+ * 저장해둔 job 을 복구할 때 "서버에서 사라진 작업(404)"과 "지금 통신이 안 되는 것"을
+ * 갈라야 하는데, 메시지 문자열만으로는 구분할 수 없었다.
+ * 기존 호출부는 error.message 만 쓰므로 그대로 동작한다.
+ */
+export class ApiRequestError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+  }
+}
+
+/** 지워졌거나 애초에 없는 job. 복구를 포기하고 저장분을 버리면 되는 경우다. */
+export function isNotFoundError(error: unknown): boolean {
+  return error instanceof ApiRequestError && error.status === 404;
+}
+
 async function parseResponse<T>(response: Response): Promise<T> {
   const data = (await response.json().catch(() => null)) as
     | T
@@ -24,7 +45,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
       data && typeof data === "object" && "error" in data
         ? (data as ErrorEnvelope).error.message
         : `요청에 실패했습니다. (${response.status})`;
-    throw new Error(message);
+    throw new ApiRequestError(message, response.status);
   }
   return data as T;
 }
