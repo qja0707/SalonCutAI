@@ -5,11 +5,11 @@ import { NextResponse } from "next/server";
 export async function POST(request: Request) {
   if (getApiMode() === "proxy") return proxyPendingResponse(request);
 
-  return NextResponse.json({
-    status: 200,
-    body: {
+  return NextResponse.json(
+    {
       access_token: "test_access_token",
       refresh_token: "test_refresh_token",
     },
-  });
+    { status: 200 },
+  );
 }
