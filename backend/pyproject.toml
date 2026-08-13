@@ -36,5 +36,10 @@ dev = [
 ]
 
 [tool.ruff.lint.flake8-bugbear]
-# B008 경고에서 fastapi의 Depends 구문은 예외로 처리합니다.
-extend-immutable-calls = ["fastapi.Depends", "fastapi.params.Depends"]
+# B008 경고에서 fastapi의 Depends·File·Form 구문은 예외로 처리합니다.
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.params.Depends",
+    "fastapi.File",
+    "fastapi.Form",
+]
