@@ -1,21 +1,26 @@
 [project]
 name = "saloncutai"
 version = "0.1.0"
-requires-python = ">=3.12"
+requires-python = "==3.12.*"
 dependencies = [
     "accelerate==1.14.0",
     "diffusers==0.39.0",
     "fastapi>=0.141.1",
     "huggingface-hub==1.26.0",
+    "insightface>=0.7.3",
+    "mediapipe>=0.10.14",
+    "ml-dtypes>=0.5.0",
     "numpy==2.0.2",
+    "onnxruntime>=1.20.0",
     "openai==2.53.0",
-    "opencv-python-headless~=4.13.0",
+    "opencv-contrib-python-headless==5.0.0.93",
     "peft==0.19.1",
     "pillow==12.2.0",
     "pwdlib[argon2]>=0.3.0",
     "pyjwt>=2.13.0",
     "pytest>=9.1.1",
     "python-dotenv==1.2.2",
+    "python-multipart>=0.0.20",
     "ruff>=0.16.1",
     "safetensors==0.8.0",
     "sqlalchemy>=2.0.51",
@@ -24,10 +29,16 @@ dependencies = [
     "uvicorn>=0.52.1",
 ]
 
+[tool.uv]
+# cv2 를 제공하는 배포판이 여러 개 설치되면 어느 것이 로드될지 보장되지 않는다.
+# mediapipe·insightface 가 끌어오는 non-headless 판을 막고 headless 하나만 쓴다.
+exclude-dependencies = ["opencv-contrib-python", "opencv-python"]
+
 [dependency-groups]
 dev = [
     "pre-commit>=4.6.1",
     "pytest-asyncio>=1.4.0",
+    "scikit-image>=0.25.0",
 ]
 
 [tool.ruff.lint.flake8-bugbear]
