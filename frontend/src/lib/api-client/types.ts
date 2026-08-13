@@ -154,6 +154,22 @@ export type CreateVideoJobResponse = Pick<
   "job_id" | "status" | "progress" | "created_at" | "request_id"
 >;
 
+export type GeneratedVideoCaption = {
+  index: number;
+  role: VideoRole;
+  caption: string;
+};
+
+export type VideoCaptionClip = {
+  index: number;
+  role: VideoRole;
+  description?: string;
+};
+
+export type VideoCaptionResponse = {
+  captions: GeneratedVideoCaption[];
+};
+
 /**
  * 어떤 얼굴로 바꿀지 지정하는 값 (수민님 8/11 제안, 조합 3·5 하이브리드).
  *

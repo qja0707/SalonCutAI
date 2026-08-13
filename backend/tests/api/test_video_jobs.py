@@ -24,6 +24,7 @@ def test_video_routes_use_one_api_v1_prefix():
     assert "/api/v1/face-swap-jobs" in paths
     assert "/api/v1/reference-faces" in paths
     assert "/api/v1/text-gen/blog-generation" in paths
+    assert "/api/v1/video-captions" in paths
 
 
 def test_create_and_get_video_job_returns_expected_status(monkeypatch, tmp_path):

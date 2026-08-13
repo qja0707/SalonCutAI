@@ -11,7 +11,9 @@ import {
   type ReferenceFacesResponse,
   type RetryFaceSwapJobResponse,
   type CreateVideoJobResponse,
+  type VideoCaptionClip,
   type VideoClipOptions,
+  type VideoCaptionResponse,
   type VideoJobResponse,
   type SigninResponse,
   type BlogWireResult,
@@ -166,4 +168,17 @@ export async function deleteVideoJob(jobId: string): Promise<void> {
 
 export function videoJobUrl(jobId: string): string {
   return `/api/v1/video-jobs/${encodeURIComponent(jobId)}/video`;
+}
+
+export async function createVideoCaptions(
+  clips: VideoCaptionClip[],
+  topic: string,
+): Promise<VideoCaptionResponse> {
+  return parseResponse<VideoCaptionResponse>(
+    await fetch("/api/v1/video-captions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clips, topic }),
+    }),
+  );
 }
