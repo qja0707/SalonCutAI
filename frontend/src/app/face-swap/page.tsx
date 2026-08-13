@@ -41,8 +41,8 @@ const BG_STYLES = ["화이트 스튜디오", "우드톤 인테리어", "그린 �
 
 /**
  * 규격 옆에 쓰임새를 같이 적는다. 숫자만 보고 어디에 올릴 규격인지 아는 사람은 드물다.
- * 4:5 를 권장으로 표시하는 근거 — Meta 공식 문서상 인스타 피드는 세로로 긴 이미지를
- * 4:5 로 자동 크롭한다. 그래서 세로 컷은 4:5 로 올려야 잘리지 않는다.
+ * 4:5 를 권장으로 표시하는 근거 — Meta 안내상 인스타 피드는 4:5까지 지원 범위라
+ * 원본 비율이 유지된다. 그보다 긴 세로 컷만 잘리므로, 세로 사진은 4:5 가 안전하다.
  */
 const RATIO_USAGE: Record<Ratio, string> = {
   "1:1": "피드",
@@ -187,7 +187,7 @@ export default function FaceSwapPage() {
   }
 
   /**
-   * AI기본법 제31조 ③항 — 결과물이 AI 생성물임을 이용자가 명확히 인식하게 해야 한다.
+   * 결과물이 AI 생성물임을 받는 쪽이 알 수 있게 한다.
    * 이미지 위 배지로 상시 표시하고, 밖으로 내보내는 시점에 한 번 더 알린다.
    * 매번 띄우면 잔소리가 되므로 화면당 한 번만 띄운다.
    */
@@ -293,7 +293,7 @@ export default function FaceSwapPage() {
                   ))}
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  한 번 생성한 결과를 세 규격으로 후처리합니다. 인스타그램은 세로로 긴 사진을 4:5로 잘라서 보여줍니다.
+                  한 번 생성한 결과를 세 규격으로 후처리합니다.
                 </p>
               </div>
               <div className="flex items-center justify-between gap-4">
@@ -390,7 +390,7 @@ export default function FaceSwapPage() {
                             <div className="relative">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img src={result.url} alt={`${ratio} 홍보 이미지`} className="h-56 w-full rounded-lg border bg-muted object-contain" />
-                              {/* AI기본법 제31조 ③항 — 실제와 구분하기 어려운 가상 이미지는 가시적으로 표시한다. */}
+                              {/* 실제 사진과 구분되도록 AI 생성 사실을 이미지 위에 표시한다. */}
                               <span className="pointer-events-none absolute right-2 bottom-2 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
                                 AI 생성
                               </span>
