@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from src.ai_engine.video_gen.engine import ClipInput, process_shorts
 
-router = APIRouter(prefix="/api/v1/video-jobs", tags=["video generation"])
+router = APIRouter(prefix="/video-jobs", tags=["video generation"])
 
 MAX_CLIPS = 8
 MIN_CLIPS = 2

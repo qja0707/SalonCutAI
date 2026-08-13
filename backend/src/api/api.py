@@ -3,7 +3,7 @@ from fastapi import APIRouter
 from src.api import auth, text_gen, users, video_jobs
 
 # 메인 총괄 라우터 생성
-api_router = APIRouter()
+api_router = APIRouter(prefix="/api/v1")
 
 # 총괄 라우터에 하위 라우터들을 모두 심어줍니다.
 api_router.include_router(text_gen.router)
