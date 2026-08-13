@@ -1,10 +1,19 @@
 export const RATIOS = ["1:1", "4:5", "9:16"] as const;
-export const BLOG_SECTION_ORDER = ["before", "process", "after", "home_care"] as const;
+export const BLOG_SECTION_ORDER = [
+  "before",
+  "process",
+  "after",
+  "home_care",
+] as const;
 
 export type Ratio = (typeof RATIOS)[number];
 export type BlogSectionKey = (typeof BLOG_SECTION_ORDER)[number];
 export type JobStatus = "queued" | "processing" | "completed" | "failed";
-export type MockScenario = "normal" | "image-fail" | "face-not-detected" | "slow";
+export type MockScenario =
+  | "normal"
+  | "image-fail"
+  | "face-not-detected"
+  | "slow";
 export type BlogMockScenario = "normal" | "blog-fail" | "slow";
 export type VideoRole = "before" | "process" | "detail" | "after";
 export type VideoSelection = "start" | "center" | "end";
@@ -21,14 +30,6 @@ export type ErrorEnvelope = {
 };
 
 export type BlogSection = { heading: string; body: string };
-
-export type BlogResult = {
-  title: string;
-  intro: string;
-  sections: BlogSection[];
-  closing: string;
-  hashtags: string[];
-};
 
 export type BlogWireResult = {
   title: string;
@@ -80,34 +81,6 @@ export const BLOG_REQUIRED_FIELDS = [
   "design_point",
   "customer_pain_point",
 ] as const satisfies readonly (keyof CreateBlogJobPayload)[];
-
-type BlogJobEnvelope<TResult> = {
-  job_id: string;
-  test_code: string;
-  status: JobStatus;
-  attempt: number;
-  result: TResult | null;
-  error: ApiError | null;
-  created_at: string;
-  updated_at: string;
-  result_expires_at: string;
-  request_id: string;
-};
-
-export type BlogJobResponse = BlogJobEnvelope<BlogResult>;
-export type BlogJobWireResponse = BlogJobEnvelope<BlogWireResult>;
-
-export type CreateBlogJobResponse = Pick<
-  BlogJobResponse,
-  "job_id" | "test_code" | "status" | "created_at" | "request_id"
->;
-
-export type RetryBlogJobResponse = {
-  job_id: string;
-  status: "processing";
-  attempt: number;
-  request_id: string;
-};
 
 export type ImageResult = {
   url: string;
@@ -197,13 +170,17 @@ export type FaceMode = (typeof FACE_MODES)[number];
 /**
  * 값은 한글 그대로 보낸다. 영문 프롬프트 변환은 백엔드 몫이다(8/11 수민님께 전달).
  * 프론트가 영문 어휘까지 정하면 모델 프롬프트를 손볼 때마다 화면을 같이 고쳐야 한다.
+ *
+ * 세부는 4개다 — 표정을 얼굴 스타일에서 떼어냈고, 피부 타입을 스킨 톤으로 바꿨다(#69).
+ * 이유는 face-taxonomy.ts 의 각 목록 주석 참고.
  */
 export type FacePromptOptions = {
   ethnicity: string; // 필수
   gender: string; // 필수
   age: string; // 필수
   face_style: string; // 선택 — 미선택 시 빈 문자열
-  skin_type: string; // 선택
+  expression: string; // 선택
+  skin_tone: string; // 선택
   makeup: string; // 선택
 };
 
@@ -224,7 +201,8 @@ export const FACE_PROMPT_REQUIRED_KEYS = [
 
 export const FACE_PROMPT_OPTIONAL_KEYS = [
   "face_style",
-  "skin_type",
+  "expression",
+  "skin_tone",
   "makeup",
 ] as const satisfies readonly (keyof FacePromptOptions)[];
 
@@ -256,4 +234,15 @@ export type CreateFaceSwapJobPayload = {
     background_style: string | null;
     face: FaceOption;
   };
+};
+
+// 로그인 관련 타입
+export type SigninPayload = {
+  id: string;
+  pw: string;
+};
+
+export type SigninResponse = {
+  access_token: string;
+  refresh_token: string;
 };

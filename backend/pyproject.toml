@@ -29,6 +29,11 @@ dependencies = [
     "uvicorn>=0.52.1",
 ]
 
+[tool.uv]
+# cv2 를 제공하는 배포판이 여러 개 설치되면 어느 것이 로드될지 보장되지 않는다.
+# mediapipe·insightface 가 끌어오는 non-headless 판을 막고 headless 하나만 쓴다.
+exclude-dependencies = ["opencv-contrib-python", "opencv-python"]
+
 [dependency-groups]
 dev = [
     "pre-commit>=4.6.1",
@@ -36,14 +41,11 @@ dev = [
     "scikit-image>=0.25.0",
 ]
 
-[tool.uv]
-# cv2 를 제공하는 배포판이 여러 개 설치되면 어느 것이 로드될지 보장되지 않는다.
-# mediapipe·insightface 가 끌어오는 non-headless 판을 막고 headless 하나만 쓴다.
-exclude-dependencies = [
-    "opencv-contrib-python",
-    "opencv-python",
-]
-
 [tool.ruff.lint.flake8-bugbear]
-# B008 경고에서 fastapi의 Depends 구문은 예외로 처리합니다.
-extend-immutable-calls = ["fastapi.Depends", "fastapi.params.Depends"]
+# B008 경고에서 fastapi의 Depends·File·Form 구문은 예외로 처리합니다.
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.params.Depends",
+    "fastapi.File",
+    "fastapi.Form",
+]

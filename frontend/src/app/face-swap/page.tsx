@@ -24,19 +24,43 @@ import {
   createFaceSwapJob,
   deleteFaceSwapJob,
   getFaceSwapJob,
+  isNotFoundError,
   retryFaceSwapJob,
 } from "@/lib/api-client/client";
+import { clearActiveJob, readActiveJob, writeActiveJob } from "@/lib/active-job";
 import {
   RATIOS,
   type CreateFaceSwapJobPayload,
   type FaceSwapJobResponse,
   type MockScenario,
+  type Ratio,
 } from "@/lib/api-client/types";
 import { IS_PUBLIC_PREVIEW, PUBLIC_PREVIEW_NOTICE } from "@/lib/public-preview";
 import { sampleAvatarFile } from "@/lib/sample-assets";
 import { CONSENT_CONTENT, CONSENT_VERSION } from "@/lib/consent";
 
+/**
+ * 배경 교체는 기능 2로 넘어갔다(8/12 수민님 회신). 이번 MVP 백엔드는 preserve 만 지원한다.
+ *
+ * 토글을 남겨두면 켤 수 있는데, 켜면 `background_mode: "replace"` 로 나가고 서버 검증도
+ * 통과한다 — 지원하지 않는 기능을 손님이 켜는 상태가 된다. 그래서 화면에서만 감춘다.
+ * 지우지 않는 이유는 payload 규칙과 검증이 이미 짝을 맞춰 있어서, 기능 2에서
+ * 이 플래그만 켜면 되기 때문이다. 배경 스타일 후보 9종은 #69 2-9 에 있다.
+ */
+const BACKGROUND_REPLACE_READY = false;
+
 const BG_STYLES = ["화이트 스튜디오", "우드톤 인테리어", "그린 식물 배경"];
+
+/**
+ * 규격 옆에 쓰임새를 같이 적는다. 숫자만 보고 어디에 올릴 규격인지 아는 사람은 드물다.
+ * 4:5 를 권장으로 표시하는 근거 — Meta 안내상 인스타 피드는 4:5까지 지원 범위라
+ * 원본 비율이 유지된다. 그보다 긴 세로 컷만 잘리므로, 세로 사진은 4:5 가 안전하다.
+ */
+const RATIO_USAGE: Record<Ratio, string> = {
+  "1:1": "피드",
+  "4:5": "피드 세로 · 권장",
+  "9:16": "스토리 · 릴스",
+};
 const TERMINAL = new Set(["completed", "failed"]);
 const EXPECTED_SECONDS = 16;
 
@@ -64,11 +88,45 @@ export default function FaceSwapPage() {
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [requestError, setRequestError] = useState<string | null>(null);
+  const [downloadNoticeShown, setDownloadNoticeShown] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState(true);
+  const [restored, setRestored] = useState(false);
 
   const jobStatus = job?.status;
   const active = Boolean(jobId && (!jobStatus || !TERMINAL.has(jobStatus)));
   const resultImages = useMemo(() => (job?.status === "completed" ? job.results : null), [job]);
+
+  // 새로고침 전에 만들던 job 을 이어받는다. 마운트 때 한 번만 돈다.
+  //
+  // setState 는 전부 이 안쪽 async 함수에 둔다. effect 본문에서 곧바로 부르면
+  // 렌더가 한 번 더 도는 것을 react-hooks/set-state-in-effect 가 막는다.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const saved = readActiveJob("face-swap");
+      try {
+        if (!saved) return;
+        const savedJob = await getFaceSwapJob(saved.jobId);
+        if (cancelled) return;
+        setJob(savedJob);
+        setJobId(saved.jobId);
+        setStartedAt(saved.startedAt);
+        setRestored(true);
+      } catch (error) {
+        if (cancelled) return;
+        // 서버에서 사라진 작업(404)이면 저장분을 버린다.
+        // 통신이 안 되는 것뿐이면 남겨두고 다음 새로고침에 다시 시도한다.
+        if (isNotFoundError(error)) clearActiveJob("face-swap");
+        else setRequestError(error instanceof Error ? error.message : "이전 작업을 불러오지 못했습니다.");
+      } finally {
+        if (!cancelled) setRestoring(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -132,7 +190,7 @@ export default function FaceSwapPage() {
       return;
     }
     if (!consentAgreed) {
-      toast.warning("고객의 사진 활용 동의를 받은 뒤 확인해주세요.");
+      toast.warning("고객에게 받은 사진 활용 동의를 확인해주세요.");
       return;
     }
     if (!isFaceReady(face)) {
@@ -147,11 +205,14 @@ export default function FaceSwapPage() {
     setRequestError(null);
     setJob(null);
     setJobId(null);
+    setRestored(false);
     setElapsedSeconds(0);
-    setStartedAt(Date.now());
+    const startedAtMs = Date.now();
+    setStartedAt(startedAtMs);
     try {
       const created = await createFaceSwapJob(photo, buildPayload(), scenario);
       setJobId(created.job_id);
+      writeActiveJob("face-swap", { jobId: created.job_id, startedAt: startedAtMs });
     } catch (error) {
       setRequestError(error instanceof Error ? error.message : "작업을 시작하지 못했습니다.");
       setStartedAt(null);
@@ -165,22 +226,38 @@ export default function FaceSwapPage() {
     try {
       await retryFaceSwapJob(jobId);
       setJob(await getFaceSwapJob(jobId));
-      setStartedAt(Date.now());
+      // 재시도는 시계를 다시 잡는다. 저장분도 같이 갱신해야 복구했을 때 초가 어긋나지 않는다.
+      const startedAtMs = Date.now();
+      setStartedAt(startedAtMs);
       setElapsedSeconds(0);
+      writeActiveJob("face-swap", { jobId, startedAt: startedAtMs });
       toast.success("얼굴 교체 이미지를 다시 만들고 있어요.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "다시 시도하지 못했습니다.");
     }
   }
 
+  /**
+   * 결과물이 AI 생성물임을 받는 쪽이 알 수 있게 한다.
+   * 이미지 위 배지로 상시 표시하고, 밖으로 내보내는 시점에 한 번 더 알린다.
+   * 매번 띄우면 잔소리가 되므로 화면당 한 번만 띄운다.
+   */
+  function handleDownloadNotice() {
+    if (downloadNoticeShown) return;
+    setDownloadNoticeShown(true);
+    toast.info("AI로 만든 이미지입니다. 홍보에 쓰실 때 AI 생성 사실을 함께 표시해주세요.");
+  }
+
   async function handleDelete() {
     if (!jobId) return;
     try {
       await deleteFaceSwapJob(jobId);
+      clearActiveJob("face-swap");
       setJobId(null);
       setJob(null);
       setStartedAt(null);
       setElapsedSeconds(0);
+      setRestored(false);
       toast.success("작업을 삭제했습니다.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "작업을 삭제하지 못했습니다.");
@@ -191,8 +268,8 @@ export default function FaceSwapPage() {
     <div className="mx-auto max-w-6xl px-6 py-10">
       <h1 className="text-2xl font-semibold tracking-tight">💇 얼굴 교체 홍보 이미지</h1>
       <p className="mt-2 max-w-2xl text-muted-foreground">
-        고객의 헤어·의상·배경은 유지하고 얼굴만 가상 인물로 바꾼 뒤 세 가지 홍보 이미지 규격을 만듭니다.
-        촬영·활용 동의는 반드시 먼저 받아주세요.
+        생성형 AI로 얼굴을 만듭니다. 고객의 헤어·의상·배경은 유지하고 얼굴만 가상 인물로 바꾼 뒤 세 가지 홍보 이미지 규격을 만듭니다.
+        시술 당시 촬영·활용 동의를 받아둔 사진만 사용해주세요.
       </p>
 
       {IS_PUBLIC_PREVIEW && <Alert className="mt-4"><AlertDescription>{PUBLIC_PREVIEW_NOTICE}</AlertDescription></Alert>}
@@ -212,7 +289,7 @@ export default function FaceSwapPage() {
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">{CONSENT_CONTENT.introduction}</p>
               <Collapsible open={consentOpen} onOpenChange={setConsentOpen}>
-                <CollapsibleTrigger className="flex min-h-11 w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm font-medium hover:bg-muted/60 sm:min-h-0">
+                <CollapsibleTrigger className="flex min-h-12 w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm font-medium hover:bg-muted/60 sm:min-h-0">
                   동의 내용 전체 보기
                   <ChevronDown className={`h-4 w-4 transition-transform ${consentOpen ? "rotate-180" : ""}`} />
                 </CollapsibleTrigger>
@@ -262,24 +339,32 @@ export default function FaceSwapPage() {
               <div>
                 <Label className="mb-2 block">출력 비율</Label>
                 <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary">1:1 인스타 피드</Badge>
-                  <Badge variant="secondary">4:5 인스타 세로</Badge>
-                  <Badge variant="secondary">9:16 스토리 · fit_pad</Badge>
+                  {RATIOS.map((ratio) => (
+                    <Badge key={ratio} variant="secondary">
+                      {ratio} · {RATIO_USAGE[ratio]}
+                    </Badge>
+                  ))}
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">한 번 생성한 결과를 세 규격으로 후처리합니다.</p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  한 번 생성한 결과를 세 규격으로 후처리합니다.
+                </p>
               </div>
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <Label htmlFor="clean-bg">배경도 함께 정리하기</Label>
-                  <p className="text-xs text-muted-foreground">끄면 얼굴만 바꾸고 원래 배경을 유지합니다.</p>
-                </div>
-                <Switch id="clean-bg" checked={cleanBg} onCheckedChange={setCleanBg} />
-              </div>
-              {cleanBg && (
-                <Select value={bgStyle} onValueChange={(value) => value && setBgStyle(value)}>
-                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                  <SelectContent>{BG_STYLES.map((style) => <SelectItem key={style} value={style}>{style}</SelectItem>)}</SelectContent>
-                </Select>
+              {BACKGROUND_REPLACE_READY && (
+                <>
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <Label htmlFor="clean-bg">배경도 함께 정리하기</Label>
+                      <p className="text-xs text-muted-foreground">끄면 얼굴만 바꾸고 원래 배경을 유지합니다.</p>
+                    </div>
+                    <Switch id="clean-bg" checked={cleanBg} onCheckedChange={setCleanBg} />
+                  </div>
+                  {cleanBg && (
+                    <Select value={bgStyle} onValueChange={(value) => value && setBgStyle(value)}>
+                      <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>{BG_STYLES.map((style) => <SelectItem key={style} value={style}>{style}</SelectItem>)}</SelectContent>
+                    </Select>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>
@@ -305,7 +390,7 @@ export default function FaceSwapPage() {
             className="w-full"
             size="lg"
             onClick={handleGenerate}
-            disabled={requesting || active || !consentAgreed || !isFaceReady(face)}
+            disabled={requesting || active || restoring || !consentAgreed || !isFaceReady(face)}
             aria-describedby={
               !consentAgreed ? "consent-required" : !isFaceReady(face) ? "face-required" : undefined
             }
@@ -319,9 +404,21 @@ export default function FaceSwapPage() {
           <h2 className="text-base font-semibold">결과</h2>
           {requestError && <Alert variant="destructive"><AlertDescription>{requestError}</AlertDescription></Alert>}
 
+          {restored && (
+            <Alert>
+              <AlertDescription>
+                새로고침 전 작업을 이어서 보고 있어요. 업로드했던 원본 사진은 다시 표시할 수 없습니다.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {!jobId ? (
             <Card className="flex aspect-square items-center justify-center border-dashed">
-              <p className="max-w-[260px] text-center text-sm text-muted-foreground">사진과 옵션을 채운 뒤 버튼을 누르면 얼굴 교체 이미지 결과가 표시됩니다.</p>
+              <p className="max-w-[260px] text-center text-sm text-muted-foreground">
+                {restoring
+                  ? "이전에 만들던 작업이 있는지 확인하고 있어요."
+                  : "사진과 옵션을 채운 뒤 버튼을 누르면 얼굴 교체 이미지 결과가 표시됩니다."}
+              </p>
             </Card>
           ) : (
             <>
@@ -359,10 +456,21 @@ export default function FaceSwapPage() {
                         const result = resultImages[ratio];
                         return (
                           <div key={ratio} className="space-y-2">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={result.url} alt={`${ratio} 홍보 이미지`} className="h-56 w-full rounded-lg border bg-muted object-contain" />
-                            <div className="flex items-center justify-between text-xs"><span>{ratio}</span><Badge variant="outline">{result.format_mode}</Badge></div>
-                            <a href={result.url} download><Button variant="outline" size="sm" className="w-full"><Download className="h-3.5 w-3.5" />다운로드</Button></a>
+                            <div className="relative">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={result.url} alt={`${ratio} 홍보 이미지`} className="h-56 w-full rounded-lg border bg-muted object-contain" />
+                              {/* 실제 사진과 구분되도록 AI 생성 사실을 이미지 위에 표시한다. */}
+                              <span className="pointer-events-none absolute right-2 bottom-2 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                                AI 생성
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-2 text-xs">
+                              <span>{ratio} · {RATIO_USAGE[ratio]}</span>
+                              <Badge variant="outline">{result.format_mode}</Badge>
+                            </div>
+                            <a href={result.url} download onClick={handleDownloadNotice}>
+                              <Button variant="outline" size="sm" className="w-full"><Download className="h-3.5 w-3.5" />다운로드</Button>
+                            </a>
                           </div>
                         );
                       })}

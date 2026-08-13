@@ -1,10 +1,7 @@
 import {
-  BLOG_SECTION_ORDER,
-  type BlogJobResponse,
-  type BlogJobWireResponse,
+  type SigninPayload,
   type BlogMockScenario,
   type CreateBlogJobPayload,
-  type CreateBlogJobResponse,
   type CreateFaceSwapJobPayload,
   type CreateFaceSwapJobResponse,
   type ErrorEnvelope,
@@ -12,22 +9,51 @@ import {
   type MockScenario,
   type ReferenceFace,
   type ReferenceFacesResponse,
-  type RetryBlogJobResponse,
   type RetryFaceSwapJobResponse,
   type CreateVideoJobResponse,
   type VideoClipOptions,
   type VideoJobResponse,
+  type SigninResponse,
+  type BlogWireResult,
 } from "@/lib/api-client/types";
 
+/**
+ * 응답 실패를 상태 코드까지 실어서 던진다.
+ * 저장해둔 job 을 복구할 때 "서버에서 사라진 작업(404)"과 "지금 통신이 안 되는 것"을
+ * 갈라야 하는데, 메시지 문자열만으로는 구분할 수 없었다.
+ * 기존 호출부는 error.message 만 쓰므로 그대로 동작한다.
+ */
+export class ApiRequestError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+  }
+}
+
+/** 지워졌거나 애초에 없는 job. 복구를 포기하고 저장분을 버리면 되는 경우다. */
+export function isNotFoundError(error: unknown): boolean {
+  return error instanceof ApiRequestError && error.status === 404;
+}
+
 async function parseResponse<T>(response: Response): Promise<T> {
-  const data = (await response.json().catch(() => null)) as T | ErrorEnvelope | null;
+  const data = (await response.json().catch(() => null)) as
+    | T
+    | ErrorEnvelope
+    | null;
   if (!response.ok) {
-    const message = data && typeof data === "object" && "error" in data
-      ? (data as ErrorEnvelope).error.message
-      : data && typeof data === "object" && "detail" in data && typeof data.detail === "string"
-        ? data.detail
-        : `요청에 실패했습니다. (${response.status})`;
-    throw new Error(message);
+    const message =
+      data && typeof data === "object" && "error" in data
+        ? (data as ErrorEnvelope).error.message
+        : data &&
+            typeof data === "object" &&
+            "detail" in data &&
+            typeof data.detail === "string"
+          ? data.detail
+          : `요청에 실패했습니다. (${response.status})`;
+    throw new ApiRequestError(message, response.status);
   }
   return data as T;
 }
@@ -58,60 +84,59 @@ export async function createFaceSwapJob(
   );
 }
 
-export async function getFaceSwapJob(jobId: string): Promise<FaceSwapJobResponse> {
+export async function getFaceSwapJob(
+  jobId: string,
+): Promise<FaceSwapJobResponse> {
   return parseResponse<FaceSwapJobResponse>(
-    await fetch(`/api/v1/face-swap-jobs/${encodeURIComponent(jobId)}`, { cache: "no-store" }),
+    await fetch(`/api/v1/face-swap-jobs/${encodeURIComponent(jobId)}`, {
+      cache: "no-store",
+    }),
   );
 }
 
-export async function retryFaceSwapJob(jobId: string): Promise<RetryFaceSwapJobResponse> {
+export async function retryFaceSwapJob(
+  jobId: string,
+): Promise<RetryFaceSwapJobResponse> {
   return parseResponse<RetryFaceSwapJobResponse>(
-    await fetch(`/api/v1/face-swap-jobs/${encodeURIComponent(jobId)}/retry`, { method: "POST" }),
+    await fetch(`/api/v1/face-swap-jobs/${encodeURIComponent(jobId)}/retry`, {
+      method: "POST",
+    }),
   );
 }
 
 export async function deleteFaceSwapJob(jobId: string): Promise<void> {
-  const response = await fetch(`/api/v1/face-swap-jobs/${encodeURIComponent(jobId)}`, { method: "DELETE" });
+  const response = await fetch(
+    `/api/v1/face-swap-jobs/${encodeURIComponent(jobId)}`,
+    { method: "DELETE" },
+  );
   if (!response.ok) await parseResponse<never>(response);
 }
 
 export async function createBlogJob(
   payload: CreateBlogJobPayload,
   scenario: BlogMockScenario = "normal",
-): Promise<CreateBlogJobResponse> {
-  return parseResponse<CreateBlogJobResponse>(
-    await fetch("/api/v1/blog-jobs", {
+): Promise<BlogWireResult> {
+  return parseResponse<BlogWireResult>(
+    await fetch("/api/v1/text-gen/blog-generation", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Mock-Scenario": scenario },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Mock-Scenario": scenario,
+      },
       body: JSON.stringify(payload),
     }),
   );
 }
 
-export async function getBlogJob(jobId: string): Promise<BlogJobResponse> {
-  const response = await parseResponse<BlogJobWireResponse>(
-    await fetch(`/api/v1/blog-jobs/${encodeURIComponent(jobId)}`, { cache: "no-store" }),
-  );
-  const result = response.result;
-  return {
-    ...response,
-    result: result
-      ? { ...result, sections: BLOG_SECTION_ORDER.map((key) => result.sections[key]) }
-      : null,
-  };
-}
-
-export async function retryBlogJob(jobId: string): Promise<RetryBlogJobResponse> {
-  return parseResponse<RetryBlogJobResponse>(
-    await fetch(`/api/v1/blog-jobs/${encodeURIComponent(jobId)}/retry`, { method: "POST" }),
+export async function signin(payload: SigninPayload): Promise<SigninResponse> {
+  return parseResponse<SigninResponse>(
+    await fetch("/api/v1/auth/signin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
   );
 }
-
-export async function deleteBlogJob(jobId: string): Promise<void> {
-  const response = await fetch(`/api/v1/blog-jobs/${encodeURIComponent(jobId)}`, { method: "DELETE" });
-  if (!response.ok) await parseResponse<never>(response);
-}
-
 export async function createVideoJob(
   clips: { file: File; options: VideoClipOptions }[],
 ): Promise<CreateVideoJobResponse> {

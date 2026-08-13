@@ -8,27 +8,26 @@
 // 폼 상태는 두 모드의 값을 평평하게 함께 들고 있고, 전송 직전 buildFaceOption 에서
 // 쓰는 쪽만 남기고 반대쪽을 null 로 만든다. 모드를 오갈 때 입력값이 날아가지 않게 하려는 것이다.
 //
-// 필수 3개는 고정 목록, 세부 3개는 직접 입력을 연다(8/11 확정). 이유는 face-taxonomy.ts 참고.
-// blog-fields.tsx 의 OptionButtons 와 생김새는 비슷하지만, 여기는 "선택 안 함" 칩과
-// 길이 상한이 있어 따로 둔다.
+// 필수 3개도 세부 4개도 고정 목록에서만 고른다(8/12 확정). 이유는 face-taxonomy.ts 참고.
+// blog-fields.tsx 의 OptionButtons 와 생김새는 비슷하지만, 여기는 "선택 안 함" 칩이
+// 따로 있어 분리해 둔다.
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChipGroup } from "@/components/chip-group";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { getReferenceFaces } from "@/lib/api-client/client";
 import {
   FACE_AGE_GROUPS,
-  FACE_CUSTOM_MAX,
   FACE_ETHNICITIES,
+  FACE_EXPRESSIONS,
   FACE_GENDERS,
   FACE_MAKEUPS,
   FACE_NONE_LABEL,
-  FACE_SKIN_TYPES,
+  FACE_SKIN_TONES,
   FACE_STYLES,
 } from "@/lib/face-taxonomy";
 import type { FaceMode, FaceOption, ReferenceFace } from "@/lib/api-client/types";
@@ -39,7 +38,8 @@ export type FaceOptionValues = {
   gender: string;
   age: string;
   face_style: string;
-  skin_type: string;
+  expression: string;
+  skin_tone: string;
   makeup: string;
   reference_face_id: string;
 };
@@ -51,7 +51,8 @@ export const EMPTY_FACE_VALUES: FaceOptionValues = {
   gender: "",
   age: "",
   face_style: "",
-  skin_type: "",
+  expression: "",
+  skin_tone: "",
   makeup: "",
   reference_face_id: "",
 };
@@ -73,7 +74,8 @@ export function buildFaceOption(values: FaceOptionValues): FaceOption {
       gender: values.gender,
       age: values.age,
       face_style: values.face_style,
-      skin_type: values.skin_type,
+      expression: values.expression,
+      skin_tone: values.skin_tone,
       makeup: values.makeup,
     },
   };
@@ -111,7 +113,7 @@ function RequiredChoice({
 }
 
 /**
- * 세부 항목. 추천 어휘 + 직접 입력.
+ * 세부 항목. 고정 목록에서만 고른다.
  * "선택 안 함"을 칩으로 명시한다 — 고른 칩을 다시 눌러야 풀리는 방식은 눌러봐야 알 수 있다.
  */
 function OptionalChoice({
@@ -119,19 +121,12 @@ function OptionalChoice({
   options,
   value,
   onChange,
-  placeholder,
 }: {
   label: string;
   options: readonly string[];
   value: string;
   onChange: (next: string) => void;
-  placeholder: string;
 }) {
-  const [customOpened, setCustomOpened] = useState(false);
-  // 값이 추천 목록에 없으면 직접 입력한 값이므로 입력칸이 열려 있어야 한다.
-  // 상태로만 두면 값과 어긋나므로 계산해서 쓴다.
-  const showCustom = customOpened || (Boolean(value) && !options.includes(value));
-
   return (
     <div>
       <Label className="mb-2 block">{label}</Label>
@@ -139,11 +134,8 @@ function OptionalChoice({
         <Button
           type="button"
           size="sm"
-          variant={!value && !showCustom ? "default" : "outline"}
-          onClick={() => {
-            setCustomOpened(false);
-            onChange("");
-          }}
+          variant={!value ? "default" : "outline"}
+          onClick={() => onChange("")}
         >
           {FACE_NONE_LABEL}
         </Button>
@@ -153,35 +145,12 @@ function OptionalChoice({
             type="button"
             size="sm"
             variant={value === option ? "default" : "outline"}
-            onClick={() => {
-              setCustomOpened(false);
-              onChange(option);
-            }}
+            onClick={() => onChange(option)}
           >
             {option}
           </Button>
         ))}
-        <Button
-          type="button"
-          size="sm"
-          variant={showCustom ? "default" : "outline"}
-          onClick={() => {
-            setCustomOpened(true);
-            if (options.includes(value)) onChange("");
-          }}
-        >
-          직접 입력
-        </Button>
       </div>
-      {showCustom && (
-        <Input
-          className="mt-2"
-          placeholder={placeholder}
-          maxLength={FACE_CUSTOM_MAX}
-          value={options.includes(value) ? "" : value}
-          onChange={(event) => onChange(event.target.value)}
-        />
-      )}
     </div>
   );
 }
@@ -345,8 +314,8 @@ export function FaceOptionForm({
             <CardHeader>
               <CardTitle className="text-base">세부 (선택)</CardTitle>
               <CardDescription>
-                추천 어휘에 없으면 직접 적으셔도 됩니다. 얼굴만 다시 그리므로 배경이나 헤어에
-                대한 내용은 반영되지 않습니다.
+                고르지 않아도 됩니다. 얼굴만 다시 그리므로 배경이나 헤어에 대한 내용은
+                반영되지 않습니다.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -355,21 +324,24 @@ export function FaceOptionForm({
                 options={FACE_STYLES}
                 value={values.face_style}
                 onChange={(next) => set({ face_style: next })}
-                placeholder="예: 이목구비가 뚜렷한"
               />
               <OptionalChoice
-                label="피부 타입"
-                options={FACE_SKIN_TYPES}
-                value={values.skin_type}
-                onChange={(next) => set({ skin_type: next })}
-                placeholder="예: 주근깨가 있는"
+                label="표정"
+                options={FACE_EXPRESSIONS}
+                value={values.expression}
+                onChange={(next) => set({ expression: next })}
+              />
+              <OptionalChoice
+                label="스킨 톤"
+                options={FACE_SKIN_TONES}
+                value={values.skin_tone}
+                onChange={(next) => set({ skin_tone: next })}
               />
               <OptionalChoice
                 label="메이크업"
                 options={FACE_MAKEUPS}
                 value={values.makeup}
                 onChange={(next) => set({ makeup: next })}
-                placeholder="예: 코랄 톤 립"
               />
             </CardContent>
           </Card>
