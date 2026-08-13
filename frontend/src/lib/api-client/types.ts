@@ -1,10 +1,19 @@
 export const RATIOS = ["1:1", "4:5", "9:16"] as const;
-export const BLOG_SECTION_ORDER = ["before", "process", "after", "home_care"] as const;
+export const BLOG_SECTION_ORDER = [
+  "before",
+  "process",
+  "after",
+  "home_care",
+] as const;
 
 export type Ratio = (typeof RATIOS)[number];
 export type BlogSectionKey = (typeof BLOG_SECTION_ORDER)[number];
 export type JobStatus = "queued" | "processing" | "completed" | "failed";
-export type MockScenario = "normal" | "image-fail" | "face-not-detected" | "slow";
+export type MockScenario =
+  | "normal"
+  | "image-fail"
+  | "face-not-detected"
+  | "slow";
 export type BlogMockScenario = "normal" | "blog-fail" | "slow";
 
 export type ApiError = {
@@ -216,4 +225,15 @@ export type CreateFaceSwapJobPayload = {
     background_style: string | null;
     face: FaceOption;
   };
+};
+
+// 로그인 관련 타입
+export type SigninPayload = {
+  id: string;
+  pw: string;
+};
+
+export type SigninResponse = {
+  access_token: string;
+  refresh_token: string;
 };

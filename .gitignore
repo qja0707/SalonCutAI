@@ -5,3 +5,6 @@ gha-creds-*.json
 database/*
 !database/.gitkeep
 .DS_Store
+
+#local setting
+.vscode
