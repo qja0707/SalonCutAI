@@ -41,6 +41,10 @@ dev = [
     "scikit-image>=0.25.0",
 ]
 
+[tool.ruff]
+# 외부 코드는 원본 그대로 둬야 업데이트 시 비교가 된다.
+extend-exclude = ["src/ai_engine/image_gen/vendor"]
+
 [tool.ruff.lint.flake8-bugbear]
 # B008 경고에서 fastapi의 Depends·File·Form 구문은 예외로 처리합니다.
 extend-immutable-calls = [

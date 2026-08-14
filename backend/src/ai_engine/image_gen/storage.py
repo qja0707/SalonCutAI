@@ -61,25 +61,13 @@ def save_result(job_id: str, ratio_key: str, img: Image.Image) -> Path:
 
 
 def ref_thumbnail_path(ref_id: str) -> Path | None:
-    """썸네일을 만들어 캐시하고 경로를 돌려준다. 원본이 없으면 None.
+    """목록 표시용 사본 경로. 없으면 None.
 
     원본이 장당 1.2MB 라 32장을 그대로 내리면 한 화면에 38MB 가 된다.
+    사본은 미리 만들어 asset 에 함께 두므로 여기서 만들지 않는다.
     """
-    src = ref_face_path(ref_id)
-    if not src.exists():
-        return None
-
-    settings.REF_THUMB_DIR.mkdir(parents=True, exist_ok=True)
-    thumb = settings.REF_THUMB_DIR / f"{ref_id}.jpg"
-    if thumb.exists():
-        return thumb
-
-    img = Image.open(src).convert("RGB")
-    side = settings.THUMBNAIL_SIDE
-    img.resize((side, side), Image.LANCZOS).save(
-        thumb, "JPEG", quality=settings.JPEG_QUALITY
-    )
-    return thumb
+    thumb = settings.REF_FACES_DIR / f"{ref_id}_thumb.jpg"
+    return thumb if thumb.exists() else None
 
 
 def delete_job_files(job_id: str) -> None:

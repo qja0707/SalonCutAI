@@ -17,10 +17,46 @@ IMAGE_GEN_ENABLED = os.getenv("IMAGE_GEN_ENABLED", "0") == "1"
 # --- 경로 ---
 
 # settings.py -> image_gen -> ai_engine -> src -> backend
-STORAGE_DIR = Path(__file__).resolve().parents[3] / "storage"
-REF_FACES_DIR = STORAGE_DIR / "ref_faces"
-REF_THUMB_DIR = REF_FACES_DIR / "thumb"
+BACKEND_DIR = Path(__file__).resolve().parents[3]
+REPO_DIR = BACKEND_DIR.parent
+
+# 참조 사진은 바뀌지 않아 레포에 함께 둔다.
+# 합성용 원본과 목록 표시용 사본이 이름만 다르게 같은 폴더에 있다.
+REF_FACES_DIR = REPO_DIR / "asset" / "ref_faces"
+
+# 합성 결과는 레포 밖에 둔다. 재배포나 clean 으로 지워지면 안 된다.
+# 지정하지 않으면 레포 상위에 만든다.
+STORAGE_DIR = Path(os.getenv("SALON_STORAGE_DIR", str(REPO_DIR.parent / "storage")))
 JOB_DIR = STORAGE_DIR / "face_swap"
+
+# --- 모델 파일 ---
+# 합쳐서 약 4.6GB 라 git 에 넣지 않는다. 없으면 기동 시 받는다.
+
+MODELS_DIR = Path(os.getenv("SALON_MODELS_DIR", str(STORAGE_DIR / "models")))
+CHECKPOINTS_DIR = MODELS_DIR / "checkpoints"
+CONTROLNET_DIR = CHECKPOINTS_DIR / "ControlNetModel"
+IP_ADAPTER_PATH = CHECKPOINTS_DIR / "ip-adapter.bin"
+INSIGHTFACE_ROOT = MODELS_DIR  # insightface 가 models/ 하위에 antelopev2 를 만든다
+FACE_LANDMARKER_PATH = MODELS_DIR / "face_landmarker.task"
+FACE_DETECTOR_PATH = MODELS_DIR / "blaze_face_short_range.tflite"
+SELFIE_SEGMENTER_PATH = MODELS_DIR / "selfie_multiclass.tflite"
+
+# --- 다운로드 주소 ---
+
+MEDIAPIPE_URLS = {
+    FACE_LANDMARKER_PATH: (
+        "https://storage.googleapis.com/mediapipe-models/face_landmarker"
+        "/face_landmarker/float16/1/face_landmarker.task"
+    ),
+    FACE_DETECTOR_PATH: (
+        "https://storage.googleapis.com/mediapipe-models/face_detector"
+        "/blaze_face_short_range/float16/1/blaze_face_short_range.tflite"
+    ),
+    SELFIE_SEGMENTER_PATH: (
+        "https://storage.googleapis.com/mediapipe-models/image_segmenter"
+        "/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite"
+    ),
+}
 
 # --- 결과물 ---
 

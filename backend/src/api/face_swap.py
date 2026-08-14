@@ -81,6 +81,25 @@ def _check_options(payload: CreateJobPayload) -> None:
             raise _invalid("프롬프트 모드에는 prompt 만 채웁니다.")
 
 
+def _validate_face(image_bytes: bytes) -> ApiError | None:
+    """얼굴 사전 검증. 모델을 끄면 건너뛴다.
+
+    실패해도 접수는 성공이다. 큐에 넣지 않고 바로 failed 로 확정해
+    202 뒤 첫 폴링에서 오류를 보여준다. GPU 도 쓰지 않는다.
+    """
+    if not settings.IMAGE_GEN_ENABLED:
+        return None
+
+    from io import BytesIO
+
+    from PIL import Image
+
+    from src.ai_engine.image_gen import validate
+
+    img = Image.open(BytesIO(image_bytes)).convert("RGB")
+    return validate.validate_image(img)
+
+
 # --- 접수 ---
 
 
@@ -104,7 +123,9 @@ async def create_job(
 
     _check_options(parsed)
 
-    job = face_swap_service.create_job(db, parsed, image_bytes)
+    job = face_swap_service.create_job(
+        db, parsed, image_bytes, pre_error=_validate_face(image_bytes)
+    )
     created = face_swap_service.to_response(job)
 
     return CreateJobResponse(
