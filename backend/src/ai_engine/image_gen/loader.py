@@ -21,6 +21,7 @@ _combo5 = None
 _face_app = None
 _landmarker = None
 _segmenter = None
+_face_detector = None
 
 
 def _require_enabled() -> None:
@@ -145,6 +146,34 @@ def get_landmarker():
     return _landmarker
 
 
+def get_face_detector():
+    """MediaPipe 얼굴 검출. 사전 검증에 쓴다.
+
+    조합 3 의 InsightFace 와 별개다. 350px 기준이 이 검출기로 측정한
+    값이므로 같은 것을 써야 판정이 실험과 맞는다.
+    """
+    global _face_detector
+    if _face_detector is not None:
+        return _face_detector
+
+    with _lock:
+        if _face_detector is not None:
+            return _face_detector
+
+        from mediapipe.tasks import python as mp_python
+        from mediapipe.tasks.python import vision
+
+        _face_detector = vision.FaceDetector.create_from_options(
+            vision.FaceDetectorOptions(
+                base_options=mp_python.BaseOptions(
+                    model_asset_path=str(settings.FACE_DETECTOR_PATH)
+                ),
+                min_detection_confidence=0.5,
+            )
+        )
+    return _face_detector
+
+
 def get_segmenter():
     """MediaPipe 세그멘테이션. 헤어·목 영역을 나눈다."""
     global _segmenter
@@ -181,6 +210,7 @@ def warmup() -> None:
     downloads.ensure_models()
     get_face_app()
     get_landmarker()
+    get_face_detector()
     get_segmenter()
     get_combo5()
     get_combo3()

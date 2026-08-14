@@ -121,6 +121,7 @@ def missing_files() -> list[str]:
         settings.CONTROLNET_DIR / "diffusion_pytorch_model.safetensors",
         settings.IP_ADAPTER_PATH,
         settings.FACE_LANDMARKER_PATH,
+        settings.FACE_DETECTOR_PATH,
         settings.SELFIE_SEGMENTER_PATH,
     ]
     return [str(p) for p in required if not p.exists()]
