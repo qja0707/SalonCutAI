@@ -50,8 +50,10 @@ export async function proxyPendingResponse(
       cache: "no-store", // 프록시 요청 캐시 방지
     });
 
-    // 백엔드에서 받은 응답 데이터(Blob)와 Status, Header를 그대로 클라이언트에 반환
-    const responseData = await response.blob();
+    // 204·205·304 응답은 Fetch 표준상 body가 없어야 하므로 null로 전달
+    const responseData = [204, 205, 304].includes(response.status)
+      ? null
+      : await response.blob();
 
     return new NextResponse(responseData, {
       status: response.status,
