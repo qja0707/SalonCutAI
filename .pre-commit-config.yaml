@@ -10,6 +10,7 @@ repos:
         language: system
         types: [python]
         files: ^backend/
+        exclude: ^backend/src/ai_engine/image_gen/vendor/
 
       - id: ruff-format
         name: ✨ Ruff Formatter (Staged Only)
@@ -18,6 +19,7 @@ repos:
         language: system
         types: [python]
         files: ^backend/
+        exclude: ^backend/src/ai_engine/image_gen/vendor/
 
       - id: pytest
         name: 🧪 Pytest Verification (Staged Context)
