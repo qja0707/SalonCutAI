@@ -57,6 +57,21 @@ const MAX_FILE_BYTES = 80 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 320 * 1024 * 1024;
 const MAX_CAPTION_CONTEXT_LENGTH = 100;
 const CUSTOM_DESCRIPTION_VALUE = "__custom__";
+const ACCEPTED_VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".webm", ".mkv"]);
+
+function isAcceptedVideoFile(file: File): boolean {
+  const extension = file.name.includes(".")
+    ? `.${file.name.split(".").pop()?.toLowerCase()}`
+    : "";
+  return file.type.startsWith("video/") || ACCEPTED_VIDEO_EXTENSIONS.has(extension);
+}
+
+function createClipId(): string {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+  return `clip-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 const ROLE_OPTIONS: { value: VideoRole; label: string; caption: string }[] = [
   { value: "before", label: "시술 전", caption: "시술 전, 오늘의 변화를 시작합니다" },
@@ -120,7 +135,8 @@ export function ShortsGenerator() {
 
   function addFiles(files: FileList | null) {
     if (!files) return;
-    const selected = Array.from(files).filter((file) => file.type.startsWith("video/"));
+    const candidates = Array.from(files);
+    const selected = candidates.filter(isAcceptedVideoFile);
     const available = Math.max(0, 8 - clips.length);
     const accepted: File[] = [];
     let totalBytes = clips.reduce((sum, clip) => sum + clip.file.size, 0);
@@ -136,7 +152,7 @@ export function ShortsGenerator() {
         ...accepted.map((file, offset) => {
           const role = defaultRole(current.length + offset, total);
           return {
-            id: crypto.randomUUID(),
+            id: createClipId(),
             file,
             role,
             selection: "center" as const,
@@ -147,7 +163,9 @@ export function ShortsGenerator() {
         }),
       ];
     });
-    if (selected.length > accepted.length) setError("영상은 8개, 파일당 80MB, 전체 320MB까지 올릴 수 있습니다.");
+    if (candidates.length > accepted.length) {
+      setError("MP4·MOV·WEBM·MKV 영상을 8개, 파일당 80MB, 전체 320MB까지 올릴 수 있습니다.");
+    }
     else setError("");
     if (inputRef.current) inputRef.current.value = "";
   }
