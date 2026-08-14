@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { Scissors } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/nav";
 import { cn } from "@/lib/utils";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { ThemePicker } from "@/components/theme-picker";
 import LoginButton from "./login-button";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -42,7 +42,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="flex-1">
               <LoginButton mode="desktop" />
             </div>
-            <ThemeToggle />
+            <ThemePicker />
           </div>
 
           <div className="mt-auto px-3 pt-6 text-xs text-muted-foreground">
@@ -75,7 +75,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </nav>
 
             {/* 메뉴는 가로로 스크롤되므로 토글은 밖에 둬야 밀려나지 않는다. */}
-            <ThemeToggle />
+            <ThemePicker />
           </div>
         </header>
         <main className="flex-1">{children}</main>

@@ -2,7 +2,12 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+/*
+ * 테마가 넷이라 어두운 것이 둘이다. `dark:` 유틸이 붙은 23 군데가 차콜·미드나잇
+ * 양쪽에서 다 걸려야 하므로 변형 정의를 둘 다 보게 바꾼다.
+ * 예전 `.dark` 도 남겨둔다 — 이 클래스를 직접 붙이는 코드가 있어도 깨지지 않는다.
+ */
+@custom-variant dark (&:is(.dark *, .charcoal *, .midnight *));
 
 @theme inline {
   --color-background: var(--background);
@@ -48,6 +53,25 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/*
+ * 테마 6종.
+ *
+ * 색을 바꾸는 것은 팀 합의 사항이라, **기존 화면(토스 블루)을 기본값으로 그대로 둔다.**
+ * 아래 :root 와 .dark 는 dev 에 있던 값 그대로이고, 새 테마 넷은 뒤에 더하기만 했다.
+ * 아무 것도 고르지 않으면 지금까지와 똑같이 보이고, 골라야만 바뀐다.
+ *
+ *   토스 블루 · 토스 블루 다크        — 지금까지 쓰던 것 (기본값)
+ *   따뜻한 아이보리 · 밝은 아이보리   — 밝은 쪽 후보
+ *   차콜 · 미드나잇                   — 어두운 쪽 후보
+ *
+ * 값은 전부 shadcn 표준 토큰 이름에 얹는다. 그래야 버튼·카드·뱃지 같은 기존
+ * 컴포넌트를 한 줄도 고치지 않고 화면 전체 색이 바뀐다.
+ *
+ * --surface-* 는 배경에 깔리는 빛과 결(그레인)이다. 색이 아니라 재질에 가깝다.
+ * 토스 블루에서는 재질을 거의 0 으로 둬서 기존 화면이 그대로 보이게 한다.
+ */
+
+/* 토스 블루 — 기본값. dev 에 있던 값 그대로 */
 :root {
   --background: #ffffff;
   --foreground: #191f28;
@@ -81,8 +105,15 @@
   --sidebar-accent-foreground: #1b64da;
   --sidebar-border: #e5e8eb;
   --sidebar-ring: #3182f6;
+
+  --surface-wash: none;
+  --surface-glow-a: transparent;
+  --surface-glow-b: transparent;
+  --surface-glow-opacity: 0;
+  --surface-grain-opacity: 0;
 }
 
+/* 토스 블루 다크 — dev 에 있던 값 그대로 */
 .dark {
   --background: #10151c;
   --foreground: #f2f4f6;
@@ -115,16 +146,275 @@
   --sidebar-accent-foreground: #6ba8fd;
   --sidebar-border: #2a313b;
   --sidebar-ring: #4593fc;
+
+  --surface-wash: none;
+  --surface-glow-a: transparent;
+  --surface-glow-b: transparent;
+  --surface-glow-opacity: 0;
+  --surface-grain-opacity: 0;
+}
+
+/* 따뜻한 아이보리 */
+.ivory {
+  --background: #f4ede6;
+  --foreground: #1c1714;
+  --card: #ffffff;
+  --card-foreground: #1c1714;
+  --popover: #ffffff;
+  --popover-foreground: #1c1714;
+  --primary: #96243f;
+  --primary-foreground: #ffffff;
+  --secondary: #ede4db;
+  --secondary-foreground: #1c1714;
+  --muted: #ede4db;
+  --muted-foreground: #6e6058;
+  --accent: #f6e7ea;
+  --accent-foreground: #96243f;
+  --destructive: #b3261e;
+  --border: #e0d6cc;
+  --input: #e0d6cc;
+  --ring: #96243f;
+  --chart-1: #96243f;
+  --chart-2: #c07c5a;
+  --chart-3: #5f7a63;
+  --chart-4: #c9a227;
+  --chart-5: #a2938a;
+  --sidebar: #f0e7de;
+  --sidebar-foreground: #1c1714;
+  --sidebar-primary: #96243f;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f6e7ea;
+  --sidebar-accent-foreground: #96243f;
+  --sidebar-border: #e0d6cc;
+  --sidebar-ring: #96243f;
+
+  --surface-wash:
+    radial-gradient(80% 34% at 88% 0%, #f7e4e4 0%, transparent 58%),
+    radial-gradient(70% 32% at 6% 8%, #f2e6d8 0%, transparent 60%),
+    linear-gradient(178deg, #fbf7f3 0%, #f4ede6 52%, #efe6dc 100%);
+  --surface-glow-a: #ffdcc2;
+  --surface-glow-b: #f0d2da;
+  --surface-glow-opacity: 0.55;
+  --surface-grain-opacity: 0.04;
+}
+
+/* 밝은 아이보리 */
+.brick {
+  --background: #fcfbf8;
+  --foreground: #161412;
+  --card: #ffffff;
+  --card-foreground: #161412;
+  --popover: #ffffff;
+  --popover-foreground: #161412;
+  --primary: #8e2318;
+  --primary-foreground: #ffffff;
+  --secondary: #f2ede4;
+  --secondary-foreground: #161412;
+  --muted: #f2ede4;
+  --muted-foreground: #6a6058;
+  --accent: #f7e5e1;
+  --accent-foreground: #8e2318;
+  --destructive: #b3261e;
+  --border: #e7e0d4;
+  --input: #e7e0d4;
+  --ring: #8e2318;
+  --chart-1: #8e2318;
+  --chart-2: #c07c5a;
+  --chart-3: #5f7a63;
+  --chart-4: #c9a227;
+  --chart-5: #9c9187;
+  --sidebar: #faf7f1;
+  --sidebar-foreground: #161412;
+  --sidebar-primary: #8e2318;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f7e5e1;
+  --sidebar-accent-foreground: #8e2318;
+  --sidebar-border: #e7e0d4;
+  --sidebar-ring: #8e2318;
+
+  --surface-wash: linear-gradient(178deg, #fefdfb 0%, #fcfbf8 55%, #f6f2ea 100%);
+  --surface-glow-a: #fce6d2;
+  --surface-glow-b: #efe3d0;
+  --surface-glow-opacity: 0.5;
+  --surface-grain-opacity: 0.032;
+}
+
+/* 차콜 */
+.charcoal {
+  --background: #17120f;
+  --foreground: #f2e9e3;
+  --card: #221b16;
+  --card-foreground: #f2e9e3;
+  --popover: #221b16;
+  --popover-foreground: #f2e9e3;
+  --primary: #d9647e;
+  --primary-foreground: #1a1113;
+  --secondary: #2a211c;
+  --secondary-foreground: #f2e9e3;
+  --muted: #2a211c;
+  --muted-foreground: #b3a196;
+  --accent: #3a1d25;
+  --accent-foreground: #d9647e;
+  --destructive: #f1707c;
+  --border: #302620;
+  --input: #302620;
+  --ring: #d9647e;
+  --chart-1: #d9647e;
+  --chart-2: #c9915f;
+  --chart-3: #7fa387;
+  --chart-4: #c9a227;
+  --chart-5: #7d6d63;
+  --sidebar: #1d1713;
+  --sidebar-foreground: #f2e9e3;
+  --sidebar-primary: #d9647e;
+  --sidebar-primary-foreground: #1a1113;
+  --sidebar-accent: #3a1d25;
+  --sidebar-accent-foreground: #d9647e;
+  --sidebar-border: #302620;
+  --sidebar-ring: #d9647e;
+
+  --surface-wash:
+    radial-gradient(80% 34% at 86% 0%, #2a1f1a 0%, transparent 60%),
+    linear-gradient(178deg, #1d1713 0%, #17120f 52%, #120e0c 100%);
+  /* 어두운 바탕은 같은 수치가 훨씬 약하게 느껴져 빛과 결을 더 준다. */
+  --surface-glow-a: #6b3a28;
+  --surface-glow-b: #3a2436;
+  --surface-glow-opacity: 0.5;
+  --surface-grain-opacity: 0.055;
+}
+
+/* 미드나잇 */
+.midnight {
+  --background: #14161c;
+  --foreground: #e9ecf2;
+  --card: #1a1d24;
+  --card-foreground: #e9ecf2;
+  --popover: #1a1d24;
+  --popover-foreground: #e9ecf2;
+  --primary: #c9a227;
+  --primary-foreground: #14161c;
+  --secondary: #232730;
+  --secondary-foreground: #e9ecf2;
+  --muted: #232730;
+  --muted-foreground: #9aa1b0;
+  --accent: #2b2718;
+  --accent-foreground: #c9a227;
+  --destructive: #f1707c;
+  --border: #2a2f3a;
+  --input: #2a2f3a;
+  --ring: #c9a227;
+  --chart-1: #c9a227;
+  --chart-2: #7f9bc4;
+  --chart-3: #7fa387;
+  --chart-4: #d9647e;
+  --chart-5: #6b7280;
+  --sidebar: #191c23;
+  --sidebar-foreground: #e9ecf2;
+  --sidebar-primary: #c9a227;
+  --sidebar-primary-foreground: #14161c;
+  --sidebar-accent: #2b2718;
+  --sidebar-accent-foreground: #c9a227;
+  --sidebar-border: #2a2f3a;
+  --sidebar-ring: #c9a227;
+
+  --surface-wash:
+    radial-gradient(80% 34% at 86% 0%, #1e2430 0%, transparent 60%),
+    linear-gradient(178deg, #191c23 0%, #14161c 52%, #101218 100%);
+  --surface-glow-a: #2c3b5c;
+  --surface-glow-b: #4a3f1e;
+  --surface-glow-opacity: 0.5;
+  --surface-grain-opacity: 0.055;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
+  /*
+   * 바탕은 html 이 칠한다. body 에 얹으면 내용이 짧은 화면에서 아래쪽이 안 칠해진다.
+   * background-attachment: fixed 도 쓰지 않는다 — 화면 높이에만 그려져서 같은 문제가 난다.
+   */
   html {
-    @apply font-sans;
+    @apply font-sans text-foreground;
+    background-color: var(--background);
+    background-image: var(--surface-wash);
+    min-height: 100%;
+  }
+  body {
+    @apply bg-transparent text-foreground;
+    min-height: 100%;
+  }
+}
+
+/*
+ * 스며드는 빛과 결.
+ *
+ * 빛 덩이 두 개가 68초·88초에 걸쳐 서로 반대로 흐른다. 한 번 봐서는 움직이는지
+ * 알기 어려운 속도이고, 그 정도가 목표다.
+ *
+ * 결(그레인)이 없으면 그라데이션이 "디지털 색칠"로 보이고, 있으면 종이나 금속
+ * 표면처럼 읽힌다. 둘 다 z-index -1 로 내용 뒤에만 깔아 사진 색은 건드리지 않는다 —
+ * 헤어 컬러가 상품이라 사진 위에 무언가를 씌우면 안 된다.
+ */
+.surface-glow,
+.surface-grain {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.surface-glow {
+  overflow: hidden;
+}
+
+.surface-glow::before,
+.surface-glow::after {
+  content: "";
+  position: absolute;
+  width: 92vmax;
+  height: 92vmax;
+  border-radius: 50%;
+  filter: blur(64px);
+  opacity: var(--surface-glow-opacity);
+  will-change: transform;
+}
+
+.surface-glow::before {
+  background: radial-gradient(circle, var(--surface-glow-a) 0%, transparent 64%);
+  top: -36vmax;
+  left: -24vmax;
+  animation: surface-drift-a 68s ease-in-out infinite alternate;
+}
+
+.surface-glow::after {
+  background: radial-gradient(circle, var(--surface-glow-b) 0%, transparent 64%);
+  bottom: -42vmax;
+  right: -28vmax;
+  animation: surface-drift-b 88s ease-in-out infinite alternate;
+}
+
+@keyframes surface-drift-a {
+  to {
+    transform: translate3d(7vmax, 5vmax, 0);
+  }
+}
+
+@keyframes surface-drift-b {
+  to {
+    transform: translate3d(-6vmax, -7vmax, 0);
+  }
+}
+
+.surface-grain {
+  opacity: var(--surface-grain-opacity);
+  background-size: 180px 180px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='180' height='180' filter='url(%23n)'/></svg>");
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .surface-glow::before,
+  .surface-glow::after {
+    animation: none;
   }
 }

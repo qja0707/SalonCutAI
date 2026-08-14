@@ -34,6 +34,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <ThemeProvider>
+          {/* 내용 뒤에 깔리는 빛과 결. 자세한 것은 globals.css 를 볼 것. */}
+          <div className="surface-glow" aria-hidden="true" />
+          <div className="surface-grain" aria-hidden="true" />
           <AppShell>{children}</AppShell>
           <Toaster />
         </ThemeProvider>
