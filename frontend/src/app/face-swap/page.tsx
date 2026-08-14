@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ChevronDown, Download, Loader2, RotateCcw, Sparkles, Trash2 } from "lucide-react";
+import { ChevronDown, Download, Images, Loader2, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { BeforeAfter } from "@/components/before-after";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -64,6 +65,21 @@ const RATIO_USAGE: Record<Ratio, string> = {
 const TERMINAL = new Set(["completed", "failed"]);
 const EXPECTED_SECONDS = 16;
 
+/**
+ * 좁은 화면에서만 그 자리로 데려간다.
+ *
+ * 1024px 이상에서는 입력과 결과가 좌우로 나란히 있어 이미 눈에 들어온다.
+ * 그보다 좁으면 1·2·3·4 단계가 세로로 쌓여서, 만들기를 눌러도 결과가 화면 밖에 있다.
+ * 무엇이 일어났는지 안 보이는 것이 지금 폰에서 제일 답답한 지점이다.
+ */
+function scrollIntoViewOnNarrow(element: HTMLElement | null): void {
+  if (!element || typeof window === "undefined") return;
+  if (window.matchMedia("(min-width: 1024px)").matches) return;
+
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  element.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+}
+
 function progressMessage(job: FaceSwapJobResponse | null, elapsedSeconds: number): string {
   if (job?.status === "queued" && job.queue_position) {
     return `대기 순번 ${job.queue_position}번 · 사진을 확인하고 있어요`;
@@ -92,6 +108,8 @@ export default function FaceSwapPage() {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(true);
   const [restored, setRestored] = useState(false);
+  const resultRef = useRef<HTMLDivElement>(null);
+  const uploadRef = useRef<HTMLDivElement>(null);
 
   const jobStatus = job?.status;
   const active = Boolean(jobId && (!jobStatus || !TERMINAL.has(jobStatus)));
@@ -212,6 +230,7 @@ export default function FaceSwapPage() {
     try {
       const created = await createFaceSwapJob(photo, buildPayload(), scenario);
       setJobId(created.job_id);
+      scrollIntoViewOnNarrow(resultRef.current);
       writeActiveJob("face-swap", { jobId: created.job_id, startedAt: startedAtMs });
     } catch (error) {
       setRequestError(error instanceof Error ? error.message : "작업을 시작하지 못했습니다.");
@@ -248,6 +267,31 @@ export default function FaceSwapPage() {
     toast.info("AI로 만든 이미지입니다. 홍보에 쓰실 때 AI 생성 사실을 함께 표시해주세요.");
   }
 
+  /**
+   * 같은 설정으로 다음 사진.
+   *
+   * 퇴근 후 여러 장을 몰아서 처리하는 흐름인데, 한 장이 끝나면 사진 · 동의 · 얼굴 · 옵션
+   * 네 단계를 처음부터 다시 채워야 했다. 얼굴과 배경 설정은 보통 그대로 가므로 남긴다.
+   *
+   * 동의는 남기지 않는다 — 사진이 바뀌면 손님이 바뀌는 것이라 동의도 새로 받아야 한다.
+   * 사진을 교체할 때 handlePhotoChange 가 동의를 지우는 것과 같은 이유다.
+   *
+   * 만든 결과는 서버에 그대로 두고 화면만 비운다. 삭제는 `작업 삭제` 가 따로 한다.
+   */
+  function handleNextPhoto() {
+    clearActiveJob("face-swap");
+    setPhoto(null);
+    setPhotoUrl(null);
+    setConsentAgreed(false);
+    setJobId(null);
+    setJob(null);
+    setStartedAt(null);
+    setElapsedSeconds(0);
+    setRequestError(null);
+    setRestored(false);
+    scrollIntoViewOnNarrow(uploadRef.current);
+  }
+
   async function handleDelete() {
     if (!jobId) return;
     try {
@@ -275,7 +319,7 @@ export default function FaceSwapPage() {
       {IS_PUBLIC_PREVIEW && <Alert className="mt-4"><AlertDescription>{PUBLIC_PREVIEW_NOTICE}</AlertDescription></Alert>}
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
-        <div className="space-y-6">
+        <div className="space-y-6" ref={uploadRef}>
           <Card>
             <CardHeader><CardTitle className="text-base">1. 시술 사진</CardTitle></CardHeader>
             <CardContent className="space-y-3">
@@ -400,7 +444,7 @@ export default function FaceSwapPage() {
           </Button>
         </div>
 
-        <div className="space-y-5">
+        <div className="space-y-5" ref={resultRef}>
           <h2 className="text-base font-semibold">결과</h2>
           {requestError && <Alert variant="destructive"><AlertDescription>{requestError}</AlertDescription></Alert>}
 
@@ -429,9 +473,22 @@ export default function FaceSwapPage() {
                 </Alert>
               )}
 
-              {photoUrl && (
+              {/*
+                얼굴 확인이 결과 화면의 첫 순서다. 3규격 저장은 확인이 끝난 뒤의 일이라
+                아래로 내렸다. 비교 대상은 4:5 — 세 규격 중 잘리지 않는 권장 규격이다.
+              */}
+              {photoUrl && resultImages && (
                 <Card>
-                  <CardHeader><CardTitle className="text-base">원본</CardTitle></CardHeader>
+                  <CardHeader><CardTitle className="text-base">얼굴이 바뀌었는지 확인하세요</CardTitle></CardHeader>
+                  <CardContent>
+                    <BeforeAfter originalUrl={photoUrl} resultUrl={resultImages["4:5"].url} />
+                  </CardContent>
+                </Card>
+              )}
+
+              {photoUrl && !resultImages && (
+                <Card>
+                  <CardHeader><CardTitle className="text-base">올린 사진</CardTitle></CardHeader>
                   <CardContent>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={photoUrl} alt="업로드한 원본" className="max-h-72 w-full rounded-lg object-contain" />
@@ -487,7 +544,14 @@ export default function FaceSwapPage() {
               </Card>
 
               {job && TERMINAL.has(job.status) && (
-                <Button variant="outline" size="sm" className="w-full" onClick={handleDelete}><Trash2 className="h-3.5 w-3.5" />작업 삭제</Button>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button size="sm" className="flex-1" onClick={handleNextPhoto}>
+                    <Images className="h-3.5 w-3.5" />같은 설정으로 다음 사진
+                  </Button>
+                  <Button variant="outline" size="sm" className="flex-1" onClick={handleDelete}>
+                    <Trash2 className="h-3.5 w-3.5" />작업 삭제
+                  </Button>
+                </div>
               )}
             </>
           )}
