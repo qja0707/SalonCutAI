@@ -58,6 +58,49 @@ def _fetch_mediapipe() -> None:
         _download_url(url, dest)
 
 
+def ensure_antelopev2() -> None:
+    """insightface 가 받는 zip 의 중첩 폴더를 편다.
+
+    antelopev2.zip 안에 antelopev2/ 가 한 겹 더 있어 풀면
+    models/antelopev2/antelopev2/*.onnx 가 된다. insightface 는
+    models/antelopev2/*.onnx 를 찾으므로 검출 모델을 못 읽고
+    AssertionError 로 죽는다.
+
+    FaceAnalysis 가 없으면 직접 받으므로 여기서는 이미 받은 것만 정리한다.
+    """
+    base = settings.INSIGHTFACE_ROOT / "models" / "antelopev2"
+    nested = base / "antelopev2"
+    if not nested.is_dir():
+        return
+
+    for f in nested.iterdir():
+        target = base / f.name
+        if not target.exists():
+            f.rename(target)
+    nested.rmdir()
+    logger.info("antelopev2 중첩 폴더 정리")
+
+
+def _flatten_antelopev2() -> None:
+    """insightface 가 받은 zip 의 중첩 폴더를 편다.
+
+    antelopev2.zip 안에 antelopev2/ 가 한 겹 더 있어 풀면
+    models/antelopev2/antelopev2/*.onnx 가 된다. insightface 는
+    models/antelopev2/*.onnx 를 찾으므로 검출 모델을 못 읽는다.
+    """
+    base = settings.INSIGHTFACE_ROOT / "models" / "antelopev2"
+    nested = base / "antelopev2"
+    if not nested.is_dir():
+        return
+
+    for f in nested.iterdir():
+        target = base / f.name
+        if not target.exists():
+            f.rename(target)
+    nested.rmdir()
+    logger.info("antelopev2 중첩 폴더 정리")
+
+
 def ensure_models() -> None:
     """필요한 파일이 모두 있는 상태로 만든다.
 
@@ -67,6 +110,7 @@ def ensure_models() -> None:
     settings.MODELS_DIR.mkdir(parents=True, exist_ok=True)
     _fetch_instantid()
     _fetch_mediapipe()
+    _flatten_antelopev2()
     logger.info("모델 파일 준비 완료")
 
 

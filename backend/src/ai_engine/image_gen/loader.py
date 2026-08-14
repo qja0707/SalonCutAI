@@ -101,11 +101,21 @@ def get_face_app():
         from insightface.app import FaceAnalysis
 
         logger.info("InsightFace 로딩 시작")
-        _face_app = FaceAnalysis(
-            name="antelopev2",
-            root=str(settings.INSIGHTFACE_ROOT),
-            providers=["CPUExecutionProvider"],
-        )
+        downloads.ensure_antelopev2()
+        try:
+            _face_app = FaceAnalysis(
+                name="antelopev2",
+                root=str(settings.INSIGHTFACE_ROOT),
+                providers=["CPUExecutionProvider"],
+            )
+        except AssertionError:
+            # 첫 실행에서 zip 을 막 받은 경우다. 폴더를 펴고 한 번 더 시도한다.
+            downloads.ensure_antelopev2()
+            _face_app = FaceAnalysis(
+                name="antelopev2",
+                root=str(settings.INSIGHTFACE_ROOT),
+                providers=["CPUExecutionProvider"],
+            )
         _face_app.prepare(ctx_id=-1, det_size=(640, 640))
         logger.info("InsightFace 로딩 완료")
     return _face_app
