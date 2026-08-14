@@ -6,6 +6,7 @@ import { ChevronDown, Download, Images, Loader2, RotateCcw, Sparkles, Trash2 } f
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { FaceCheck } from "@/components/face-check";
+import { EXPECTED_SECONDS, FaceSwapWaiting } from "@/components/face-swap-waiting";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -63,7 +64,6 @@ const RATIO_USAGE: Record<Ratio, string> = {
   "9:16": "스토리 · 릴스",
 };
 const TERMINAL = new Set(["completed", "failed"]);
-const EXPECTED_SECONDS = 16;
 
 /**
  * 좁은 화면에서만 그 자리로 데려간다.
@@ -166,7 +166,11 @@ export default function FaceSwapPage() {
     const poll = async () => {
       try {
         const next = await getFaceSwapJob(jobId);
-        if (!cancelled) setJob(next);
+        if (cancelled) return;
+        setJob(next);
+        // 순간 통신 장애로 남은 오류는 다음 성공이 지운다. 안 지우면 결과가
+        // 잘 나온 화면 위에 빨간 경고가 계속 떠 있다.
+        setRequestError(null);
       } catch (error) {
         if (!cancelled) setRequestError(error instanceof Error ? error.message : "작업 상태를 불러오지 못했습니다.");
       }
@@ -466,12 +470,7 @@ export default function FaceSwapPage() {
             </Card>
           ) : (
             <>
-              {active && (
-                <Alert>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <AlertDescription>{progressMessage(job, elapsedSeconds)}</AlertDescription>
-                </Alert>
-              )}
+              {active && <FaceSwapWaiting job={job} elapsedSeconds={elapsedSeconds} />}
 
               {/*
                 얼굴 확인이 결과 화면의 첫 순서다. 3규격 저장은 확인이 끝난 뒤의 일이라
@@ -490,8 +489,12 @@ export default function FaceSwapPage() {
                 <Card>
                   <CardHeader><CardTitle className="text-base">올린 사진</CardTitle></CardHeader>
                   <CardContent>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={photoUrl} alt="업로드한 원본" className="max-h-72 w-full rounded-lg object-contain" />
+                    <div className="relative overflow-hidden rounded-lg">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={photoUrl} alt="업로드한 원본" className="max-h-72 w-full rounded-lg object-contain" />
+                      {/* 작업 중임을 사진 위에서도 느끼게 한다. 은은한 맥동 하나로 충분하다. */}
+                      {active && <div className="pointer-events-none absolute inset-0 animate-pulse bg-primary/10" />}
+                    </div>
                   </CardContent>
                 </Card>
               )}
@@ -508,6 +511,7 @@ export default function FaceSwapPage() {
                     </p>
                   )}
                   {resultImages ? (
+                    <>
                     <div className="grid gap-4 sm:grid-cols-3">
                       {RATIOS.map((ratio) => {
                         const result = resultImages[ratio];
@@ -532,6 +536,20 @@ export default function FaceSwapPage() {
                         );
                       })}
                     </div>
+                    {/* 보관 기한을 알려야 저장을 미루지 않는다. 지나면 서버에서 지워진다. */}
+                    {job?.result_expires_at && (
+                      <p className="mt-4 text-xs text-muted-foreground">
+                        결과는{" "}
+                        {new Date(job.result_expires_at).toLocaleString("ko-KR", {
+                          month: "long",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
+                        까지 보관돼요. 쓰실 규격은 지금 저장해두세요.
+                      </p>
+                    )}
+                    </>
                   ) : job?.status === "failed" ? (
                     <div className="space-y-3">
                       <Alert variant="destructive"><AlertDescription>{job.error?.message}</AlertDescription></Alert>
