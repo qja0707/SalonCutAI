@@ -54,19 +54,75 @@ export function buildBlogHtml(result: BlogWireResult): string {
   ].join(spacer);
 }
 
+function copyBlogResultWithSelection(plain: string, html: string): void {
+  const selection = window.getSelection();
+  const previousRanges = selection
+    ? Array.from({ length: selection.rangeCount }, (_, index) =>
+        selection.getRangeAt(index).cloneRange(),
+      )
+    : [];
+  const previousActiveElement = document.activeElement;
+  const copyTarget = document.createElement("div");
+  let clipboardDataWritten = false;
+
+  copyTarget.contentEditable = "true";
+  copyTarget.setAttribute("aria-hidden", "true");
+  copyTarget.style.position = "fixed";
+  copyTarget.style.left = "-9999px";
+  copyTarget.style.top = "0";
+  copyTarget.style.opacity = "0";
+  copyTarget.style.pointerEvents = "none";
+  copyTarget.innerHTML = html;
+
+  const handleCopy = (event: ClipboardEvent) => {
+    if (!event.clipboardData) {
+      return;
+    }
+
+    event.preventDefault();
+    event.clipboardData.setData("text/plain", plain);
+    event.clipboardData.setData("text/html", html);
+    clipboardDataWritten = true;
+  };
+
+  copyTarget.addEventListener("copy", handleCopy);
+  document.body.appendChild(copyTarget);
+
+  try {
+    const range = document.createRange();
+    range.selectNodeContents(copyTarget);
+    copyTarget.focus({ preventScroll: true });
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    const copied = document.execCommand("copy");
+    if (!copied || !clipboardDataWritten) {
+      throw new Error("블로그 글을 클립보드에 복사하지 못했습니다.");
+    }
+  } finally {
+    copyTarget.removeEventListener("copy", handleCopy);
+    copyTarget.remove();
+    selection?.removeAllRanges();
+    previousRanges.forEach((range) => selection?.addRange(range));
+    if (previousActiveElement instanceof HTMLElement) {
+      previousActiveElement.focus({ preventScroll: true });
+    }
+  }
+}
+
 export async function copyBlogResult(result: BlogWireResult): Promise<void> {
   const plain = buildBlogPlainText(result);
   const html = buildBlogHtml(result);
 
-  if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
-    await navigator.clipboard.write([
-      new ClipboardItem({
-        "text/plain": new Blob([plain], { type: "text/plain" }),
-        "text/html": new Blob([html], { type: "text/html" }),
-      }),
-    ]);
+  if (typeof ClipboardItem === "undefined" || !navigator.clipboard?.write) {
+    copyBlogResultWithSelection(plain, html);
     return;
   }
 
-  await navigator.clipboard.writeText(plain);
+  await navigator.clipboard.write([
+    new ClipboardItem({
+      "text/plain": new Blob([plain], { type: "text/plain" }),
+      "text/html": new Blob([html], { type: "text/html" }),
+    }),
+  ]);
 }
