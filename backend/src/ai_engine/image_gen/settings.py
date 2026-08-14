@@ -17,10 +17,35 @@ IMAGE_GEN_ENABLED = os.getenv("IMAGE_GEN_ENABLED", "0") == "1"
 # --- 경로 ---
 
 # settings.py -> image_gen -> ai_engine -> src -> backend
-STORAGE_DIR = Path(__file__).resolve().parents[3] / "storage"
+BACKEND_DIR = Path(__file__).resolve().parents[3]
+STORAGE_DIR = BACKEND_DIR / "storage"
 REF_FACES_DIR = STORAGE_DIR / "ref_faces"
 REF_THUMB_DIR = REF_FACES_DIR / "thumb"
 JOB_DIR = STORAGE_DIR / "face_swap"
+
+# --- 모델 파일 ---
+# 합쳐서 약 4.6GB 라 git 에 넣지 않는다. 없으면 기동 시 받는다.
+
+MODELS_DIR = BACKEND_DIR / "models"
+CHECKPOINTS_DIR = MODELS_DIR / "checkpoints"
+CONTROLNET_DIR = CHECKPOINTS_DIR / "ControlNetModel"
+IP_ADAPTER_PATH = CHECKPOINTS_DIR / "ip-adapter.bin"
+INSIGHTFACE_ROOT = MODELS_DIR  # insightface 가 models/ 하위에 antelopev2 를 만든다
+FACE_LANDMARKER_PATH = MODELS_DIR / "face_landmarker.task"
+SELFIE_SEGMENTER_PATH = MODELS_DIR / "selfie_multiclass.tflite"
+
+# --- 다운로드 주소 ---
+
+MEDIAPIPE_URLS = {
+    FACE_LANDMARKER_PATH: (
+        "https://storage.googleapis.com/mediapipe-models/face_landmarker"
+        "/face_landmarker/float16/1/face_landmarker.task"
+    ),
+    SELFIE_SEGMENTER_PATH: (
+        "https://storage.googleapis.com/mediapipe-models/image_segmenter"
+        "/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite"
+    ),
+}
 
 # --- 결과물 ---
 
