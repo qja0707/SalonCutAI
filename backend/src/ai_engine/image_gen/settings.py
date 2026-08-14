@@ -18,15 +18,21 @@ IMAGE_GEN_ENABLED = os.getenv("IMAGE_GEN_ENABLED", "0") == "1"
 
 # settings.py -> image_gen -> ai_engine -> src -> backend
 BACKEND_DIR = Path(__file__).resolve().parents[3]
-STORAGE_DIR = BACKEND_DIR / "storage"
-REF_FACES_DIR = STORAGE_DIR / "ref_faces"
-REF_THUMB_DIR = REF_FACES_DIR / "thumb"
+REPO_DIR = BACKEND_DIR.parent
+
+# 참조 사진은 바뀌지 않아 레포에 함께 둔다.
+# 합성용 원본과 목록 표시용 사본이 이름만 다르게 같은 폴더에 있다.
+REF_FACES_DIR = REPO_DIR / "asset" / "ref_faces"
+
+# 합성 결과는 레포 밖에 둔다. 재배포나 clean 으로 지워지면 안 된다.
+# 지정하지 않으면 레포 상위에 만든다.
+STORAGE_DIR = Path(os.getenv("SALON_STORAGE_DIR", str(REPO_DIR.parent / "storage")))
 JOB_DIR = STORAGE_DIR / "face_swap"
 
 # --- 모델 파일 ---
 # 합쳐서 약 4.6GB 라 git 에 넣지 않는다. 없으면 기동 시 받는다.
 
-MODELS_DIR = BACKEND_DIR / "models"
+MODELS_DIR = Path(os.getenv("SALON_MODELS_DIR", str(STORAGE_DIR / "models")))
 CHECKPOINTS_DIR = MODELS_DIR / "checkpoints"
 CONTROLNET_DIR = CHECKPOINTS_DIR / "ControlNetModel"
 IP_ADAPTER_PATH = CHECKPOINTS_DIR / "ip-adapter.bin"
