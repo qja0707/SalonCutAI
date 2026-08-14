@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from typing import Literal
 
@@ -17,6 +18,7 @@ from src.ai_engine.video_gen.caption_generator import (
 from src.api.video_jobs import MAX_CLIPS, MIN_CLIPS
 
 router = APIRouter(prefix="/video-captions", tags=["video captions"])
+logger = logging.getLogger(__name__)
 MAX_CONTEXT_LENGTH = 100
 
 
@@ -69,7 +71,16 @@ async def create_video_captions(payload: VideoCaptionPayload):
         ]
         generated = await run_in_threadpool(generate_captions, clips, payload.topic)
         return VideoCaptionResponse(captions=generated)
-    except CaptionGenerationError:
+    except CaptionGenerationError as exc:
+        provider_error = exc.__cause__ or exc
+        logger.warning(
+            "video caption generation failed request_id=%s "
+            "provider_status=%s error_type=%s error_code=%s",
+            request_id,
+            getattr(provider_error, "status_code", None),
+            type(provider_error).__name__,
+            getattr(provider_error, "code", None),
+        )
         return JSONResponse(
             status_code=502,
             content={
