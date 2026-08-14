@@ -24,8 +24,10 @@ import {
   createFaceSwapJob,
   deleteFaceSwapJob,
   getFaceSwapJob,
+  isNotFoundError,
   retryFaceSwapJob,
 } from "@/lib/api-client/client";
+import { clearActiveJob, readActiveJob, writeActiveJob } from "@/lib/active-job";
 import {
   RATIOS,
   type CreateFaceSwapJobPayload,
@@ -88,10 +90,43 @@ export default function FaceSwapPage() {
   const [requestError, setRequestError] = useState<string | null>(null);
   const [downloadNoticeShown, setDownloadNoticeShown] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState(true);
+  const [restored, setRestored] = useState(false);
 
   const jobStatus = job?.status;
   const active = Boolean(jobId && (!jobStatus || !TERMINAL.has(jobStatus)));
   const resultImages = useMemo(() => (job?.status === "completed" ? job.results : null), [job]);
+
+  // 새로고침 전에 만들던 job 을 이어받는다. 마운트 때 한 번만 돈다.
+  //
+  // setState 는 전부 이 안쪽 async 함수에 둔다. effect 본문에서 곧바로 부르면
+  // 렌더가 한 번 더 도는 것을 react-hooks/set-state-in-effect 가 막는다.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const saved = readActiveJob("face-swap");
+      try {
+        if (!saved) return;
+        const savedJob = await getFaceSwapJob(saved.jobId);
+        if (cancelled) return;
+        setJob(savedJob);
+        setJobId(saved.jobId);
+        setStartedAt(saved.startedAt);
+        setRestored(true);
+      } catch (error) {
+        if (cancelled) return;
+        // 서버에서 사라진 작업(404)이면 저장분을 버린다.
+        // 통신이 안 되는 것뿐이면 남겨두고 다음 새로고침에 다시 시도한다.
+        if (isNotFoundError(error)) clearActiveJob("face-swap");
+        else setRequestError(error instanceof Error ? error.message : "이전 작업을 불러오지 못했습니다.");
+      } finally {
+        if (!cancelled) setRestoring(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -170,11 +205,14 @@ export default function FaceSwapPage() {
     setRequestError(null);
     setJob(null);
     setJobId(null);
+    setRestored(false);
     setElapsedSeconds(0);
-    setStartedAt(Date.now());
+    const startedAtMs = Date.now();
+    setStartedAt(startedAtMs);
     try {
       const created = await createFaceSwapJob(photo, buildPayload(), scenario);
       setJobId(created.job_id);
+      writeActiveJob("face-swap", { jobId: created.job_id, startedAt: startedAtMs });
     } catch (error) {
       setRequestError(error instanceof Error ? error.message : "작업을 시작하지 못했습니다.");
       setStartedAt(null);
@@ -188,8 +226,11 @@ export default function FaceSwapPage() {
     try {
       await retryFaceSwapJob(jobId);
       setJob(await getFaceSwapJob(jobId));
-      setStartedAt(Date.now());
+      // 재시도는 시계를 다시 잡는다. 저장분도 같이 갱신해야 복구했을 때 초가 어긋나지 않는다.
+      const startedAtMs = Date.now();
+      setStartedAt(startedAtMs);
       setElapsedSeconds(0);
+      writeActiveJob("face-swap", { jobId, startedAt: startedAtMs });
       toast.success("얼굴 교체 이미지를 다시 만들고 있어요.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "다시 시도하지 못했습니다.");
@@ -211,10 +252,12 @@ export default function FaceSwapPage() {
     if (!jobId) return;
     try {
       await deleteFaceSwapJob(jobId);
+      clearActiveJob("face-swap");
       setJobId(null);
       setJob(null);
       setStartedAt(null);
       setElapsedSeconds(0);
+      setRestored(false);
       toast.success("작업을 삭제했습니다.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "작업을 삭제하지 못했습니다.");
@@ -347,7 +390,7 @@ export default function FaceSwapPage() {
             className="w-full"
             size="lg"
             onClick={handleGenerate}
-            disabled={requesting || active || !consentAgreed || !isFaceReady(face)}
+            disabled={requesting || active || restoring || !consentAgreed || !isFaceReady(face)}
             aria-describedby={
               !consentAgreed ? "consent-required" : !isFaceReady(face) ? "face-required" : undefined
             }
@@ -361,9 +404,21 @@ export default function FaceSwapPage() {
           <h2 className="text-base font-semibold">결과</h2>
           {requestError && <Alert variant="destructive"><AlertDescription>{requestError}</AlertDescription></Alert>}
 
+          {restored && (
+            <Alert>
+              <AlertDescription>
+                새로고침 전 작업을 이어서 보고 있어요. 업로드했던 원본 사진은 다시 표시할 수 없습니다.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {!jobId ? (
             <Card className="flex aspect-square items-center justify-center border-dashed">
-              <p className="max-w-[260px] text-center text-sm text-muted-foreground">사진과 옵션을 채운 뒤 버튼을 누르면 얼굴 교체 이미지 결과가 표시됩니다.</p>
+              <p className="max-w-[260px] text-center text-sm text-muted-foreground">
+                {restoring
+                  ? "이전에 만들던 작업이 있는지 확인하고 있어요."
+                  : "사진과 옵션을 채운 뒤 버튼을 누르면 얼굴 교체 이미지 결과가 표시됩니다."}
+              </p>
             </Card>
           ) : (
             <>

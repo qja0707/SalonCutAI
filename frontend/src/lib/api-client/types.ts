@@ -15,6 +15,8 @@ export type MockScenario =
   | "face-not-detected"
   | "slow";
 export type BlogMockScenario = "normal" | "blog-fail" | "slow";
+export type VideoRole = "before" | "process" | "detail" | "after";
+export type VideoSelection = "start" | "center" | "end";
 
 export type ApiError = {
   code: string;
@@ -28,14 +30,6 @@ export type ErrorEnvelope = {
 };
 
 export type BlogSection = { heading: string; body: string };
-
-export type BlogResult = {
-  title: string;
-  intro: string;
-  sections: BlogSection[];
-  closing: string;
-  hashtags: string[];
-};
 
 export type BlogWireResult = {
   title: string;
@@ -88,34 +82,6 @@ export const BLOG_REQUIRED_FIELDS = [
   "customer_pain_point",
 ] as const satisfies readonly (keyof CreateBlogJobPayload)[];
 
-type BlogJobEnvelope<TResult> = {
-  job_id: string;
-  test_code: string;
-  status: JobStatus;
-  attempt: number;
-  result: TResult | null;
-  error: ApiError | null;
-  created_at: string;
-  updated_at: string;
-  result_expires_at: string;
-  request_id: string;
-};
-
-export type BlogJobResponse = BlogJobEnvelope<BlogResult>;
-export type BlogJobWireResponse = BlogJobEnvelope<BlogWireResult>;
-
-export type CreateBlogJobResponse = Pick<
-  BlogJobResponse,
-  "job_id" | "test_code" | "status" | "created_at" | "request_id"
->;
-
-export type RetryBlogJobResponse = {
-  job_id: string;
-  status: "processing";
-  attempt: number;
-  request_id: string;
-};
-
 export type ImageResult = {
   url: string;
   format_mode: "crop" | "fit_pad";
@@ -148,6 +114,60 @@ export type RetryFaceSwapJobResponse = {
   status: "processing";
   attempt: number;
   request_id: string;
+};
+
+export type VideoClipOptions = {
+  role: VideoRole;
+  selection: VideoSelection;
+  caption: string;
+};
+
+export type VideoJobResult = {
+  url: string;
+  duration_sec: number;
+  width: number;
+  height: number;
+};
+
+export type VideoJobResponse = {
+  job_id: string;
+  status: JobStatus;
+  progress: number;
+  attempt: number;
+  queue_position: number | null;
+  result: VideoJobResult | null;
+  meta: {
+    processing_sec: number;
+    faces_blurred: number;
+    audio_included: boolean;
+  } | null;
+  error: ApiError | null;
+  created_at: string;
+  updated_at: string;
+  source_expires_at: string;
+  result_expires_at: string;
+  request_id: string;
+};
+
+export type CreateVideoJobResponse = Pick<
+  VideoJobResponse,
+  "job_id" | "status" | "progress" | "created_at" | "request_id"
+>;
+
+export type GeneratedVideoCaption = {
+  index: number;
+  role: VideoRole;
+  caption: string;
+};
+
+export type VideoCaptionClip = {
+  index: number;
+  role: VideoRole;
+  description?: string;
+};
+
+export type VideoCaptionResponse = {
+  captions: GeneratedVideoCaption[];
 };
 
 /**

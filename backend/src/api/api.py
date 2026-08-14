@@ -1,6 +1,14 @@
 from fastapi import APIRouter
 
-from src.api import auth, face_swap, reference_faces, text_gen, users
+from src.api import (
+    auth,
+    face_swap,
+    reference_faces,
+    text_gen,
+    users,
+    video_captions,
+    video_jobs,
+)
 
 # 메인 총괄 라우터 생성
 api_router = APIRouter(prefix="/api/v1")
@@ -11,6 +19,8 @@ api_router.include_router(auth.router)
 api_router.include_router(users.router)
 api_router.include_router(face_swap.router)
 api_router.include_router(reference_faces.router)
+api_router.include_router(video_jobs.router)
+api_router.include_router(video_captions.router)
 
 
 @api_router.get("/health")
