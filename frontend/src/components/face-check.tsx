@@ -4,11 +4,13 @@
  * 이 도구가 파는 것은 "얼굴은 바뀌고 머리는 그대로"이고, 그것을 눈으로 확인하지 못하면
  * 결과를 믿고 올릴 수 없다. 그래서 두 가지를 같이 보여준다.
  *
- *   전체  — 머리 · 옷 · 배경이 그대로인지
+ *   전체  — 머리 · 옷 · 배경이 그대로인지. 한 프레임을 손잡이로 갈라 같은 자리를 비교한다
  *   얼굴  — 경계가 뜨거나 피부톤이 목과 다른지
  *
  * 어색함은 전신 샷에서는 보이지 않는다. 폰에서는 더 그렇다. 그래서 얼굴을 따로 키운다.
  */
+import { BeforeAfterSlider } from "@/components/before-after";
+
 export function FaceCheck({
   originalUrl,
   resultUrl,
@@ -22,9 +24,11 @@ export function FaceCheck({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <Shot url={originalUrl} label="올린 사진" caption="손님 얼굴" />
-        <Shot url={resultUrl} label="바꾼 결과" caption="가상 얼굴" ai />
+      <div>
+        <BeforeAfterSlider beforeUrl={originalUrl} afterUrl={resultUrl} />
+        <p className="mt-2 text-center text-xs text-muted-foreground">
+          가운데 손잡이를 좌우로 움직여 머리 모양·색이 그대로인지 확인하세요
+        </p>
       </div>
 
       <div>
@@ -40,36 +44,6 @@ export function FaceCheck({
         피부톤이 목과 다르면 다시 만들어주세요.
       </p>
     </div>
-  );
-}
-
-function Shot({
-  url,
-  label,
-  caption,
-  ai = false,
-}: {
-  url: string;
-  label: string;
-  caption: string;
-  ai?: boolean;
-}) {
-  return (
-    <figure className="m-0 space-y-1.5">
-      <div className="relative overflow-hidden rounded-lg border bg-muted">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={url} alt={label} className="aspect-[4/5] w-full object-cover" />
-        {ai && (
-          <span className="pointer-events-none absolute right-2 bottom-2 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
-            AI 생성
-          </span>
-        )}
-      </div>
-      <figcaption className="text-center text-xs">
-        <span className="font-medium">{label}</span>
-        <span className="text-muted-foreground"> · {caption}</span>
-      </figcaption>
-    </figure>
   );
 }
 
