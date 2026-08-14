@@ -194,7 +194,7 @@
     linear-gradient(178deg, #fbf7f3 0%, #f4ede6 52%, #efe6dc 100%);
   --surface-glow-a: #ffdcc2;
   --surface-glow-b: #f0d2da;
-  --surface-glow-opacity: 0.55;
+  --surface-glow-opacity: 0.22;
   --surface-grain-opacity: 0.04;
 }
 
@@ -235,7 +235,7 @@
   --surface-wash: linear-gradient(178deg, #fefdfb 0%, #fcfbf8 55%, #f6f2ea 100%);
   --surface-glow-a: #fce6d2;
   --surface-glow-b: #efe3d0;
-  --surface-glow-opacity: 0.5;
+  --surface-glow-opacity: 0.2;
   --surface-grain-opacity: 0.032;
 }
 
@@ -279,7 +279,7 @@
   /* 어두운 바탕은 같은 수치가 훨씬 약하게 느껴져 빛과 결을 더 준다. */
   --surface-glow-a: #6b3a28;
   --surface-glow-b: #3a2436;
-  --surface-glow-opacity: 0.5;
+  --surface-glow-opacity: 0.2;
   --surface-grain-opacity: 0.055;
 }
 
@@ -322,7 +322,7 @@
     linear-gradient(178deg, #191c23 0%, #14161c 52%, #101218 100%);
   --surface-glow-a: #2c3b5c;
   --surface-glow-b: #4a3f1e;
-  --surface-glow-opacity: 0.5;
+  --surface-glow-opacity: 0.2;
   --surface-grain-opacity: 0.055;
 }
 
@@ -353,14 +353,18 @@
  * 알기 어려운 속도이고, 그 정도가 목표다.
  *
  * 결(그레인)이 없으면 그라데이션이 "디지털 색칠"로 보이고, 있으면 종이나 금속
- * 표면처럼 읽힌다. 둘 다 z-index -1 로 내용 뒤에만 깔아 사진 색은 건드리지 않는다 —
- * 헤어 컬러가 상품이라 사진 위에 무언가를 씌우면 안 된다.
+ * 표면처럼 읽힌다.
+ *
+ * 사진을 포함한 내용 위로 지나간다 — 화면 전체가 한 장처럼 일렁이는 것이
+ * 원장님이 정한 방향이다(8/15). 대신 세기를 "육안으로 긴가민가할 정도"까지
+ * 낮춰서 머리색 판정에 지장이 없게 한다. z-index 30: 고정 헤더(z-40)와
+ * 팝오버·다이얼로그(z-50)는 빛 위에 있어 조작부는 항상 또렷하다.
  */
 .surface-glow,
 .surface-grain {
   position: fixed;
   inset: 0;
-  z-index: -1;
+  z-index: 30;
   pointer-events: none;
 }
 
