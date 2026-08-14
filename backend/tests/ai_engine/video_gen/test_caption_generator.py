@@ -20,6 +20,23 @@ def _response(captions: list[dict[str, object]]) -> SimpleNamespace:
     )
 
 
+def _schema_keywords(value: object) -> set[str]:
+    if isinstance(value, dict):
+        return set(value) | {
+            keyword for nested in value.values() for keyword in _schema_keywords(nested)
+        }
+    if isinstance(value, list):
+        return {keyword for nested in value for keyword in _schema_keywords(nested)}
+    return set()
+
+
+def test_strict_response_schema_avoids_unsupported_string_lengths():
+    response_format = caption_generator._response_format(2)
+    schema = response_format["json_schema"]["schema"]
+
+    assert _schema_keywords(schema).isdisjoint({"minLength", "maxLength"})
+
+
 def test_generate_captions_sends_text_only_once_and_disables_storage(monkeypatch):
     captured: dict[str, object] = {}
 

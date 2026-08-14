@@ -173,7 +173,7 @@ def _response_format(item_count: int) -> dict[str, object]:
                                     "type": "string",
                                     "enum": ["before", "process", "detail", "after"],
                                 },
-                                "caption": {"type": "string", "minLength": 1},
+                                "caption": {"type": "string"},
                             },
                             "required": ["index", "role", "caption"],
                             "additionalProperties": False,

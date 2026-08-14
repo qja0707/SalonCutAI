@@ -96,11 +96,21 @@ def test_video_caption_rejects_context_over_shared_limit():
     assert response.status_code == 422
 
 
-def test_video_caption_provider_failure_returns_explicit_error(monkeypatch):
+def test_video_caption_provider_failure_returns_explicit_error(monkeypatch, caplog):
+    class ProviderError(Exception):
+        status_code = 400
+        code = "invalid_json_schema"
+
+    def fail_with_provider_error(*_args):
+        try:
+            raise ProviderError("provider rejected schema")
+        except ProviderError as exc:
+            raise CaptionGenerationError("provider failed") from exc
+
     monkeypatch.setattr(
         video_captions,
         "generate_captions",
-        lambda *_args: (_ for _ in ()).throw(CaptionGenerationError("provider failed")),
+        fail_with_provider_error,
     )
     response = _client().post("/api/v1/video-captions", json=_payload(2, "description"))
 
@@ -110,3 +120,7 @@ def test_video_caption_provider_failure_returns_explicit_error(monkeypatch):
         "message": "AI 자막 생성에 실패했습니다. 기본 문구를 직접 수정해 계속해주세요.",
         "retryable": True,
     }
+    assert "provider_status=400" in caplog.text
+    assert "error_type=ProviderError" in caplog.text
+    assert "error_code=invalid_json_schema" in caplog.text
+    assert "장면 설명" not in caplog.text
