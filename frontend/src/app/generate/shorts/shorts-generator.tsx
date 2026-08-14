@@ -10,6 +10,7 @@ import {
   LoaderCircle,
   Plus,
   ShieldCheck,
+  Sparkles,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -20,7 +21,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   createVideoJob,
+  createVideoCaptions,
   deleteVideoJob,
   getVideoJob,
   videoJobUrl,
@@ -32,9 +42,21 @@ import type {
   VideoSelection,
 } from "@/lib/api-client/types";
 
-type ClipDraft = VideoClipOptions & { id: string; file: File };
+type DescriptionMode = "preset" | "custom";
+type ClipDraft = VideoClipOptions & {
+  id: string;
+  file: File;
+  description: string;
+  descriptionMode: DescriptionMode;
+};
+type ClipDraftChanges = Partial<VideoClipOptions> & {
+  description?: string;
+  descriptionMode?: DescriptionMode;
+};
 const MAX_FILE_BYTES = 80 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 320 * 1024 * 1024;
+const MAX_CAPTION_CONTEXT_LENGTH = 100;
+const CUSTOM_DESCRIPTION_VALUE = "__custom__";
 
 const ROLE_OPTIONS: { value: VideoRole; label: string; caption: string }[] = [
   { value: "before", label: "시술 전", caption: "시술 전, 오늘의 변화를 시작합니다" },
@@ -49,6 +71,24 @@ const SELECTION_OPTIONS: { value: VideoSelection; label: string }[] = [
   { value: "end", label: "뒤 2초" },
 ];
 
+const DESCRIPTION_OPTIONS = [
+  "시술 전 상태",
+  "두피·모발 진단",
+  "샴푸",
+  "커트",
+  "섹션 나누기",
+  "염색약 도포",
+  "탈색약 도포",
+  "호일·롤 작업",
+  "펌 와인딩",
+  "방치·처리 중",
+  "중화·헹굼",
+  "드라이",
+  "아이론·열기구",
+  "스타일링 마무리",
+  "완성 확인",
+] as const;
+
 function defaultRole(index: number, total: number): VideoRole {
   if (index === 0) return "before";
   if (index === total - 1) return "after";
@@ -59,6 +99,8 @@ export function ShortsGenerator() {
   const [clips, setClips] = useState<ClipDraft[]>([]);
   const [job, setJob] = useState<VideoJobResponse | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [generatingCaptions, setGeneratingCaptions] = useState(false);
+  const [topic, setTopic] = useState("");
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -98,6 +140,8 @@ export function ShortsGenerator() {
             file,
             role,
             selection: "center" as const,
+            description: "",
+            descriptionMode: "preset" as const,
             caption: ROLE_OPTIONS.find((option) => option.value === role)?.caption || "",
           };
         }),
@@ -108,7 +152,7 @@ export function ShortsGenerator() {
     if (inputRef.current) inputRef.current.value = "";
   }
 
-  function updateClip(id: string, changes: Partial<VideoClipOptions>) {
+  function updateClip(id: string, changes: ClipDraftChanges) {
     setClips((current) => current.map((clip) => (clip.id === id ? { ...clip, ...changes } : clip)));
   }
 
@@ -134,16 +178,54 @@ export function ShortsGenerator() {
     }
   }
 
+  async function generateCaptions() {
+    if (clips.length < 2) {
+      setError("AI 자막 생성을 위해 영상을 2개 이상 올려주세요.");
+      return;
+    }
+    setGeneratingCaptions(true);
+    setError("");
+    try {
+      const response = await createVideoCaptions(
+        clips.map(({ role, description }, index) => ({
+          index,
+          role,
+          description: description.trim() || undefined,
+        })),
+        topic.trim(),
+      );
+      setClips((current) =>
+        current.map((clip, index) => ({
+          ...clip,
+          caption: response.captions[index]?.caption ?? clip.caption,
+        })),
+      );
+    } catch (captionError) {
+      setError(
+        captionError instanceof Error
+          ? captionError.message
+          : "AI 자막 생성에 실패했습니다. 기본 문구를 직접 수정해 계속해주세요.",
+      );
+    } finally {
+      setGeneratingCaptions(false);
+    }
+  }
+
   async function reset() {
     if (job && !["queued", "processing"].includes(job.status)) {
       await deleteVideoJob(job.job_id).catch(() => undefined);
     }
     setJob(null);
     setClips([]);
+    setTopic("");
     setError("");
   }
 
-  const busy = submitting || job?.status === "queued" || job?.status === "processing";
+  const busy =
+    submitting ||
+    generatingCaptions ||
+    job?.status === "queued" ||
+    job?.status === "processing";
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:py-12">
@@ -210,9 +292,45 @@ export function ShortsGenerator() {
             <Card>
               <CardHeader>
                 <CardTitle>2. 컷 역할·구간·자막</CardTitle>
-                <CardDescription>역할 순서대로 자동 연결하며, 자막은 바로 수정할 수 있습니다.</CardDescription>
+                <CardDescription>
+                  역할 순서대로 자동 연결하며, 기본 문구를 수정하거나 AI 초안을 받아볼 수 있습니다.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="rounded-xl border bg-muted/20 p-4">
+                  <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                    <div className="space-y-2">
+                      <Label htmlFor="caption-topic">시술명 또는 홍보 주제 (선택)</Label>
+                      <Input
+                        id="caption-topic"
+                        value={topic}
+                        maxLength={MAX_CAPTION_CONTEXT_LENGTH}
+                        disabled={busy}
+                        placeholder="예: 레이어드컷, 여름 스타일 변신"
+                        onChange={(event) => setTopic(event.target.value)}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={generateCaptions}
+                      disabled={busy || clips.length < 2}
+                    >
+                      {generatingCaptions ? (
+                        <LoaderCircle className="animate-spin" />
+                      ) : (
+                        <Sparkles />
+                      )}
+                      {generatingCaptions ? "AI 자막 만드는 중" : "AI로 자막 만들기"}
+                    </Button>
+                  </div>
+                  <ul className="mt-3 list-disc space-y-1 pl-5 text-xs leading-5 text-muted-foreground">
+                    <li>AI는 입력한 장면 설명과 주제만 사용해 자막 초안을 만듭니다.</li>
+                    <li>영상·대표 프레임·사용 구간은 AI 자막 요청에 전송되지 않습니다.</li>
+                    <li>AI 자막을 원하지 않으면 버튼을 누르지 않고 기본 문구를 직접 수정해도 됩니다.</li>
+                    <li>생성에 실패해도 기존 문구는 유지되며 영상 제작을 계속할 수 있습니다.</li>
+                  </ul>
+                </div>
                 {clips.map((clip, index) => (
                   <div key={clip.id} className="rounded-xl border bg-card p-4">
                     <div className="mb-4 flex items-start justify-between gap-3">
@@ -262,6 +380,50 @@ export function ShortsGenerator() {
                           {SELECTION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                         </select>
                       </div>
+                    </div>
+                    <div className="mt-4 space-y-2">
+                      <Label htmlFor={`description-choice-${clip.id}`}>장면 설명 (선택)</Label>
+                      <Select
+                        value={
+                          clip.descriptionMode === "custom"
+                            ? CUSTOM_DESCRIPTION_VALUE
+                            : clip.description || null
+                        }
+                        disabled={busy}
+                        onValueChange={(value) => {
+                          if (!value) return;
+                          if (value === CUSTOM_DESCRIPTION_VALUE) {
+                            updateClip(clip.id, { description: "", descriptionMode: "custom" });
+                            return;
+                          }
+                          updateClip(clip.id, { description: value, descriptionMode: "preset" });
+                        }}
+                      >
+                        <SelectTrigger id={`description-choice-${clip.id}`} className="w-full">
+                          <SelectValue placeholder="장면 설명을 선택하세요" />
+                        </SelectTrigger>
+                        <SelectContent align="start">
+                          {DESCRIPTION_OPTIONS.map((option) => (
+                            <SelectItem key={option} value={option}>{option}</SelectItem>
+                          ))}
+                          <SelectSeparator />
+                          <SelectItem value={CUSTOM_DESCRIPTION_VALUE}>직접 입력</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {clip.descriptionMode === "custom" && (
+                        <Input
+                          id={`description-${clip.id}`}
+                          value={clip.description}
+                          maxLength={MAX_CAPTION_CONTEXT_LENGTH}
+                          disabled={busy}
+                          aria-label={`${index + 1}번 장면 설명 직접 입력`}
+                          placeholder="장면 설명을 직접 입력하세요"
+                          onChange={(event) => updateClip(clip.id, { description: event.target.value })}
+                        />
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        AI가 영상을 보지 않으므로 자막에 반영할 내용만 적어주세요.
+                      </p>
                     </div>
                     <div className="mt-4 space-y-2">
                       <Label htmlFor={`caption-${clip.id}`} className="flex items-center gap-2"><Captions className="h-4 w-4" />자막</Label>
