@@ -217,23 +217,19 @@ def process_job(job_id: str) -> None:
         started = _now()
 
         if settings.IMAGE_GEN_ENABLED:
-            # Layer 2 에서 채운다. 지금은 여기 오면 실패로 둔다.
-            raise ApiError(
-                500,
-                "IMAGE_GENERATION_FAILED",
-                "이미지 생성에 실패했습니다. 다시 시도해주세요.",
-                retryable=True,
-            )
+            from src.ai_engine.image_gen import pipeline
 
-        results: dict[str, dict] = {}
-        sizes = {"1x1": (600, 600), "4x5": (600, 750), "9x16": (540, 960)}
-        for ratio_key, size in sizes.items():
-            img = _placeholder(job_id, ratio_key, size)
-            storage.save_result(job_id, ratio_key, img)
-            results[settings.RATIO_PATH_MAP[ratio_key]] = {
-                "url": f"/api/v1/face-swap-jobs/{job_id}/images/{ratio_key}",
-                "format_mode": "crop" if ratio_key != "9x16" else "fit_pad",
-            }
+            results = pipeline.run(job_id, payload.options, seed)
+        else:
+            results = {}
+            sizes = {"1x1": (600, 600), "4x5": (600, 750), "9x16": (540, 960)}
+            for ratio_key, size in sizes.items():
+                img = _placeholder(job_id, ratio_key, size)
+                storage.save_result(job_id, ratio_key, img)
+                results[settings.RATIO_PATH_MAP[ratio_key]] = {
+                    "url": f"/api/v1/face-swap-jobs/{job_id}/images/{ratio_key}",
+                    "format_mode": "crop" if ratio_key != "9x16" else "fit_pad",
+                }
 
         gen_sec = round((_now() - started).total_seconds(), 1)
 
