@@ -37,6 +37,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           {/* 내용 뒤에 깔리는 빛과 결. 자세한 것은 globals.css 를 볼 것. */}
           <div className="surface-glow" aria-hidden="true" />
           <div className="surface-grain" aria-hidden="true" />
+          {/* 같은 빛이 내용 위로도 한 번 더, 훨씬 약하게 지나간다. globals.css 참고. */}
+          <div className="surface-glow-over" aria-hidden="true" />
           <AppShell>{children}</AppShell>
           <Toaster />
         </ThemeProvider>
