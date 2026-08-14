@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { FaceCheck } from "@/components/face-check";
 import { EXPECTED_SECONDS, FaceSwapWaiting } from "@/components/face-swap-waiting";
+import { FaceSwapSlotBar } from "@/components/face-swap-slot-bar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -114,6 +115,8 @@ export default function FaceSwapPage() {
   const jobStatus = job?.status;
   const active = Boolean(jobId && (!jobStatus || !TERMINAL.has(jobStatus)));
   const resultImages = useMemo(() => (job?.status === "completed" ? job.results : null), [job]);
+  // 진행 중에는 사진·동의도 잠근다. 바꾸면 원본·결과 비교쌍이 어긋난다(감사 F2).
+  const busy = requesting || active;
 
   // 새로고침 전에 만들던 job 을 이어받는다. 마운트 때 한 번만 돈다.
   //
@@ -312,8 +315,34 @@ export default function FaceSwapPage() {
     }
   }
 
+  /**
+   * 만들기 버튼 하나를 두 자리에서 그린다 — 데스크톱은 입력 칼럼 끝, 폰은 하단 고정 바.
+   * 폰에서 버튼이 화면 밖에 있는 것이 가장 답답한 지점이었다(스크롤 이동은 1차에서
+   * 완화했지만, 누르기 전 단계에서는 여전히 안 보인다).
+   */
+  const generateCta = (
+    <Button
+      className="w-full"
+      size="lg"
+      onClick={handleGenerate}
+      disabled={busy || restoring || !consentAgreed || !isFaceReady(face)}
+      aria-describedby={
+        !consentAgreed ? "consent-required" : !isFaceReady(face) ? "face-required" : undefined
+      }
+    >
+      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+      {active ? progressMessage(job, elapsedSeconds) : "얼굴 교체 이미지 만들기"}
+    </Button>
+  );
+
+  const slots = [
+    { label: "사진", done: Boolean(photo) },
+    { label: "동의", done: consentAgreed },
+    { label: "얼굴", done: isFaceReady(face) },
+  ];
+
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10">
+    <div className="mx-auto max-w-6xl px-6 py-10 pb-28 lg:pb-10">
       <h1 className="text-2xl font-semibold tracking-tight">💇 얼굴 교체 홍보 이미지</h1>
       <p className="mt-2 max-w-2xl text-muted-foreground">
         생성형 AI로 얼굴을 만듭니다. 고객의 헤어·의상·배경은 유지하고 얼굴만 가상 인물로 바꾼 뒤 세 가지 홍보 이미지 규격을 만듭니다.
@@ -327,8 +356,8 @@ export default function FaceSwapPage() {
           <Card>
             <CardHeader><CardTitle className="text-base">1. 시술 사진</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              <UploadDropzone label="시술 사진" file={photo} onChange={handlePhotoChange} />
-              <Button variant="outline" size="sm" className="w-full" onClick={handleUseSample}>📷 예시 사진으로 체험하기</Button>
+              <UploadDropzone label="시술 사진" file={photo} onChange={handlePhotoChange} disabled={busy} />
+              <Button variant="outline" size="sm" className="w-full" disabled={busy} onClick={handleUseSample}>📷 예시 사진으로 체험하기</Button>
             </CardContent>
           </Card>
 
@@ -352,8 +381,9 @@ export default function FaceSwapPage() {
                   id="consent-agreed"
                   type="checkbox"
                   checked={consentAgreed}
+                  disabled={busy}
                   onChange={(event) => setConsentAgreed(event.target.checked)}
-                  className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-primary disabled:cursor-not-allowed disabled:opacity-60"
                 />
                 <Label htmlFor="consent-agreed" className="cursor-pointer leading-5">
                   {CONSENT_CONTENT.confirmation}
@@ -434,18 +464,8 @@ export default function FaceSwapPage() {
             </Card>
           )}
 
-          <Button
-            className="w-full"
-            size="lg"
-            onClick={handleGenerate}
-            disabled={requesting || active || restoring || !consentAgreed || !isFaceReady(face)}
-            aria-describedby={
-              !consentAgreed ? "consent-required" : !isFaceReady(face) ? "face-required" : undefined
-            }
-          >
-            {requesting || active ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {active ? progressMessage(job, elapsedSeconds) : "얼굴 교체 이미지 만들기"}
-          </Button>
+          {/* 폰에서는 하단 고정 바가 이 버튼을 대신한다 */}
+          <div className="hidden lg:block">{generateCta}</div>
         </div>
 
         <div className="space-y-5" ref={resultRef}>
@@ -575,6 +595,8 @@ export default function FaceSwapPage() {
           )}
         </div>
       </div>
+
+      <FaceSwapSlotBar slots={slots} cta={generateCta} />
 
       <DevNote
         guideExample="MOCK-001 · 얼굴 교체 job 종단 흐름"
