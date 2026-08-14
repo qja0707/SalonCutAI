@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { ChevronDown, Download, Images, Loader2, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { BeforeAfter } from "@/components/before-after";
+import { FaceCheck } from "@/components/face-check";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -481,7 +481,7 @@ export default function FaceSwapPage() {
                 <Card>
                   <CardHeader><CardTitle className="text-base">얼굴이 바뀌었는지 확인하세요</CardTitle></CardHeader>
                   <CardContent>
-                    <BeforeAfter originalUrl={photoUrl} resultUrl={resultImages["4:5"].url} />
+                    <FaceCheck originalUrl={photoUrl} resultUrl={resultImages["4:5"].url} />
                   </CardContent>
                 </Card>
               )}
