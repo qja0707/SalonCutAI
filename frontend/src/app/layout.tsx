@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import { Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AppShell } from "@/components/app-shell";
+import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 
 const pretendard = localFont({
@@ -24,10 +25,23 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="ko" className={`${pretendard.variable} ${geistMono.variable} h-full antialiased`}>
+    // 테마 클래스는 브라우저에서 붙는다. 서버가 만든 HTML 과 다를 수밖에 없으므로
+    // 이 한 단계만 경고를 끈다(next-themes 권장). 아래 자식들에는 적용되지 않는다.
+    <html
+      lang="ko"
+      suppressHydrationWarning
+      className={`${pretendard.variable} ${geistMono.variable} h-full antialiased`}
+    >
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <AppShell>{children}</AppShell>
-        <Toaster />
+        <ThemeProvider>
+          {/* 내용 뒤에 깔리는 빛과 결. 자세한 것은 globals.css 를 볼 것. */}
+          <div className="surface-glow" aria-hidden="true" />
+          <div className="surface-grain" aria-hidden="true" />
+          {/* 같은 빛이 내용 위로도 한 번 더, 훨씬 약하게 지나간다. globals.css 참고. */}
+          <div className="surface-glow-over" aria-hidden="true" />
+          <AppShell>{children}</AppShell>
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );

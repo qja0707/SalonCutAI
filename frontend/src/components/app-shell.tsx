@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Scissors } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/nav";
 import { cn } from "@/lib/utils";
+import { ThemePicker } from "@/components/theme-picker";
 import LoginButton from "./login-button";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -37,7 +38,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="mt-auto flex flex-col gap-3 pt-6">
-          <LoginButton mode="desktop" />
+          <div className="flex items-center gap-2">
+            <div className="flex-1">
+              <LoginButton mode="desktop" />
+            </div>
+            <ThemePicker />
+          </div>
 
           <div className="mt-auto px-3 pt-6 text-xs text-muted-foreground">
             서비스 UI · 프로토타입
@@ -46,21 +52,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex min-h-screen flex-1 flex-col">
-        <header className="border-b border-border md:hidden">
-          <nav
-            aria-label="모바일 메뉴"
-            className="flex gap-2 overflow-x-auto border-t border-border px-3 py-2"
-          >
-            <LoginButton mode="mobile" />
+        {/*
+          스크롤해도 남아 있어야 한다. /face-swap 폼이 길어서, 사진을 고르다 다른 메뉴로
+          가려면 맨 위까지 되돌아가야 했다.
+          bg-background 를 같이 주는 이유 — sticky 만 주면 스크롤한 본문이 헤더 뒤로 비친다.
+        */}
+        <header className="sticky top-0 z-40 border-b border-border bg-background md:hidden">
+          <div className="flex items-center gap-2 border-t border-border px-3 py-2">
+            <nav
+              aria-label="모바일 메뉴"
+              className="flex flex-1 gap-2 overflow-x-auto"
+            >
+              <LoginButton mode="mobile" />
 
-            {NAV_ITEMS.map((item) => (
-              <MobileNavLink
-                key={item.href}
-                item={item}
-                active={pathname === item.href}
-              />
-            ))}
-          </nav>
+              {NAV_ITEMS.map((item) => (
+                <MobileNavLink
+                  key={item.href}
+                  item={item}
+                  active={pathname === item.href}
+                />
+              ))}
+            </nav>
+
+            {/* 메뉴는 가로로 스크롤되므로 토글은 밖에 둬야 밀려나지 않는다. */}
+            <ThemePicker />
+          </div>
         </header>
         <main className="flex-1">{children}</main>
       </div>
