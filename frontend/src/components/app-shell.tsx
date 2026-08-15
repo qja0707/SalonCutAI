@@ -51,7 +51,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <div className="flex min-h-screen flex-1 flex-col">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         {/*
           스크롤해도 남아 있어야 한다. /face-swap 폼이 길어서, 사진을 고르다 다른 메뉴로
           가려면 맨 위까지 되돌아가야 했다.
@@ -61,7 +61,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-2 border-t border-border px-3 py-2">
             <nav
               aria-label="모바일 메뉴"
-              className="flex flex-1 gap-2 overflow-x-auto"
+              className="flex min-w-0 flex-1 gap-2 overflow-x-auto"
             >
               <LoginButton mode="mobile" />
 
