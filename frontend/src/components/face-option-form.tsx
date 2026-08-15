@@ -155,6 +155,52 @@ function OptionalChoice({
   );
 }
 
+/**
+ * 필터 한 줄. "전체"가 기본이고, 후보는 하드코딩하지 않고 응답에서 뽑는다(#84 8.4 합의).
+ * 백엔드가 얼굴을 더하거나 빼면 필터도 저절로 맞는다.
+ */
+function FaceFilterRow({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: readonly string[];
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="mr-1 text-xs text-muted-foreground">{label}</span>
+      <Button
+        type="button"
+        size="xs"
+        variant={value === "" ? "secondary" : "ghost"}
+        onClick={() => onChange("")}
+      >
+        전체
+      </Button>
+      {options.map((option) => (
+        <Button
+          key={option}
+          type="button"
+          size="xs"
+          variant={value === option ? "secondary" : "ghost"}
+          onClick={() => onChange(option)}
+        >
+          {option}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+/** 등장 순서를 지키며 중복만 걷어낸다. Set 은 삽입 순서를 보존한다. */
+function uniqueInOrder(values: string[]): string[] {
+  return [...new Set(values)];
+}
+
 function ReferencePicker({
   value,
   onChange,
@@ -164,6 +210,10 @@ function ReferencePicker({
 }) {
   const [faces, setFaces] = useState<ReferenceFace[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // 32장을 그대로 나열하면 폰에서 32칸이다. 성별·연령대·국적으로 좁힌다.
+  const [genderFilter, setGenderFilter] = useState("");
+  const [ageFilter, setAgeFilter] = useState("");
+  const [ethnicityFilter, setEthnicityFilter] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -201,38 +251,76 @@ function ReferencePicker({
     return <p className="text-sm text-muted-foreground">고를 수 있는 얼굴이 아직 없습니다.</p>;
   }
 
+  const filtered = faces.filter(
+    (face) =>
+      (!genderFilter || face.gender === genderFilter) &&
+      (!ageFilter || face.age_group === ageFilter) &&
+      (!ethnicityFilter || face.ethnicity === ethnicityFilter),
+  );
+
   // 폰에서는 썸네일을 감춘다. 3열 격자가 86px까지 줄어들어 얼굴을 알아볼 수 없고,
   // 좁은 화면에서는 한 줄에 하나씩 라벨로 고르는 편이 누르기도 쉽다.
   return (
-    <div className="grid gap-2 sm:grid-cols-3 sm:gap-3">
-      {faces.map((face) => {
-        const selected = face.id === value;
-        return (
-          <button
-            key={face.id}
-            type="button"
-            aria-pressed={selected}
-            // 같은 얼굴을 다시 누르면 선택을 푼다. 잘못 고른 뒤 되돌릴 길이 있어야 한다.
-            onClick={() => onChange(selected ? "" : face.id)}
-            className={cn(
-              "overflow-hidden rounded-lg border-2 text-left transition-colors",
-              selected ? "border-primary" : "border-border hover:border-foreground/20 sm:border-transparent",
-            )}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={face.thumbnail_url}
-              alt={face.label}
-              className="hidden aspect-square w-full object-cover sm:block"
-            />
-            {/* 폰은 한 줄에 라벨·국적을 양끝으로, sm 이상은 좁은 칸이라 두 줄로 쌓는다. */}
-            <span className="flex min-h-12 items-center justify-between gap-2 px-4 text-sm sm:min-h-0 sm:flex-col sm:items-start sm:gap-0 sm:px-2 sm:py-1.5 sm:text-xs sm:text-muted-foreground">
-              <span>{face.label}</span>
-              <span className="text-muted-foreground">{face.ethnicity}</span>
-            </span>
-          </button>
-        );
-      })}
+    <div className="space-y-3">
+      <div className="space-y-1.5">
+        <FaceFilterRow
+          label="성별"
+          options={uniqueInOrder(faces.map((face) => face.gender))}
+          value={genderFilter}
+          onChange={setGenderFilter}
+        />
+        <FaceFilterRow
+          label="연령대"
+          options={uniqueInOrder(faces.map((face) => face.age_group))}
+          value={ageFilter}
+          onChange={setAgeFilter}
+        />
+        <FaceFilterRow
+          label="국적"
+          options={uniqueInOrder(faces.map((face) => face.ethnicity))}
+          value={ethnicityFilter}
+          onChange={setEthnicityFilter}
+        />
+      </div>
+
+      {filtered.length === 0 ? (
+        // 조합이 비는 것은 정상이다 — 예: 30대 + 일본인 얼굴은 아직 없다.
+        // 목록이 잘못된 것처럼 보이지 않게, 조건에 해당하는 얼굴이 없다고 그대로 말한다.
+        <p className="text-sm text-muted-foreground">
+          이 조건에 맞는 얼굴이 아직 없습니다. 필터를 넓혀보세요.
+        </p>
+      ) : (
+        <div className="grid gap-2 sm:grid-cols-3 sm:gap-3">
+          {filtered.map((face) => {
+            const selected = face.id === value;
+            return (
+              <button
+                key={face.id}
+                type="button"
+                aria-pressed={selected}
+                // 같은 얼굴을 다시 누르면 선택을 푼다. 잘못 고른 뒤 되돌릴 길이 있어야 한다.
+                onClick={() => onChange(selected ? "" : face.id)}
+                className={cn(
+                  "overflow-hidden rounded-lg border-2 text-left transition-colors",
+                  selected ? "border-primary" : "border-border hover:border-foreground/20 sm:border-transparent",
+                )}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={face.thumbnail_url}
+                  alt={face.label}
+                  className="hidden aspect-square w-full object-cover sm:block"
+                />
+                {/* label 에 국적이 이미 들어 있어("한국인 20대 여성 A") 따로 표시하지
+                    않는다 — #84 8.1에서 중복 표시는 프론트가 정리하기로 했다. */}
+                <span className="flex min-h-12 items-center px-4 text-sm sm:min-h-0 sm:px-2 sm:py-1.5 sm:text-xs sm:text-muted-foreground">
+                  {face.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
