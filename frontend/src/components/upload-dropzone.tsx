@@ -25,10 +25,13 @@ export function UploadDropzone({
   label,
   file,
   onChange,
+  disabled = false,
 }: {
   label: string;
   file: File | null;
   onChange: (file: File | null) => void;
+  /** 생성 진행 중 사진을 바꾸면 원본·결과 비교쌍이 어긋난다. 그동안 잠근다. */
+  disabled?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -44,6 +47,7 @@ export function UploadDropzone({
 
   const handleFiles = useCallback(
     (files: FileList | null) => {
+      if (disabled) return;
       const f = files?.[0];
       if (!f) return;
       if (isHeic(f)) {
@@ -59,7 +63,7 @@ export function UploadDropzone({
       setIsLandscape(false);
       onChange(f);
     },
-    [onChange],
+    [onChange, disabled],
   );
 
   if (previewUrl) {
@@ -80,6 +84,7 @@ export function UploadDropzone({
             size="icon"
             variant="secondary"
             className="absolute right-2 top-2 h-7 w-7"
+            disabled={disabled}
             onClick={() => onChange(null)}
           >
             <X className="h-3.5 w-3.5" />
@@ -113,10 +118,16 @@ export function UploadDropzone({
         setDragActive(false);
         handleFiles(e.dataTransfer.files);
       }}
-      onClick={() => inputRef.current?.click()}
+      onClick={() => {
+        if (!disabled) inputRef.current?.click();
+      }}
       className={cn(
-        "flex aspect-square cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border text-center transition-colors",
-        dragActive ? "border-primary bg-primary/5" : "hover:bg-accent/40"
+        "flex aspect-square flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border text-center transition-colors",
+        disabled
+          ? "cursor-not-allowed opacity-60"
+          : dragActive
+            ? "cursor-pointer border-primary bg-primary/5"
+            : "cursor-pointer hover:bg-accent/40"
       )}
     >
       <ImagePlus className="h-6 w-6 text-muted-foreground" />

@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ChevronDown, Download, Loader2, RotateCcw, Sparkles, Trash2 } from "lucide-react";
+import { ChevronDown, Download, Images, Loader2, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { FaceCheck } from "@/components/face-check";
+import { EXPECTED_SECONDS, FaceSwapWaiting } from "@/components/face-swap-waiting";
+import { FaceSwapSlotBar } from "@/components/face-swap-slot-bar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -62,7 +65,21 @@ const RATIO_USAGE: Record<Ratio, string> = {
   "9:16": "스토리 · 릴스",
 };
 const TERMINAL = new Set(["completed", "failed"]);
-const EXPECTED_SECONDS = 16;
+
+/**
+ * 좁은 화면에서만 그 자리로 데려간다.
+ *
+ * 1024px 이상에서는 입력과 결과가 좌우로 나란히 있어 이미 눈에 들어온다.
+ * 그보다 좁으면 1·2·3·4 단계가 세로로 쌓여서, 만들기를 눌러도 결과가 화면 밖에 있다.
+ * 무엇이 일어났는지 안 보이는 것이 지금 폰에서 제일 답답한 지점이다.
+ */
+function scrollIntoViewOnNarrow(element: HTMLElement | null): void {
+  if (!element || typeof window === "undefined") return;
+  if (window.matchMedia("(min-width: 1024px)").matches) return;
+
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  element.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+}
 
 function progressMessage(job: FaceSwapJobResponse | null, elapsedSeconds: number): string {
   if (job?.status === "queued" && job.queue_position) {
@@ -92,10 +109,14 @@ export default function FaceSwapPage() {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(true);
   const [restored, setRestored] = useState(false);
+  const resultRef = useRef<HTMLDivElement>(null);
+  const uploadRef = useRef<HTMLDivElement>(null);
 
   const jobStatus = job?.status;
   const active = Boolean(jobId && (!jobStatus || !TERMINAL.has(jobStatus)));
   const resultImages = useMemo(() => (job?.status === "completed" ? job.results : null), [job]);
+  // 진행 중에는 사진·동의도 잠근다. 바꾸면 원본·결과 비교쌍이 어긋난다(감사 F2).
+  const busy = requesting || active;
 
   // 새로고침 전에 만들던 job 을 이어받는다. 마운트 때 한 번만 돈다.
   //
@@ -148,7 +169,11 @@ export default function FaceSwapPage() {
     const poll = async () => {
       try {
         const next = await getFaceSwapJob(jobId);
-        if (!cancelled) setJob(next);
+        if (cancelled) return;
+        setJob(next);
+        // 순간 통신 장애로 남은 오류는 다음 성공이 지운다. 안 지우면 결과가
+        // 잘 나온 화면 위에 빨간 경고가 계속 떠 있다.
+        setRequestError(null);
       } catch (error) {
         if (!cancelled) setRequestError(error instanceof Error ? error.message : "작업 상태를 불러오지 못했습니다.");
       }
@@ -212,6 +237,7 @@ export default function FaceSwapPage() {
     try {
       const created = await createFaceSwapJob(photo, buildPayload(), scenario);
       setJobId(created.job_id);
+      scrollIntoViewOnNarrow(resultRef.current);
       writeActiveJob("face-swap", { jobId: created.job_id, startedAt: startedAtMs });
     } catch (error) {
       setRequestError(error instanceof Error ? error.message : "작업을 시작하지 못했습니다.");
@@ -248,6 +274,31 @@ export default function FaceSwapPage() {
     toast.info("AI로 만든 이미지입니다. 홍보에 쓰실 때 AI 생성 사실을 함께 표시해주세요.");
   }
 
+  /**
+   * 같은 설정으로 다음 사진.
+   *
+   * 퇴근 후 여러 장을 몰아서 처리하는 흐름인데, 한 장이 끝나면 사진 · 동의 · 얼굴 · 옵션
+   * 네 단계를 처음부터 다시 채워야 했다. 얼굴과 배경 설정은 보통 그대로 가므로 남긴다.
+   *
+   * 동의는 남기지 않는다 — 사진이 바뀌면 손님이 바뀌는 것이라 동의도 새로 받아야 한다.
+   * 사진을 교체할 때 handlePhotoChange 가 동의를 지우는 것과 같은 이유다.
+   *
+   * 만든 결과는 서버에 그대로 두고 화면만 비운다. 삭제는 `작업 삭제` 가 따로 한다.
+   */
+  function handleNextPhoto() {
+    clearActiveJob("face-swap");
+    setPhoto(null);
+    setPhotoUrl(null);
+    setConsentAgreed(false);
+    setJobId(null);
+    setJob(null);
+    setStartedAt(null);
+    setElapsedSeconds(0);
+    setRequestError(null);
+    setRestored(false);
+    scrollIntoViewOnNarrow(uploadRef.current);
+  }
+
   async function handleDelete() {
     if (!jobId) return;
     try {
@@ -264,8 +315,34 @@ export default function FaceSwapPage() {
     }
   }
 
+  /**
+   * 만들기 버튼 하나를 두 자리에서 그린다 — 데스크톱은 입력 칼럼 끝, 폰은 하단 고정 바.
+   * 폰에서 버튼이 화면 밖에 있는 것이 가장 답답한 지점이었다(스크롤 이동은 1차에서
+   * 완화했지만, 누르기 전 단계에서는 여전히 안 보인다).
+   */
+  const generateCta = (
+    <Button
+      className="w-full"
+      size="lg"
+      onClick={handleGenerate}
+      disabled={busy || restoring || !consentAgreed || !isFaceReady(face)}
+      aria-describedby={
+        !consentAgreed ? "consent-required" : !isFaceReady(face) ? "face-required" : undefined
+      }
+    >
+      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+      {active ? progressMessage(job, elapsedSeconds) : "얼굴 교체 이미지 만들기"}
+    </Button>
+  );
+
+  const slots = [
+    { label: "사진", done: Boolean(photo) },
+    { label: "동의", done: consentAgreed },
+    { label: "얼굴", done: isFaceReady(face) },
+  ];
+
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10">
+    <div className="mx-auto max-w-6xl px-6 py-10 pb-28 lg:pb-10">
       <h1 className="text-2xl font-semibold tracking-tight">💇 얼굴 교체 홍보 이미지</h1>
       <p className="mt-2 max-w-2xl text-muted-foreground">
         생성형 AI로 얼굴을 만듭니다. 고객의 헤어·의상·배경은 유지하고 얼굴만 가상 인물로 바꾼 뒤 세 가지 홍보 이미지 규격을 만듭니다.
@@ -275,12 +352,12 @@ export default function FaceSwapPage() {
       {IS_PUBLIC_PREVIEW && <Alert className="mt-4"><AlertDescription>{PUBLIC_PREVIEW_NOTICE}</AlertDescription></Alert>}
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
-        <div className="space-y-6">
+        <div className="space-y-6" ref={uploadRef}>
           <Card>
             <CardHeader><CardTitle className="text-base">1. 시술 사진</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              <UploadDropzone label="시술 사진" file={photo} onChange={handlePhotoChange} />
-              <Button variant="outline" size="sm" className="w-full" onClick={handleUseSample}>📷 예시 사진으로 체험하기</Button>
+              <UploadDropzone label="시술 사진" file={photo} onChange={handlePhotoChange} disabled={busy} />
+              <Button variant="outline" size="sm" className="w-full" disabled={busy} onClick={handleUseSample}>📷 예시 사진으로 체험하기</Button>
             </CardContent>
           </Card>
 
@@ -304,8 +381,9 @@ export default function FaceSwapPage() {
                   id="consent-agreed"
                   type="checkbox"
                   checked={consentAgreed}
+                  disabled={busy}
                   onChange={(event) => setConsentAgreed(event.target.checked)}
-                  className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-primary disabled:cursor-not-allowed disabled:opacity-60"
                 />
                 <Label htmlFor="consent-agreed" className="cursor-pointer leading-5">
                   {CONSENT_CONTENT.confirmation}
@@ -386,21 +464,11 @@ export default function FaceSwapPage() {
             </Card>
           )}
 
-          <Button
-            className="w-full"
-            size="lg"
-            onClick={handleGenerate}
-            disabled={requesting || active || restoring || !consentAgreed || !isFaceReady(face)}
-            aria-describedby={
-              !consentAgreed ? "consent-required" : !isFaceReady(face) ? "face-required" : undefined
-            }
-          >
-            {requesting || active ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {active ? progressMessage(job, elapsedSeconds) : "얼굴 교체 이미지 만들기"}
-          </Button>
+          {/* 폰에서는 하단 고정 바가 이 버튼을 대신한다 */}
+          <div className="hidden lg:block">{generateCta}</div>
         </div>
 
-        <div className="space-y-5">
+        <div className="space-y-5" ref={resultRef}>
           <h2 className="text-base font-semibold">결과</h2>
           {requestError && <Alert variant="destructive"><AlertDescription>{requestError}</AlertDescription></Alert>}
 
@@ -422,19 +490,31 @@ export default function FaceSwapPage() {
             </Card>
           ) : (
             <>
-              {active && (
-                <Alert>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <AlertDescription>{progressMessage(job, elapsedSeconds)}</AlertDescription>
-                </Alert>
+              {active && <FaceSwapWaiting job={job} elapsedSeconds={elapsedSeconds} />}
+
+              {/*
+                얼굴 확인이 결과 화면의 첫 순서다. 3규격 저장은 확인이 끝난 뒤의 일이라
+                아래로 내렸다. 비교 대상은 4:5 — 세 규격 중 잘리지 않는 권장 규격이다.
+              */}
+              {photoUrl && resultImages && (
+                <Card>
+                  <CardHeader><CardTitle className="text-base">얼굴이 바뀌었는지 확인하세요</CardTitle></CardHeader>
+                  <CardContent>
+                    <FaceCheck originalUrl={photoUrl} resultUrl={resultImages["4:5"].url} />
+                  </CardContent>
+                </Card>
               )}
 
-              {photoUrl && (
+              {photoUrl && !resultImages && (
                 <Card>
-                  <CardHeader><CardTitle className="text-base">원본</CardTitle></CardHeader>
+                  <CardHeader><CardTitle className="text-base">올린 사진</CardTitle></CardHeader>
                   <CardContent>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={photoUrl} alt="업로드한 원본" className="max-h-72 w-full rounded-lg object-contain" />
+                    <div className="relative overflow-hidden rounded-lg">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={photoUrl} alt="업로드한 원본" className="max-h-72 w-full rounded-lg object-contain" />
+                      {/* 작업 중임을 사진 위에서도 느끼게 한다. 은은한 맥동 하나로 충분하다. */}
+                      {active && <div className="pointer-events-none absolute inset-0 animate-pulse bg-primary/10" />}
+                    </div>
                   </CardContent>
                 </Card>
               )}
@@ -451,6 +531,7 @@ export default function FaceSwapPage() {
                     </p>
                   )}
                   {resultImages ? (
+                    <>
                     <div className="grid gap-4 sm:grid-cols-3">
                       {RATIOS.map((ratio) => {
                         const result = resultImages[ratio];
@@ -475,6 +556,20 @@ export default function FaceSwapPage() {
                         );
                       })}
                     </div>
+                    {/* 보관 기한을 알려야 저장을 미루지 않는다. 지나면 서버에서 지워진다. */}
+                    {job?.result_expires_at && (
+                      <p className="mt-4 text-xs text-muted-foreground">
+                        결과는{" "}
+                        {new Date(job.result_expires_at).toLocaleString("ko-KR", {
+                          month: "long",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
+                        까지 보관돼요. 쓰실 규격은 지금 저장해두세요.
+                      </p>
+                    )}
+                    </>
                   ) : job?.status === "failed" ? (
                     <div className="space-y-3">
                       <Alert variant="destructive"><AlertDescription>{job.error?.message}</AlertDescription></Alert>
@@ -487,12 +582,21 @@ export default function FaceSwapPage() {
               </Card>
 
               {job && TERMINAL.has(job.status) && (
-                <Button variant="outline" size="sm" className="w-full" onClick={handleDelete}><Trash2 className="h-3.5 w-3.5" />작업 삭제</Button>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button size="sm" className="flex-1" onClick={handleNextPhoto}>
+                    <Images className="h-3.5 w-3.5" />같은 설정으로 다음 사진
+                  </Button>
+                  <Button variant="outline" size="sm" className="flex-1" onClick={handleDelete}>
+                    <Trash2 className="h-3.5 w-3.5" />작업 삭제
+                  </Button>
+                </div>
               )}
             </>
           )}
         </div>
       </div>
+
+      <FaceSwapSlotBar slots={slots} cta={generateCta} />
 
       <DevNote
         guideExample="MOCK-001 · 얼굴 교체 job 종단 흐름"

@@ -9,8 +9,14 @@
 //
 // 저장하는 것은 job_id 와 시작 시각뿐이다. 업로드한 사진(File)과 폼 입력값은 복구하지 않는다.
 
-/** 화면마다 저장 칸을 따로 쓴다. 얼굴 교체와 블로그는 서로 독립된 job 이다. */
-export type ActiveJobKind = "face-swap" | "blog";
+/**
+ * 화면마다 저장 칸을 따로 쓴다.
+ *
+ * 지금은 얼굴 교체 하나뿐이다. 블로그는 job 방식이 아니라 동기 호출로 가기로 해서
+ * (백엔드에 있는 것은 `/api/v1/text-gen/blog-generation` 하나이고 blog job API 는 없다)
+ * 복구할 job 자체가 없다.
+ */
+export type ActiveJobKind = "face-swap";
 
 export type ActiveJob = {
   jobId: string;
