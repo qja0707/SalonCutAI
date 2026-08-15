@@ -1,17 +1,8 @@
 // 실제 인물 사진 없이 미팅에서 바로 시연할 수 있게 하는 합성 예시 자산.
-// 전부 SVG로 그린 추상 아바타/스케치라 실존 인물이 아니며 초상권 원칙에 걸리지 않습니다.
+// 인물은 생성 이미지, 스케치는 SVG이며 실존 인물의 원본 사진은 포함하지 않습니다.
 
-const AVATAR_SVG = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
-  <rect width="640" height="640" fill="#d6e0e2"/>
-  <text x="20" y="34" font-family="sans-serif" font-size="15" fill="#465254">예시용 합성 인물 (실존 인물 아님)</text>
-  <rect x="170" y="470" width="300" height="170" rx="0" fill="#78829a"/>
-  <ellipse cx="320" cy="220" rx="130" ry="190" fill="#46302c"/>
-  <ellipse cx="320" cy="270" rx="108" ry="120" fill="#e0c4ac"/>
-  <ellipse cx="284" cy="255" rx="15" ry="12" fill="#5a3c32"/>
-  <ellipse cx="356" cy="255" rx="15" ry="12" fill="#5a3c32"/>
-  <path d="M290 300 Q320 330 350 300" stroke="#966450" stroke-width="4" fill="none"/>
-</svg>`.trim();
+// 팀이 사용 권한을 보유한 비실존 가상 인물 자산이며, 제공 사진 원본은 포함하지 않습니다.
+const SAMPLE_AVATAR_PATH = "/sample-assets/sample-avatar-haired.jpg";
 
 const SKETCH_SVG = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
@@ -29,7 +20,10 @@ function svgToDataUrl(svg: string): string {
 }
 
 export async function sampleAvatarFile(): Promise<File> {
-  return svgToPngFile(AVATAR_SVG, "sample-avatar.png");
+  const response = await fetch(SAMPLE_AVATAR_PATH);
+  if (!response.ok) throw new Error("예시 이미지를 준비하지 못했습니다.");
+  const blob = await response.blob();
+  return new File([blob], "sample-avatar-haired.jpg", { type: blob.type || "image/jpeg" });
 }
 
 export async function sampleSketchFile(): Promise<File> {
@@ -40,26 +34,4 @@ async function dataUrlToFile(dataUrl: string, filename: string, mime: string): P
   const res = await fetch(dataUrl);
   const blob = await res.blob();
   return new File([blob], filename, { type: mime });
-}
-
-async function svgToPngFile(svg: string, filename: string): Promise<File> {
-  const source = new Blob([svg], { type: "image/svg+xml" });
-  const sourceUrl = URL.createObjectURL(source);
-  try {
-    const image = new Image();
-    image.src = sourceUrl;
-    await image.decode();
-    const canvas = document.createElement("canvas");
-    canvas.width = 640;
-    canvas.height = 640;
-    const context = canvas.getContext("2d");
-    if (!context) throw new Error("예시 이미지를 준비하지 못했습니다.");
-    context.drawImage(image, 0, 0, canvas.width, canvas.height);
-    const png = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("예시 이미지를 준비하지 못했습니다."))), "image/png");
-    });
-    return new File([png], filename, { type: "image/png" });
-  } finally {
-    URL.revokeObjectURL(sourceUrl);
-  }
 }
