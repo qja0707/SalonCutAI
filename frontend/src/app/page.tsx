@@ -91,9 +91,10 @@ export default function Home() {
 
         <div className="relative mx-auto w-full max-w-sm">
           <div className="relative aspect-[4/5] overflow-hidden rounded-3xl border shadow-xl">
+            {/* 이 서비스로 실제 시술 사진을 얼굴 교체해 만든 결과물 — 얼굴은 AI, 머리·배경은 실제 */}
             <Image
-              src="/sample-assets/sample-avatar-haired.jpg"
-              alt="AI 가상 인물로 만든 홍보 이미지 예시"
+              src="/sample-assets/landing-hero-swap.jpg"
+              alt="얼굴 교체로 만든 홍보 이미지 — 시술한 머리는 그대로, 얼굴은 AI 모델"
               fill
               priority
               sizes="(min-width: 1024px) 24rem, 90vw"
@@ -143,10 +144,10 @@ export default function Home() {
           </Link>
         </div>
 
-        {/* 확인 슬라이더 은유 — 사진 위 손잡이. 실제 모델 사진 대신 AI 가상 인물을 쓴다 */}
+        {/* 확인 슬라이더 은유 — 사진 위 손잡이. 실제 얼굴 교체 결과물 위에 그린다 */}
         <div className="relative mx-auto aspect-[4/5] w-full max-w-sm overflow-hidden rounded-2xl border shadow-lg">
           <Image
-            src="/sample-assets/sample-avatar-haired.jpg"
+            src="/sample-assets/landing-hero-swap.jpg"
             alt="원본과 결과를 슬라이더로 겹쳐 확인하는 화면 예시"
             fill
             sizes="(min-width: 1024px) 24rem, 90vw"
