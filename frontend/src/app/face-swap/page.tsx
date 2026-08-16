@@ -107,6 +107,10 @@ export default function FaceSwapPage() {
   const [requestError, setRequestError] = useState<string | null>(null);
   const [downloadNoticeShown, setDownloadNoticeShown] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  // 지금 화면의 job 이 어느 사진으로 만들어졌는지. 복구된 job 은 원본이 없어 null 이고,
+  // 결과가 뜬 뒤 사진을 갈아끼우면 photoUrl 과 어긋난다 — 어긋난 쌍은 비교 화면에 올리지
+  // 않는다 (#105 리뷰 지적: 복구/교체된 사진이 남의 결과와 한 쌍처럼 보이던 문제).
+  const [jobPhotoUrl, setJobPhotoUrl] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(true);
   const [restored, setRestored] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
@@ -237,6 +241,7 @@ export default function FaceSwapPage() {
     try {
       const created = await createFaceSwapJob(photo, buildPayload(), scenario);
       setJobId(created.job_id);
+      setJobPhotoUrl(photoUrl);
       scrollIntoViewOnNarrow(resultRef.current);
       writeActiveJob("face-swap", { jobId: created.job_id, startedAt: startedAtMs });
     } catch (error) {
@@ -289,6 +294,7 @@ export default function FaceSwapPage() {
     clearActiveJob("face-swap");
     setPhoto(null);
     setPhotoUrl(null);
+    setJobPhotoUrl(null);
     setConsentAgreed(false);
     setJobId(null);
     setJob(null);
@@ -305,6 +311,7 @@ export default function FaceSwapPage() {
       await deleteFaceSwapJob(jobId);
       clearActiveJob("face-swap");
       setJobId(null);
+      setJobPhotoUrl(null);
       setJob(null);
       setStartedAt(null);
       setElapsedSeconds(0);
@@ -356,8 +363,9 @@ export default function FaceSwapPage() {
           <Card>
             <CardHeader><CardTitle className="text-base">1. 시술 사진</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              <UploadDropzone label="시술 사진" file={photo} onChange={handlePhotoChange} disabled={busy} />
-              <Button variant="outline" size="sm" className="w-full" disabled={busy} onClick={handleUseSample}>📷 예시 사진으로 체험하기</Button>
+              {/* 복구 조회가 끝나기 전에 사진을 고르면 굴러들어온 이전 결과와 섞인다 — 잠근다 (#105 리뷰) */}
+              <UploadDropzone label="시술 사진" file={photo} onChange={handlePhotoChange} disabled={busy || restoring} />
+              <Button variant="outline" size="sm" className="w-full" disabled={busy || restoring} onClick={handleUseSample}>📷 예시 사진으로 체험하기</Button>
             </CardContent>
           </Card>
 
@@ -496,7 +504,7 @@ export default function FaceSwapPage() {
                 얼굴 확인이 결과 화면의 첫 순서다. 3규격 저장은 확인이 끝난 뒤의 일이라
                 아래로 내렸다. 비교 대상은 4:5 — 세 규격 중 잘리지 않는 권장 규격이다.
               */}
-              {photoUrl && resultImages && (
+              {photoUrl && resultImages && photoUrl === jobPhotoUrl && (
                 <Card>
                   <CardHeader><CardTitle className="text-base">얼굴이 바뀌었는지 확인하세요</CardTitle></CardHeader>
                   <CardContent>
@@ -505,7 +513,7 @@ export default function FaceSwapPage() {
                 </Card>
               )}
 
-              {photoUrl && !resultImages && (
+              {photoUrl && (!resultImages || photoUrl !== jobPhotoUrl) && (
                 <Card>
                   <CardHeader><CardTitle className="text-base">올린 사진</CardTitle></CardHeader>
                   <CardContent>
