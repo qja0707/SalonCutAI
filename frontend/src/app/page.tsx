@@ -74,12 +74,12 @@ export default function Home() {
       <section className="grid items-center gap-10 py-12 lg:grid-cols-[1.05fr_.95fr] lg:gap-14 lg:py-20">
         <div>
           <h1 className={`${SERIF} text-3xl leading-snug font-semibold text-balance md:text-4xl lg:text-[2.6rem]`}>
-            모델 작업에 지친 당신,
+            마케팅에 지친 우리,
             <br />
-            <span className="text-primary">오늘 시술한 그 머리가 모델이 된다면?</span>
+            <span className="text-primary">오늘 시술한 내 작품이 모델이 된다면?</span>
           </h1>
           <p className="mt-4 max-w-xl text-sm leading-7 text-muted-foreground md:text-base">
-            사진 한 장이면, 오늘 바로 올릴 홍보 이미지가 나옵니다.
+            시술 사진 한 장이면, 오늘 바로 올릴 피드 이미지가 나옵니다.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link href="/face-swap" className={buttonVariants({ size: "lg" })}>무료로 시작하기</Link>
