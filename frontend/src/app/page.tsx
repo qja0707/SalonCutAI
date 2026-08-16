@@ -15,14 +15,15 @@ import { Card, CardContent } from "@/components/ui/card";
 /**
  * 랜딩 홈 (2026-08-15 시안 확정, docs/시안/landing.html).
  *
- * - 히어로 카피는 원장님 확정안: 비교 대상(모델 섭외)을 아는 현업의 언어를 그대로 쓴다
- * - 사진 자산은 커밋 가능한 것만 — 실제 모델 사진은 레포에 넣지 않는 조건이라
- *   비실존 AI 가상 인물(#102 sample-avatar)과 화면 요소 목업으로 대신한다
+ * - 히어로 카피는 원장님 확정안: 비교 대상(모델 작업)을 아는 현업의 언어를 그대로 쓴다
+ * - 사진은 이 서비스로 실제 시술 사진을 얼굴 교체해 만든 결과물(landing-hero-swap) —
+ *   원본 사진은 레포에 넣지 않는 조건이고, 결과물은 공유 가능 범위다
  * - 색은 전부 토큰이라 화면 색 6종을 그대로 따라간다
  */
 
+// 글꼴은 앱 전체와 같은 프리텐다드 — 제목이라고 서체를 갈지 않는다 (8/16 원장님 확정).
 // break-keep: 한국어 제목이 어절 중간("모/델이")에서 갈라지지 않게
-const SERIF = "font-serif tracking-tight break-keep";
+const HEADING = "tracking-tight break-keep";
 
 const TRUST_ITEMS = [
   ["AI 모델로 교체", "머리는 그대로"],
@@ -47,7 +48,7 @@ function ChapterHeading({ num, icon: Icon, children }: {
         <Icon className="h-3.5 w-3.5" />
         {num}
       </p>
-      <h2 className={`${SERIF} mt-2 text-2xl font-semibold text-balance lg:text-3xl`}>{children}</h2>
+      <h2 className={`${HEADING} mt-2 text-2xl font-semibold text-balance lg:text-3xl`}>{children}</h2>
     </div>
   );
 }
@@ -73,7 +74,7 @@ export default function Home() {
       {/* 히어로 */}
       <section className="grid items-center gap-10 py-12 lg:grid-cols-[1.05fr_.95fr] lg:gap-14 lg:py-20">
         <div>
-          <h1 className={`${SERIF} text-3xl leading-snug font-semibold text-balance md:text-4xl lg:text-[2.6rem]`}>
+          <h1 className={`${HEADING} text-3xl leading-snug font-semibold text-balance md:text-4xl lg:text-[2.6rem]`}>
             마케팅에 지친 우리,
             <br />
             <span className="text-primary">오늘 시술한 내 작품이 모델이 된다면?</span>
@@ -167,7 +168,7 @@ export default function Home() {
         {/* 폰에서도 카드(그림)가 먼저 — 8/15 교차 배치 확정. DOM 순서 그대로 두면 폰·PC 둘 다 맞는다 */}
         <Card>
           <CardContent className="pt-6">
-            <h3 className={`${SERIF} text-lg font-semibold`}>손상모도 부드럽게, 다크 브라운 롱 웨이브</h3>
+            <h3 className={`${HEADING} text-lg font-semibold`}>손상모도 부드럽게, 다크 브라운 롱 웨이브</h3>
             <p className="mt-3 text-[11px] font-bold tracking-widest text-primary">도입</p>
             <p className="mt-1 text-xs leading-6 text-muted-foreground">
               탈색 이력이 있는 손상모라 걱정하셨던 손님. 전처리부터 차근차근 진행했습니다…
@@ -247,7 +248,7 @@ export default function Home() {
 
       {/* 마무리 */}
       <section className="rounded-3xl border bg-card/60 px-6 py-12 text-center">
-        <h2 className={`${SERIF} text-2xl font-semibold text-balance`}>오늘 시술한 그 머리, 오늘 올리세요</h2>
+        <h2 className={`${HEADING} text-2xl font-semibold text-balance`}>오늘 시술한 그 머리, 오늘 올리세요</h2>
         <p className="mt-2 text-sm text-muted-foreground">사진 한 장이면 됩니다.</p>
         <Link href="/face-swap" className={buttonVariants({ size: "lg", className: "mt-5" })}>
           무료로 시작하기
