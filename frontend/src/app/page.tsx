@@ -25,9 +25,9 @@ import { Card, CardContent } from "@/components/ui/card";
 const SERIF = "font-serif tracking-tight break-keep";
 
 const TRUST_ITEMS = [
-  ["얼굴만 교체", "머리는 그대로"],
-  ["3규격 자동 출력", "피드 4:5 · 정방형 · 스토리 9:16"],
-  ["원본 미보관", "처리 즉시 삭제"],
+  ["AI 모델로 교체", "머리는 그대로"],
+  ["SNS 3규격", "피드 · 정방형 · 스토리 한 번에"],
+  ["폰에서 바로", "촬영 · 외주 없이"],
 ] as const;
 
 const SHORTS_CLIPS = [
@@ -73,15 +73,13 @@ export default function Home() {
       {/* 히어로 */}
       <section className="grid items-center gap-10 py-12 lg:grid-cols-[1.05fr_.95fr] lg:gap-14 lg:py-20">
         <div>
-          <p className="text-sm font-medium text-primary">💇 미용실을 위한 AI 마케팅 도구</p>
-          <h1 className={`${SERIF} mt-3 text-3xl leading-snug font-semibold text-balance md:text-4xl lg:text-[2.6rem]`}>
+          <h1 className={`${SERIF} text-3xl leading-snug font-semibold text-balance md:text-4xl lg:text-[2.6rem]`}>
             모델 작업에 지친 당신,
             <br />
             <span className="text-primary">오늘 시술한 그 머리가 모델이 된다면?</span>
           </h1>
           <p className="mt-4 max-w-xl text-sm leading-7 text-muted-foreground md:text-base">
-            섭외도 촬영 약속도 없이 — 손님 얼굴은 AI 가상 얼굴로 바뀌고,
-            시술한 머리 모양·색은 그대로 SNS 3규격 홍보 이미지가 됩니다.
+            사진 한 장이면, 오늘 바로 올릴 홍보 이미지가 나옵니다.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link href="/face-swap" className={buttonVariants({ size: "lg" })}>무료로 시작하기</Link>
@@ -106,9 +104,9 @@ export default function Home() {
             </span>
           </div>
           <div className="absolute -left-2 bottom-6 rounded-xl border bg-card/95 px-3.5 py-2.5 text-xs leading-5 text-card-foreground shadow-lg backdrop-blur">
-            원본 사진은 저장하지 않습니다
+            시술한 머리 그대로,
             <br />
-            <b className="text-primary">홍보 이미지만 남습니다</b>
+            <b className="text-primary">자연스러운 홍보 이미지</b>
           </div>
         </div>
       </section>
@@ -131,14 +129,13 @@ export default function Home() {
             시술 사진이 홍보 이미지로
           </ChapterHeading>
           <p className="mt-4 text-sm leading-7 text-muted-foreground">
-            손님을 알아볼 수 없게 얼굴만 AI 가상 얼굴로 바꿉니다. 성별·연령대·국적으로
-            골라 쓰는 참조 얼굴 32종. 결과는 슬라이더로 원본과 겹쳐 보며 머리가
-            그대로인지 눈으로 확인합니다.
+            얼굴은 AI 모델로 교체, 공들인 머리 모양·색은 그대로.
+            32가지 얼굴 중 골라 자연스럽게 완성됩니다.
           </p>
           <Steps items={[
-            "시술 사진 올리기 (세로 사진 권장)",
-            "바꿀 얼굴 고르기 — 분위기 7축 옵션",
-            "확인 후 SNS 3규격으로 저장",
+            "시술 사진 올리기",
+            "AI 모델 고르기",
+            "SNS 3규격으로 저장",
           ]} />
           <Link href="/face-swap" className={buttonVariants({ variant: "outline", className: "mt-6" })}>
             얼굴 교체 해보기
@@ -178,26 +175,22 @@ export default function Home() {
             <p className="mt-1 text-xs leading-6 text-muted-foreground">
               1차 클리닉 후 저온 디지털펌으로 컬을 잡고, 다크 브라운 컬러를 올렸습니다…
             </p>
-            <p className="mt-4 rounded-lg bg-muted px-3 py-2 text-[11px] text-muted-foreground">
-              도입 → 시술 과정 → 관리 팁 → 마무리, 네 섹션이 한 번에 나옵니다
-            </p>
           </CardContent>
         </Card>
         <div>
           <ChapterHeading num="02 · 블로그 글쓰기" icon={NotebookPen}>
-            시술 기록 12칸 채우면,
+            시술 기록만 남기면,
             <br />
             블로그 글이 완성됩니다
           </ChapterHeading>
           <p className="mt-4 text-sm leading-7 text-muted-foreground">
-            시술명·모발 상태·사용 제품 같은 열두 칸만 채우면 도입부터 마무리까지
-            네 섹션짜리 글이 나옵니다. 원장님 말투를 잃지 않도록, 생성 후 바로
-            고쳐 쓸 수 있습니다.
+            빈칸만 채우면 도입부터 마무리까지 완성된 글이 나옵니다.
+            내 말투로 고쳐 쓰는 것도 자유롭게.
           </p>
           <Steps items={[
-            "시술 정보 12칸 입력",
-            "4섹션 초안 생성",
-            "다듬어서 복사 → 블로그에 붙여넣기",
+            "시술 정보 입력",
+            "글 완성",
+            "복사해서 블로그에 붙여넣기",
           ]} />
           <Link href="/generate/blog" className={buttonVariants({ variant: "outline", className: "mt-6" })}>
             블로그 글 써보기
@@ -215,14 +208,13 @@ export default function Home() {
             숏츠 한 편으로
           </ChapterHeading>
           <p className="mt-4 text-sm leading-7 text-muted-foreground">
-            시술 전·과정·디테일·완성 클립을 올리면 역할에 맞는 자막과 함께 9:16
-            숏츠로 이어 붙습니다. 영상 속 얼굴은 자동으로 흐림 처리되어 손님 걱정
-            없이 올릴 수 있습니다.
+            찍어둔 클립만 고르면 자막까지 얹은 숏츠가 나옵니다.
+            편집 프로그램 없이, 폰으로 찍은 영상 그대로.
           </p>
           <Steps items={[
-            "클립 2~8개 올리기 — 전·과정·디테일·완성",
-            "구간·자막 고르기 (역할별 기본 자막 제공)",
-            "9:16 숏츠로 내보내기",
+            "시술 영상 올리기",
+            "장면·자막 고르기",
+            "숏츠로 내보내기",
           ]} />
           <Link href="/generate/shorts" className={buttonVariants({ variant: "outline", className: "mt-6" })}>
             숏츠 만들어보기
@@ -255,7 +247,7 @@ export default function Home() {
       {/* 마무리 */}
       <section className="rounded-3xl border bg-card/60 px-6 py-12 text-center">
         <h2 className={`${SERIF} text-2xl font-semibold text-balance`}>오늘 시술한 그 머리, 오늘 올리세요</h2>
-        <p className="mt-2 text-sm text-muted-foreground">사진 한 장이면 됩니다. 원본은 저장하지 않습니다.</p>
+        <p className="mt-2 text-sm text-muted-foreground">사진 한 장이면 됩니다.</p>
         <Link href="/face-swap" className={buttonVariants({ size: "lg", className: "mt-5" })}>
           무료로 시작하기
         </Link>
