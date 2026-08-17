@@ -22,6 +22,7 @@ import {
   HAIR_LENGTHS,
   HAIR_TEXTURES,
   HAIR_THICKNESSES,
+  PAIN_POINT_EXAMPLES,
   REGION_BUSINESSES,
   TREATMENT_CATEGORIES,
   TREATMENT_DETAILS,
@@ -335,8 +336,23 @@ export function BlogFields({
               value={values.customer_pain_point}
               onChange={(event) => set({ customer_pain_point: event.target.value })}
             />
+            {/* 손님은 문제로 검색한다("손상모 복구펌") — 고민이 문장으로 들어가야 그 검색이 걸린다.
+                칩은 시작 문장을 넣어줄 뿐이고, 손님 사례로 고쳐 쓰는 것이 목적이다. */}
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {PAIN_POINT_EXAMPLES.map((example) => (
+                <button
+                  key={example.label}
+                  type="button"
+                  onClick={() => set({ customer_pain_point: example.text })}
+                  className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+                >
+                  {example.label}
+                </button>
+              ))}
+            </div>
             <p className="mt-2 text-xs text-muted-foreground">
               글의 도입 문단이 이 내용만으로 채워집니다. 비워두면 AI가 지어냅니다.
+              칩을 누른 뒤 손님 사례로 고쳐 쓰면 검색에 더 잘 걸립니다.
             </p>
           </div>
         </CardContent>
