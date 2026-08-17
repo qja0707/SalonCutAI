@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { FaceCheck } from "@/components/face-check";
 import { EXPECTED_SECONDS, FaceSwapWaiting } from "@/components/face-swap-waiting";
 import { FaceSwapSlotBar } from "@/components/face-swap-slot-bar";
+import { FaceSwapRecentStrip } from "@/components/face-swap-recent-strip";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -31,6 +32,7 @@ import {
   retryFaceSwapJob,
 } from "@/lib/api-client/client";
 import { clearActiveJob, readActiveJob, writeActiveJob } from "@/lib/active-job";
+import { addRecentJob, removeRecentJob } from "@/lib/recent-jobs";
 import {
   RATIOS,
   type CreateFaceSwapJobPayload,
@@ -116,6 +118,8 @@ export default function FaceSwapPage() {
   const [jobPhotoUrl, setJobPhotoUrl] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(true);
   const [restored, setRestored] = useState(false);
+  // 완료·삭제가 일어날 때 올려서 하단 스트립이 보관함을 다시 읽게 한다
+  const [recentRefresh, setRecentRefresh] = useState(0);
   const resultRef = useRef<HTMLDivElement>(null);
   const uploadRef = useRef<HTMLDivElement>(null);
 
@@ -141,6 +145,11 @@ export default function FaceSwapPage() {
         setJobId(saved.jobId);
         setStartedAt(saved.startedAt);
         setRestored(true);
+        // 화면이 닫힌 사이에 완료됐다면 이 시점이 완료를 처음 보는 순간이다.
+        if (savedJob.status === "completed") {
+          addRecentJob(saved.jobId);
+          setRecentRefresh((value) => value + 1);
+        }
       } catch (error) {
         if (cancelled) return;
         // 서버에서 사라진 작업(404)이면 저장분을 버린다.
@@ -181,6 +190,11 @@ export default function FaceSwapPage() {
         // 순간 통신 장애로 남은 오류는 다음 성공이 지운다. 안 지우면 결과가
         // 잘 나온 화면 위에 빨간 경고가 계속 떠 있다.
         setRequestError(null);
+        // 완료를 본 순간 하단 스트립 보관함에 넣는다. 중복은 add 쪽이 거른다.
+        if (next.status === "completed") {
+          addRecentJob(jobId);
+          setRecentRefresh((value) => value + 1);
+        }
       } catch (error) {
         if (!cancelled) setRequestError(error instanceof Error ? error.message : "작업 상태를 불러오지 못했습니다.");
       }
@@ -313,6 +327,8 @@ export default function FaceSwapPage() {
     try {
       await deleteFaceSwapJob(jobId);
       clearActiveJob("face-swap");
+      removeRecentJob(jobId);
+      setRecentRefresh((value) => value + 1);
       setJobId(null);
       setJobPhotoUrl(null);
       setJob(null);
@@ -323,6 +339,22 @@ export default function FaceSwapPage() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "작업을 삭제하지 못했습니다.");
     }
+  }
+
+  /**
+   * 스트립에서 지난 작업을 눌러 결과 화면을 다시 연다.
+   * 원본 사진(File)은 브라우저를 떠난 뒤라 없다 — jobPhotoUrl 을 비워 비교 화면이
+   * 어긋난 쌍을 만들지 않게 한다(#109와 같은 규칙). 진행 중에는 스트립이 잠긴다.
+   */
+  function handleSelectRecent(selected: FaceSwapJobResponse) {
+    setJob(selected);
+    setJobId(selected.job_id);
+    setJobPhotoUrl(null);
+    setStartedAt(null);
+    setElapsedSeconds(0);
+    setRequestError(null);
+    setRestored(false);
+    scrollIntoViewOnNarrow(resultRef.current);
   }
 
   /**
@@ -618,6 +650,13 @@ export default function FaceSwapPage() {
           )}
         </div>
       </div>
+
+      <FaceSwapRecentStrip
+        currentJobId={jobId}
+        refreshToken={recentRefresh}
+        disabled={busy}
+        onSelect={handleSelectRecent}
+      />
 
       <FaceSwapSlotBar slots={slots} cta={generateCta} />
 
