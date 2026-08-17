@@ -100,12 +100,13 @@ export function BlogGenerator() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
+      {/* 대제목은 새 네이밍, 메뉴는 AI 블로그 글쓰기 — 역할 분리(8/17 원장님) */}
       <h1 className="text-2xl font-semibold tracking-tight">
-        📝 AI 블로그 글쓰기
+        📝 간단 블로그 글쓰기
       </h1>
       <p className="mt-2 max-w-xl text-muted-foreground">
-        이번 시술 정보를 입력하면 네이버 블로그에 바로 붙여넣을 수 있는 시술
-        후기를 만듭니다. 매장 정보는 저장돼 다음부터는 채워진 상태로 시작합니다.
+        빈칸만 채우면 네이버 블로그에 바로 붙여넣을 완성 후기가 나옵니다. 매장
+        정보는 저장돼 다음부터는 더 빨라져요.
       </p>
       {label && (
         <Badge variant="secondary" className="mt-3">
