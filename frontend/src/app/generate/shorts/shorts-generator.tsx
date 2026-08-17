@@ -278,10 +278,13 @@ export function ShortsGenerator() {
     <div className="mx-auto w-full max-w-7xl px-4 py-8 pb-28 sm:px-6 lg:py-12 lg:pb-12">
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <Badge variant="secondary" className="mb-3">MVP · 시술 영상 자동 편집</Badge>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">AI 숏츠 만들기</h1>
+          {/* "MVP"는 내부 용어라 사용자 화면에 노출하지 않는다(8/17 문구 정합). */}
+          <Badge variant="secondary" className="mb-3">시술 영상 자동 편집</Badge>
+          {/* 대제목은 새 네이밍, 메뉴는 AI 숏츠 만들기 — 역할 분리(8/17 원장님) */}
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">🎬 간편 숏츠 만들기</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
-            촬영한 시술 영상의 구간과 순서를 정하면 9:16 숏츠로 자동 편집하고, 감지된 얼굴을 흐리게 처리합니다.
+            찍어둔 시술 클립만 고르면 9:16 숏츠로 자동 편집됩니다. 편집 프로그램 없이 폰
+            영상 그대로 — 얼굴 블러까지 자동입니다.
           </p>
         </div>
         <div className="hidden lg:block lg:shrink-0 lg:pt-1">{generateCta}</div>
