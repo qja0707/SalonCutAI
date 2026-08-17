@@ -58,11 +58,14 @@ const BG_STYLES = ["화이트 스튜디오", "우드톤 인테리어", "그린 �
  * 규격 옆에 쓰임새를 같이 적는다. 숫자만 보고 어디에 올릴 규격인지 아는 사람은 드물다.
  * 4:5 를 권장으로 표시하는 근거 — Meta 안내상 인스타 피드는 4:5까지 지원 범위라
  * 원본 비율이 유지된다. 그보다 긴 세로 컷만 잘리므로, 세로 사진은 4:5 가 안전하다.
+ *
+ * 권장·릴스 같은 수식은 이름에 섞지 않고 배지로 뗀다(8/17 원장님). 이름은 랜딩
+ * 신뢰 줄과 같은 어휘를 쓴다: 피드 · 피드 세로 · 스토리.
  */
-const RATIO_USAGE: Record<Ratio, string> = {
-  "1:1": "피드",
-  "4:5": "피드 세로 · 권장",
-  "9:16": "스토리 · 릴스",
+const RATIO_USAGE: Record<Ratio, { label: string; badge?: string }> = {
+  "1:1": { label: "피드" },
+  "4:5": { label: "피드 세로", badge: "권장" },
+  "9:16": { label: "스토리", badge: "릴스" },
 };
 const TERMINAL = new Set(["completed", "failed"]);
 
@@ -225,7 +228,7 @@ export default function FaceSwapPage() {
     if (!isFaceReady(face)) {
       toast.warning(
         face.mode === "reference"
-          ? "바꿀 가상 얼굴을 골라주세요."
+          ? "바꿀 AI 모델을 골라주세요."
           : "국적 · 성별 · 연령대를 골라주세요.",
       );
       return;
@@ -262,7 +265,7 @@ export default function FaceSwapPage() {
       setStartedAt(startedAtMs);
       setElapsedSeconds(0);
       writeActiveJob("face-swap", { jobId, startedAt: startedAtMs });
-      toast.success("얼굴 교체 이미지를 다시 만들고 있어요.");
+      toast.success("홍보 이미지를 다시 만들고 있어요.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "다시 시도하지 못했습니다.");
     }
@@ -338,22 +341,22 @@ export default function FaceSwapPage() {
       }
     >
       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-      {active ? progressMessage(job, elapsedSeconds) : "얼굴 교체 이미지 만들기"}
+      {active ? progressMessage(job, elapsedSeconds) : "홍보 이미지 만들기"}
     </Button>
   );
 
   const slots = [
     { label: "사진", done: Boolean(photo) },
     { label: "동의", done: consentAgreed },
-    { label: "얼굴", done: isFaceReady(face) },
+    { label: "모델", done: isFaceReady(face) },
   ];
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-10 pb-28 lg:pb-10">
-      <h1 className="text-2xl font-semibold tracking-tight">💇 얼굴 교체 홍보 이미지</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">💇 헤어 모델 만들기</h1>
       <p className="mt-2 max-w-2xl text-muted-foreground">
-        생성형 AI로 얼굴을 만듭니다. 고객의 헤어·의상·배경은 유지하고 얼굴만 가상 인물로 바꾼 뒤 세 가지 홍보 이미지 규격을 만듭니다.
-        시술 당시 촬영·활용 동의를 받아둔 사진만 사용해주세요.
+        시술 사진 한 장이면 손님 얼굴 걱정 없이 바로 올릴 홍보 이미지가 나옵니다.
+        얼굴만 AI 모델로 바꾸고 공들인 헤어·의상·배경은 그대로 — 동의받은 사진만 올려주세요.
       </p>
 
       {IS_PUBLIC_PREVIEW && <Alert className="mt-4"><AlertDescription>{PUBLIC_PREVIEW_NOTICE}</AlertDescription></Alert>}
@@ -406,13 +409,13 @@ export default function FaceSwapPage() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-base">3. 바꿀 얼굴</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">3. AI 모델 고르기</CardTitle></CardHeader>
             <CardContent>
               <FaceOptionForm values={face} onChange={setFace} disabled={requesting || active} />
               {!isFaceReady(face) && (
                 <p id="face-required" role="status" className="mt-4 text-sm text-amber-700 dark:text-amber-400">
                   {face.mode === "reference"
-                    ? "바꿀 가상 얼굴을 골라야 이미지를 만들 수 있습니다."
+                    ? "바꿀 AI 모델을 골라야 이미지를 만들 수 있습니다."
                     : "국적 · 성별 · 연령대를 골라야 이미지를 만들 수 있습니다."}
                 </p>
               )}
@@ -427,7 +430,12 @@ export default function FaceSwapPage() {
                 <div className="flex flex-wrap gap-2">
                   {RATIOS.map((ratio) => (
                     <Badge key={ratio} variant="secondary">
-                      {ratio} · {RATIO_USAGE[ratio]}
+                      {ratio} · {RATIO_USAGE[ratio].label}
+                      {RATIO_USAGE[ratio].badge && (
+                        <span className="ml-1 rounded-full bg-primary/15 px-1.5 py-px text-[10px] font-semibold text-primary">
+                          {RATIO_USAGE[ratio].badge}
+                        </span>
+                      )}
                     </Badge>
                   ))}
                 </div>
@@ -493,7 +501,7 @@ export default function FaceSwapPage() {
               <p className="max-w-[260px] text-center text-sm text-muted-foreground">
                 {restoring
                   ? "이전에 만들던 작업이 있는지 확인하고 있어요."
-                  : "사진과 옵션을 채운 뒤 버튼을 누르면 얼굴 교체 이미지 결과가 표시됩니다."}
+                  : "사진과 옵션을 채운 뒤 버튼을 누르면 홍보 이미지 결과가 표시됩니다."}
               </p>
             </Card>
           ) : (
@@ -554,7 +562,14 @@ export default function FaceSwapPage() {
                               </span>
                             </div>
                             <div className="flex items-center justify-between gap-2 text-xs">
-                              <span>{ratio} · {RATIO_USAGE[ratio]}</span>
+                              <span className="flex items-center gap-1">
+                                {ratio} · {RATIO_USAGE[ratio].label}
+                                {RATIO_USAGE[ratio].badge && (
+                                  <span className="rounded-full bg-primary/15 px-1.5 py-px text-[10px] font-semibold text-primary">
+                                    {RATIO_USAGE[ratio].badge}
+                                  </span>
+                                )}
+                              </span>
                               <Badge variant="outline">{result.format_mode}</Badge>
                             </div>
                             <a href={result.url} download onClick={handleDownloadNotice}>
@@ -584,7 +599,7 @@ export default function FaceSwapPage() {
                       {job.error?.retryable && <Button variant="outline" onClick={handleRetry}><RotateCcw className="h-4 w-4" />다시 만들기</Button>}
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground">얼굴 교체 이미지를 만들고 있습니다.</p>
+                    <p className="text-sm text-muted-foreground">홍보 이미지를 만들고 있습니다.</p>
                   )}
                 </CardContent>
               </Card>

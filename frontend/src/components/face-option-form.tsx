@@ -346,7 +346,7 @@ export function FaceOptionForm({
           aria-pressed={values.mode === "reference"}
           onClick={() => set({ mode: "reference" })}
         >
-          가상 얼굴 고르기
+          AI 모델 고르기
         </Button>
         <Button
           type="button"
@@ -436,7 +436,7 @@ export function FaceOptionForm({
 
           <p className="text-xs text-muted-foreground">
             사진이 바뀌면 같은 옵션이어도 다른 얼굴이 나옵니다. 한 게시물에 여러 장을 쓰실 때는
-            &ldquo;가상 얼굴 고르기&rdquo;를 쓰시는 편이 좋습니다.
+            &ldquo;AI 모델 고르기&rdquo;를 쓰시는 편이 좋습니다.
           </p>
         </div>
       )}

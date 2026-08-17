@@ -27,7 +27,8 @@ const HEADING = "tracking-tight break-keep";
 
 const TRUST_ITEMS = [
   ["AI 모델로 교체", "머리는 그대로"],
-  ["SNS 3규격", "피드 · 정방형 · 스토리 한 번에"],
+  // 규격 이름은 얼굴 교체 화면의 RATIO 표기와 같은 어휘를 쓴다 (8/17 확정)
+  ["SNS 3규격", "피드 · 피드 세로 · 스토리 한 번에"],
   ["폰에서 바로", "촬영 · 외주 없이"],
 ] as const;
 
@@ -82,10 +83,11 @@ export default function Home() {
           <p className="mt-4 max-w-xl text-sm leading-7 text-muted-foreground md:text-base">
             시술 사진 한 장이면, 오늘 바로 올릴 피드 이미지가 나옵니다.
           </p>
+          {/* "무료"는 쓰지 않는다(8/17 원장님) — 체험 계열 동사로 통일 */}
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link href="/face-swap" className={buttonVariants({ size: "lg" })}>무료로 시작하기</Link>
+            <Link href="/face-swap" className={buttonVariants({ size: "lg" })}>바로 체험하기</Link>
             <Link href="/face-swap" className={buttonVariants({ size: "lg", variant: "outline" })}>
-              📷 예시 사진으로 체험
+              📷 예시 사진으로 체험하기
             </Link>
           </div>
         </div>
@@ -125,14 +127,14 @@ export default function Home() {
       {/* 01 얼굴 교체 */}
       <section className="grid items-center gap-8 py-14 lg:grid-cols-2 lg:gap-14 lg:py-20">
         <div>
-          <ChapterHeading num="01 · 얼굴 교체" icon={Scissors}>
+          <ChapterHeading num="01 · 헤어 모델 만들기" icon={Scissors}>
             모델 섭외 없이,
             <br />
             시술 사진이 홍보 이미지로
           </ChapterHeading>
           <p className="mt-4 text-sm leading-7 text-muted-foreground">
-            얼굴은 AI 모델로 교체, 공들인 머리 모양·색은 그대로.
-            32가지 얼굴 중 골라 자연스럽게 완성됩니다.
+            얼굴은 AI 모델로 교체, 공들인 머리 모양·색은 그대로 정확하게.
+            32가지 AI 모델 중 골라 몇 초 만에 자연스럽게 완성됩니다.
           </p>
           <Steps items={[
             "시술 사진 올리기",
@@ -140,7 +142,7 @@ export default function Home() {
             "SNS 3규격으로 저장",
           ]} />
           <Link href="/face-swap" className={buttonVariants({ variant: "outline", className: "mt-6" })}>
-            얼굴 교체 해보기
+            헤어 모델 체험하기
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
@@ -180,14 +182,14 @@ export default function Home() {
           </CardContent>
         </Card>
         <div>
-          <ChapterHeading num="02 · 블로그 글쓰기" icon={NotebookPen}>
+          <ChapterHeading num="02 · 간단 블로그 글쓰기" icon={NotebookPen}>
             시술 기록만 남기면,
             <br />
             블로그 글이 완성됩니다
           </ChapterHeading>
           <p className="mt-4 text-sm leading-7 text-muted-foreground">
-            빈칸만 채우면 도입부터 마무리까지 완성된 글이 나옵니다.
-            내 말투로 고쳐 쓰는 것도 자유롭게.
+            빈칸만 채우면 도입부터 마무리까지 완성된 글이 빠르게 나옵니다.
+            내 말투로 고쳐 쓰는 것도 간편하게.
           </p>
           <Steps items={[
             "시술 정보 입력",
@@ -195,7 +197,7 @@ export default function Home() {
             "복사해서 블로그에 붙여넣기",
           ]} />
           <Link href="/generate/blog" className={buttonVariants({ variant: "outline", className: "mt-6" })}>
-            블로그 글 써보기
+            블로그 글 체험하기
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
@@ -204,7 +206,7 @@ export default function Home() {
       {/* 03 숏츠 */}
       <section className="grid items-center gap-8 py-14 lg:grid-cols-2 lg:gap-14 lg:py-20">
         <div>
-          <ChapterHeading num="03 · 영상 편집" icon={Clapperboard}>
+          <ChapterHeading num="03 · 간편 숏츠 만들기" icon={Clapperboard}>
             시술 영상 클립을 이어,
             <br />
             숏츠 한 편으로
@@ -219,7 +221,7 @@ export default function Home() {
             "숏츠로 내보내기",
           ]} />
           <Link href="/generate/shorts" className={buttonVariants({ variant: "outline", className: "mt-6" })}>
-            숏츠 만들어보기
+            숏츠 체험하기
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
@@ -251,7 +253,7 @@ export default function Home() {
         <h2 className={`${HEADING} text-2xl font-semibold text-balance`}>오늘 시술한 그 머리, 오늘 올리세요</h2>
         <p className="mt-2 text-sm text-muted-foreground">사진 한 장이면 됩니다.</p>
         <Link href="/face-swap" className={buttonVariants({ size: "lg", className: "mt-5" })}>
-          무료로 시작하기
+          바로 체험하기
         </Link>
       </section>
 
