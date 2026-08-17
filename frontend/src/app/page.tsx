@@ -17,8 +17,13 @@ import { Card, CardContent } from "@/components/ui/card";
  * 랜딩 홈 (2026-08-15 시안 확정, docs/시안/landing.html).
  *
  * - 히어로 카피는 원장님 확정안: 비교 대상(모델 작업)을 아는 현업의 언어를 그대로 쓴다
- * - 사진은 이 서비스로 실제 시술 사진을 얼굴 교체해 만든 결과물(landing-hero-swap) —
- *   원본 사진은 레포에 넣지 않는 조건이고, 결과물은 공유 가능 범위다
+ * - 사진 짝(8/17 교체): 원본 자리는 제미나이로 만든 합성 인물(landing-hero-before,
+ *   실존 인물 아님), 결과는 그 사진을 실서버 얼굴 교체(ref-01, seed 1157062057)로
+ *   돌린 산출물(landing-hero-swap)이다. 실제 시술 원본은 모델 동의 범위 때문에
+ *   레포에 넣을 수 없다 — salon-testset/사용조건.txt
+ * - 짝의 싱크: 서버가 4:5로 자를 때 얼굴 기준으로 재프레이밍하므로, 원본을 그대로
+ *   보내면 결과와 배율이 어긋난다. 그래서 미리 4:5 중앙 크롭으로 잘라 보냈다 —
+ *   입력이 이미 4:5면 재프레이밍이 사실상 없어 화면의 두 장이 픽셀 단위로 겹친다
  * - 색은 전부 토큰이라 화면 색 6종을 그대로 따라간다
  */
 
@@ -148,11 +153,7 @@ export default function Home() {
           </Link>
         </div>
 
-        {/*
-          진짜로 움직이는 확인 슬라이더 — 얼굴 교체 화면과 같은 컴포넌트를 쓴다(8/17).
-          원본 자리는 제미나이로 만든 합성 인물이다(실존 인물 아님). 실제 시술 원본은
-          모델 동의 범위 때문에 레포에 넣을 수 없다 — salon-testset/사용조건.txt.
-        */}
+        {/* 진짜로 움직이는 확인 슬라이더 — 얼굴 교체 화면과 같은 컴포넌트, 위 사진 짝 사용 */}
         <div className="mx-auto w-full max-w-sm shadow-lg">
           <BeforeAfterSlider
             beforeUrl="/sample-assets/landing-hero-before.jpg"
