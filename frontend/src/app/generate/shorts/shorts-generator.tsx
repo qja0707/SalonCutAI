@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { FaceSwapSlotBar } from "@/components/face-swap-slot-bar";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -110,6 +111,18 @@ function defaultRole(index: number, total: number): VideoRole {
   return index % 2 ? "process" : "detail";
 }
 
+/**
+ * 결과 자리로 데려간다 — 좁은 화면에서만 (face-swap 페이지와 같은 규칙).
+ * 1024px 이상은 결과 패널이 옆에 이미 보이므로 움직이지 않는다.
+ */
+function scrollIntoViewOnNarrow(element: HTMLElement | null): void {
+  if (!element || typeof window === "undefined") return;
+  if (window.matchMedia("(min-width: 1024px)").matches) return;
+
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  element.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+}
+
 export function ShortsGenerator() {
   const [clips, setClips] = useState<ClipDraft[]>([]);
   const [job, setJob] = useState<VideoJobResponse | null>(null);
@@ -118,6 +131,7 @@ export function ShortsGenerator() {
   const [topic, setTopic] = useState("");
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const resultRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (!job || !["queued", "processing"].includes(job.status)) return;
@@ -150,7 +164,10 @@ export function ShortsGenerator() {
       return [
         ...current,
         ...accepted.map((file, offset) => {
-          const role = defaultRole(current.length + offset, total);
+          // 첫 배치만 전→과정→…→마무리 흐름으로 배정한다. 클립이 이미 있을 때 이 규칙을
+          // 다시 적용하면 '마무리'가 둘이 된다 — 기존 배정(수동 지정 포함)은 건드리지 않고,
+          // 나중에 온 클립은 중간 성격인 '디테일'로 둔다.
+          const role: VideoRole = current.length === 0 ? defaultRole(offset, total) : "detail";
           return {
             id: createClipId(),
             file,
@@ -189,6 +206,8 @@ export function ShortsGenerator() {
         })),
       );
       setJob(await getVideoJob(created.job_id));
+      // 폰에서는 진행률·결과가 화면 밖(맨 아래)에 있다 — 만들기를 눌렀으면 그리로 데려간다.
+      scrollIntoViewOnNarrow(resultRef.current);
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "영상 작업을 접수하지 못했습니다.");
     } finally {
@@ -245,8 +264,18 @@ export function ShortsGenerator() {
     job?.status === "queued" ||
     job?.status === "processing";
 
+  // 만들기 버튼 하나를 두 자리에서 그린다 — 데스크톱은 제목 옆, 폰은 하단 고정 바.
+  // 구간이 클립당 2초 고정이므로 예상 길이는 클립 수 × 2초로 미리 알려줄 수 있다.
+  const expectedSeconds = clips.length * 2;
+  const generateCta = (
+    <Button onClick={generate} disabled={busy || clips.length < 2} className="w-full">
+      {busy ? <LoaderCircle className="animate-spin" /> : <Film />}
+      {busy ? "영상 만드는 중" : "숏츠 만들기"}
+    </Button>
+  );
+
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:py-12">
+    <div className="mx-auto w-full max-w-7xl px-4 py-8 pb-28 sm:px-6 lg:py-12 lg:pb-12">
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <Badge variant="secondary" className="mb-3">MVP · 시술 영상 자동 편집</Badge>
@@ -255,10 +284,7 @@ export function ShortsGenerator() {
             촬영한 시술 영상의 구간과 순서를 정하면 9:16 숏츠로 자동 편집하고, 감지된 얼굴을 흐리게 처리합니다.
           </p>
         </div>
-        <Button onClick={generate} disabled={busy || clips.length < 2} className="sm:mt-1">
-          {busy ? <LoaderCircle className="animate-spin" /> : <Film />}
-          {busy ? "영상 만드는 중" : "숏츠 만들기"}
-        </Button>
+        <div className="hidden lg:block lg:shrink-0 lg:pt-1">{generateCta}</div>
       </div>
 
       <Alert className="mb-6 border-primary/20 bg-primary/5 px-4 py-3">
@@ -465,7 +491,7 @@ export function ShortsGenerator() {
           )}
         </section>
 
-        <aside>
+        <aside ref={resultRef}>
           <Card className="sticky top-6">
             <CardHeader>
               <CardTitle>3. 결과 확인</CardTitle>
@@ -512,6 +538,15 @@ export function ShortsGenerator() {
           </Card>
         </aside>
       </div>
+
+      {/* 폰 전용 — 클립 수·예상 길이를 상시 보여주고 만들기 버튼을 엄지 거리에 둔다 (lg 미만) */}
+      <FaceSwapSlotBar
+        slots={[
+          { label: `클립 ${clips.length}개`, done: clips.length >= 2 },
+          { label: `예상 ${expectedSeconds}초`, done: clips.length >= 2 },
+        ]}
+        cta={generateCta}
+      />
     </div>
   );
 }
