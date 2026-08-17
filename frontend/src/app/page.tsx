@@ -9,6 +9,7 @@ import {
   Scissors,
   ShieldCheck,
 } from "lucide-react";
+import { BeforeAfterSlider } from "@/components/before-after";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -147,21 +148,18 @@ export default function Home() {
           </Link>
         </div>
 
-        {/* 확인 슬라이더 은유 — 사진 위 손잡이. 실제 얼굴 교체 결과물 위에 그린다 */}
-        <div className="relative mx-auto aspect-[4/5] w-full max-w-sm overflow-hidden rounded-2xl border shadow-lg">
-          <Image
-            src="/sample-assets/landing-hero-swap.jpg"
-            alt="원본과 결과를 슬라이더로 겹쳐 확인하는 화면 예시"
-            fill
-            sizes="(min-width: 1024px) 24rem, 90vw"
-            className="object-cover"
+        {/*
+          진짜로 움직이는 확인 슬라이더 — 얼굴 교체 화면과 같은 컴포넌트를 쓴다(8/17).
+          원본 자리는 제미나이로 만든 합성 인물이다(실존 인물 아님). 실제 시술 원본은
+          모델 동의 범위 때문에 레포에 넣을 수 없다 — salon-testset/사용조건.txt.
+        */}
+        <div className="mx-auto w-full max-w-sm shadow-lg">
+          <BeforeAfterSlider
+            beforeUrl="/sample-assets/landing-hero-before.jpg"
+            afterUrl="/sample-assets/landing-hero-swap.jpg"
+            beforeLabel="원본"
+            afterLabel="교체 후"
           />
-          <div className="absolute inset-y-0 left-1/2 w-px bg-white/85 shadow-[0_0_0_1px_rgba(0,0,0,.2)]" />
-          <span className="absolute top-1/2 left-1/2 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white text-sm text-black shadow-md">
-            ↔
-          </span>
-          <span className="absolute bottom-3 left-3 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white">원본</span>
-          <span className="absolute right-3 bottom-3 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white">교체 후 · AI 생성</span>
         </div>
       </section>
 
