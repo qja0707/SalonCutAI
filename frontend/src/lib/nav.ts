@@ -20,7 +20,8 @@ export type NavItem = {
 };
 
 // MVP 3기능(Discussion #23)과 홈만 노출한다.
-// 라벨은 홈 화면 카드와 같은 문구를 쓴다 — 두 곳의 이름이 다르면 같은 기능을 다른 기능으로 읽는다.
+// 8/17 원장님 확정 — 역할을 나눈다: 메뉴는 기존 "AI 000" 이름, 기능 화면 대제목과
+// 랜딩 챕터는 새 네이밍(헤어 모델 만들기 · 간단 블로그 글쓰기 · 간편 숏츠 만들기).
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "홈", icon: Home },
   { href: "/face-swap", label: "AI 모델로 얼굴 변경", icon: Scissors },

@@ -312,8 +312,17 @@ function ReferencePicker({
                   className="hidden aspect-square w-full object-cover sm:block"
                 />
                 {/* label 에 국적이 이미 들어 있어("한국인 20대 여성 A") 따로 표시하지
-                    않는다 — #84 8.1에서 중복 표시는 프론트가 정리하기로 했다. */}
-                <span className="flex min-h-12 items-center px-4 text-sm sm:min-h-0 sm:px-2 sm:py-1.5 sm:text-xs sm:text-muted-foreground">
+                    않는다 — #84 8.1에서 중복 표시는 프론트가 정리하기로 했다.
+                    폰에서는 인스타 프로필처럼 원형 얼굴을 이름 옆에 둔다(8/17 원장님) —
+                    32줄을 이름만으로는 얼굴로 구분해 고를 수 없다. */}
+                <span className="flex min-h-12 items-center gap-3 px-3 text-sm sm:min-h-0 sm:px-2 sm:py-1.5 sm:text-xs sm:text-muted-foreground">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={face.thumbnail_url}
+                    alt=""
+                    aria-hidden
+                    className="h-9 w-9 shrink-0 rounded-full border border-border object-cover sm:hidden"
+                  />
                   {face.label}
                 </span>
               </button>
@@ -346,7 +355,7 @@ export function FaceOptionForm({
           aria-pressed={values.mode === "reference"}
           onClick={() => set({ mode: "reference" })}
         >
-          가상 얼굴 고르기
+          AI 모델 고르기
         </Button>
         <Button
           type="button"
@@ -436,7 +445,7 @@ export function FaceOptionForm({
 
           <p className="text-xs text-muted-foreground">
             사진이 바뀌면 같은 옵션이어도 다른 얼굴이 나옵니다. 한 게시물에 여러 장을 쓰실 때는
-            &ldquo;가상 얼굴 고르기&rdquo;를 쓰시는 편이 좋습니다.
+            &ldquo;AI 모델 고르기&rdquo;를 쓰시는 편이 좋습니다.
           </p>
         </div>
       )}
