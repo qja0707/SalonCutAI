@@ -699,7 +699,7 @@ export default function FaceSwapPage() {
       {phoneStep <= PHONE_INPUT_STEP_COUNT && (
         <FaceSwapStepNav
           step={phoneStep}
-          canGoNext={stepReady[phoneStep] ?? true}
+          canGoNext={stepReady[phoneStep]}
           nextHint={stepHint[phoneStep]}
           onPrev={() => setPhoneStep((n) => Math.max(1, n - 1))}
           onNext={() => setPhoneStep((n) => Math.min(PHONE_INPUT_STEP_COUNT, n + 1))}
