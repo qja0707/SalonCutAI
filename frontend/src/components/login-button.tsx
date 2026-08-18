@@ -8,7 +8,8 @@ import { cn } from "@/lib/utils";
 import { buttonVariants } from "./ui/button";
 
 type Props = {
-  mode: "desktop" | "mobile";
+  /** topbar 는 데스크톱 상단 바용 — 폭을 내용만큼만 쓰고 가운데 정렬한다. */
+  mode: "desktop" | "mobile" | "topbar";
 };
 
 function LoginButtonInner({ mode }: Props) {
@@ -41,7 +42,9 @@ function LoginButtonInner({ mode }: Props) {
         }),
         mode === "mobile"
           ? "h-8 gap-1 px-2.5 text-xs text-primary"
-          : "w-full justify-start gap-2 text-xs font-medium",
+          : mode === "topbar"
+            ? "gap-2 text-xs font-medium"
+            : "w-full justify-start gap-2 text-xs font-medium",
       )}
     >
       <Icon className="h-3.5 w-3.5 text-primary" />
