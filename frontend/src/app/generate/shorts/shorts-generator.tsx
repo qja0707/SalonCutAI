@@ -42,7 +42,7 @@ import type {
   VideoRole,
   VideoSelection,
 } from "@/lib/api-client/types";
-import { jobErrorMessage } from "@/lib/api-client/error-message";
+import { jobErrorDetail, jobErrorMessage } from "@/lib/api-client/error-message";
 
 type DescriptionMode = "preset" | "custom";
 type ClipDraft = VideoClipOptions & {
@@ -131,6 +131,8 @@ export function ShortsGenerator() {
   const [generatingCaptions, setGeneratingCaptions] = useState(false);
   const [topic, setTopic] = useState("");
   const [error, setError] = useState("");
+  // 오류 원문 — 테스트 단계 진단용으로 안내 밑에 작게 병기한다 (#119 리뷰 절충)
+  const [errorDetail, setErrorDetail] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const resultRef = useRef<HTMLElement>(null);
 
@@ -140,7 +142,10 @@ export function ShortsGenerator() {
       try {
         const next = await getVideoJob(job.job_id);
         setJob(next);
-        if (next.status === "failed") setError(jobErrorMessage(next.error, "영상을 만들지 못했어요. 잠시 후 다시 시도해주세요."));
+        if (next.status === "failed") {
+          setError(jobErrorMessage(next.error, "영상을 만들지 못했어요. 잠시 후 다시 시도해주세요."));
+          setErrorDetail(jobErrorDetail(next.error));
+        }
       } catch (pollError) {
         setError(pollError instanceof Error ? pollError.message : "작업 상태를 확인하지 못했습니다.");
       }
@@ -184,7 +189,10 @@ export function ShortsGenerator() {
     if (candidates.length > accepted.length) {
       setError("MP4·MOV·WEBM·MKV 영상을 8개, 파일당 80MB, 전체 320MB까지 올릴 수 있습니다.");
     }
-    else setError("");
+    else {
+      setError("");
+      setErrorDetail(null);
+    }
     if (inputRef.current) inputRef.current.value = "";
   }
 
@@ -199,6 +207,7 @@ export function ShortsGenerator() {
     }
     setSubmitting(true);
     setError("");
+    setErrorDetail(null);
     try {
       const created = await createVideoJob(
         clips.map(({ file, role, selection, caption }) => ({
@@ -223,6 +232,7 @@ export function ShortsGenerator() {
     }
     setGeneratingCaptions(true);
     setError("");
+    setErrorDetail(null);
     try {
       const response = await createVideoCaptions(
         clips.map(({ role, description }, index) => ({
@@ -257,6 +267,7 @@ export function ShortsGenerator() {
     setClips([]);
     setTopic("");
     setError("");
+    setErrorDetail(null);
   }
 
   const busy =
@@ -303,7 +314,10 @@ export function ShortsGenerator() {
         <Alert variant="destructive" className="mb-6">
           <Info />
           <AlertTitle>확인이 필요합니다</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>
+            {error}
+            {errorDetail && <span className="mt-1 block text-xs opacity-70">{errorDetail}</span>}
+          </AlertDescription>
         </Alert>
       )}
 

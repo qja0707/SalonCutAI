@@ -47,7 +47,7 @@ import {
 import { IS_PUBLIC_PREVIEW, PUBLIC_PREVIEW_NOTICE } from "@/lib/public-preview";
 import { sampleAvatarFile } from "@/lib/sample-assets";
 import { CONSENT_CONTENT, CONSENT_VERSION } from "@/lib/consent";
-import { errorMessage, jobErrorMessage } from "@/lib/api-client/error-message";
+import { errorMessage, jobErrorDetail, jobErrorMessage } from "@/lib/api-client/error-message";
 
 /**
  * 배경 교체는 기능 2로 넘어갔다(8/12 수민님 회신). 이번 MVP 백엔드는 preserve 만 지원한다.
@@ -422,6 +422,17 @@ export default function FaceSwapPage() {
 
       <FaceSwapStepProgress step={phoneStep} />
 
+      {/*
+        요청 오류는 단계 게이트 밖에서 보여준다. 결과 칼럼(5단계) 안에 두면
+        폰에서 입력 단계 도중 실패했을 때 오류가 숨겨진 칼럼에 찍혀 아무것도 안 보인다
+        — 실측으로 확인한 버그다.
+      */}
+      {requestError && (
+        <Alert variant="destructive" className="mt-4">
+          <AlertDescription>{requestError}</AlertDescription>
+        </Alert>
+      )}
+
       <div className="mt-8 grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
         <div className="space-y-6" ref={uploadRef}>
           <div className={phoneOnlyStep(1)}>
@@ -557,7 +568,6 @@ export default function FaceSwapPage() {
 
         <div className={`space-y-5 ${phoneOnlyStep(PHONE_INPUT_STEP_COUNT + 1)}`} ref={resultRef}>
           <h2 className="text-base font-semibold">결과</h2>
-          {requestError && <Alert variant="destructive"><AlertDescription>{requestError}</AlertDescription></Alert>}
 
           {restored && (
             <Alert>
@@ -666,7 +676,15 @@ export default function FaceSwapPage() {
                     </>
                   ) : job?.status === "failed" ? (
                     <div className="space-y-3">
-                      <Alert variant="destructive"><AlertDescription>{jobErrorMessage(job.error, "이미지를 만들지 못했어요. 다시 시도해주세요.")}</AlertDescription></Alert>
+                      <Alert variant="destructive">
+                        <AlertDescription>
+                          {jobErrorMessage(job.error, "이미지를 만들지 못했어요. 다시 시도해주세요.")}
+                          {/* 원문 병기 — 테스트 단계 진단용. 캡쳐 한 장에 안내와 원문이 같이 찍힌다 (#119 리뷰 절충) */}
+                          {jobErrorDetail(job.error) && (
+                            <span className="mt-1 block text-xs opacity-70">{jobErrorDetail(job.error)}</span>
+                          )}
+                        </AlertDescription>
+                      </Alert>
                       {job.error?.retryable && <Button variant="outline" onClick={handleRetry}><RotateCcw className="h-4 w-4" />다시 만들기</Button>}
                     </div>
                   ) : (
