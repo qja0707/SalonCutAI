@@ -46,16 +46,21 @@ export function readRecentJobs(): RecentJob[] {
     if (!Array.isArray(parsed)) return [];
 
     const now = Date.now();
-    const jobs = parsed
-      .filter(
-        (item): item is RecentJob =>
-          !!item &&
-          typeof item === "object" &&
-          typeof (item as RecentJob).jobId === "string" &&
-          typeof (item as RecentJob).completedAt === "number",
-      )
+    const valid = parsed.filter(
+      (item): item is RecentJob =>
+        !!item &&
+        typeof item === "object" &&
+        typeof (item as RecentJob).jobId === "string" &&
+        typeof (item as RecentJob).completedAt === "number",
+    );
+    const jobs = valid
       .filter((item) => now - item.completedAt < TTL_MS)
       .sort((a, b) => b.completedAt - a.completedAt);
+
+    // 걸러낸 결과를 저장소에도 되쓴다. 안 그러면 만료·깨진 항목이 다음 추가·삭제
+    // 때까지 원본에 남아, "24시간 자동 정리"라는 약속과 실제 저장 값이 어긋난다
+    // (#116 리뷰). 내용이 줄었을 때만 쓴다 — 읽기마다 쓰면 낭비다.
+    if (jobs.length !== parsed.length) write(jobs);
 
     return jobs;
   } catch {
