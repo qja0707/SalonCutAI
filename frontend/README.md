@@ -3,7 +3,8 @@
 미용실 AI 마케팅 서비스의 클라이언트 웹 앱입니다. Next.js 16 (App Router) + shadcn/ui + Tailwind v4.
 
 **배포본**: http://34.56.138.255:3000/ (dev VM)
-`dev` push 시 `.github/workflows/deploy-dev.yml`의 frontend·backend 검사는 자동 실행되고, **GCP VM 반영은 WIF·IAM 설정 후에만 동작하며 현재는 수동 배포**입니다. 실행 이력은 Actions 탭에서 확인합니다.
+`dev` 에 병합되면 **VM 의 pull timer 가 자동으로 반영**합니다 — `.github/scripts/pull-deploy-dev.sh` 가 VM(`/opt/salon-web/repo`)에서 `origin/dev` 를 주기적으로 fetch 하고, 필수 검사가 success 인 것을 확인한 뒤 배포·재시작합니다. **문서만 바꾸는 PR 도 병합되면 서비스가 재시작되므로**, 테스트 기간에는 병합 시점을 확인하고 진행합니다.
+`deploy-dev.yml` 의 frontend·backend 검사는 push 시 자동 실행됩니다. 같은 워크플로의 `GCP VM 반영` job 은 WIF 변수가 설정된 경우에만 도는 별도 경로이고 현재는 skipped 입니다 — **운영 정본은 위의 pull timer 입니다.** 실행 이력은 Actions 탭에서 확인합니다.
 
 ## 실행 방법
 
@@ -54,8 +55,8 @@ cd backend && cp .env.example .env
 
 | 라우트 | 메뉴 이름 / 화면 대제목 | 상태 |
 |---|---|---|
-| `/face-swap` | AI 모델로 얼굴 변경 / **헤어 모델 만들기** | job 기반 mock 완성 (접수→폴링→재시도→3규격→삭제). 동의 확인, 얼굴 옵션 7축(#77), AI 생성 배지·규격 쓰임새(#75), 결과 흐름 개편(#105 — 겹쳐 가르는 슬라이더·대기 3단계 안내·폰 하단 고정 CTA·같은 설정으로 다음 사진), 복구·교체 시 사진 짝 잠금(#109). 실제 모델 연동은 backend 대기 |
-| `/generate/blog` | AI 블로그 글쓰기 / **간단 블로그 글쓰기** | 동기 생성 완성 (`/api/v1/text-gen/blog-generation` 한 번 호출로 결과를 바로 받습니다 — job·폴링 아님). 12필드 입력 폼·매장 프로필 쿠키·시술 키워드와 고민 칩(#115)·서식 포함 복사(#99). 실제 모델 연동은 backend 대기 |
+| `/face-swap` | AI 모델로 얼굴 변경 / **헤어 모델 만들기** | job 기반 mock 완성 (접수→폴링→재시도→3규격→삭제). 동의 확인, 얼굴 옵션 7축(#77), AI 생성 배지·규격 쓰임새(#75), 결과 흐름 개편(#105 — 겹쳐 가르는 슬라이더·대기 3단계 안내·폰 하단 고정 CTA·같은 설정으로 다음 사진), 복구·교체 시 사진 짝 잠금(#109). **공개 경로에서 실제 연동 검증 완료** |
+| `/generate/blog` | AI 블로그 글쓰기 / **간단 블로그 글쓰기** | 동기 생성 완성 (`/api/v1/text-gen/blog-generation` 한 번 호출로 결과를 바로 받습니다 — job·폴링 아님). 12필드 입력 폼·매장 프로필 쿠키·시술 키워드와 고민 칩(#115)·서식 포함 복사(#99). **공개 경로에서 실제 연동 검증 완료** |
 | `/generate/shorts` | AI 숏츠 만들기 / **간편 숏츠 만들기** | **backend 연결 완료** — `/api/v1/video-jobs`(#68)로 접수→폴링→9:16 재생·다운로드까지 동작합니다. 클립 2~8개·역할(시술 전/과정/디테일/마무리)·사용 구간·자막(AI 자막 생성 포함)·얼굴 자동 블러·24시간 TTL. 폰 동선 다듬기(#110) |
 
 **공통**
@@ -74,7 +75,7 @@ cd backend && cp .env.example .env
 ## backend 계약 (2026-08-18 기준 · dev `731641a`)
 
 - **블로그 입력**: backend `BlogGenerationRequest` **12필드가 정본**.
-  프론트 입력 UX 분류(프로필 기본값 / 필수 4개 / 선택 6개)는 Discussion #44 회신을 근거로 PR #56에서 구현했습니다. 선택 필드는 미입력 시 빈 문자열로 전송합니다. **`special_product` 처리는 PM 최종 확정 대기 상태**라, 관련 동작을 바꿀 때는 확인이 필요합니다
+  프론트 입력 UX 분류(프로필 기본값 / 필수 4개 / 선택 6개)는 Discussion #44 회신을 근거로 PR #56에서 구현했습니다. 선택 필드는 미입력 시 빈 문자열로 전송합니다. `special_product` 는 8/11 에 수렴이 끝났고, 폼 입력(`blog-fields.tsx`)과 프롬프트 사용(`blog_prompt.py`)이 모두 구현돼 있습니다
 - **블로그 출력**: backend는 **고정 키 객체** `sections: {before, process, after, home_care}`이고 각 값이 `{heading, body}`입니다. 프론트 화면은 배열을 유지하고, 변환은 api-client 응답 처리에서 `[before, process, after, home_care]` 순서로 합니다(`src/lib/api-client/types.ts`의 `BLOG_SECTION_ORDER`). backend 반환 모델(PR #45)과 프론트 어댑터(PR #37) 모두 머지 완료
 - **동의**: `consent: {agreed, consent_version}`을 job 생성 시 전송. 문구·버전은 `src/lib/consent.ts`가 단일 출처
 - **영상(숏츠)**: `/api/v1/video-jobs`(#68). `multipart/form-data`로 클립 2~8개와 옵션(역할·사용 구간·자막)을 올리고 job_id 로 폴링합니다. **얼굴 자동 블러는 고정**이고 결과는 9:16, 24시간 TTL. job 저장이 서버 프로세스 메모리라 **서버가 재시작되면 진행 중이던 작업은 사라집니다**
