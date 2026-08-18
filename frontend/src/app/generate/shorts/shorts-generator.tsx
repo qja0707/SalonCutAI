@@ -42,7 +42,7 @@ import type {
   VideoRole,
   VideoSelection,
 } from "@/lib/api-client/types";
-import { jobErrorDetail, jobErrorMessage } from "@/lib/api-client/error-message";
+import { errorMessage, jobErrorMessage } from "@/lib/api-client/error-message";
 
 type DescriptionMode = "preset" | "custom";
 type ClipDraft = VideoClipOptions & {
@@ -131,8 +131,6 @@ export function ShortsGenerator() {
   const [generatingCaptions, setGeneratingCaptions] = useState(false);
   const [topic, setTopic] = useState("");
   const [error, setError] = useState("");
-  // 오류 원문 — 테스트 단계 진단용으로 안내 밑에 작게 병기한다 (#119 리뷰 절충)
-  const [errorDetail, setErrorDetail] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const resultRef = useRef<HTMLElement>(null);
 
@@ -143,11 +141,12 @@ export function ShortsGenerator() {
         const next = await getVideoJob(job.job_id);
         setJob(next);
         if (next.status === "failed") {
+          // 원문은 화면에 올리지 않는다 — 내부 경로·인자가 섞여 나올 수 있다(#119 리뷰).
+          // 진단용 원문은 jobErrorMessage 안에서 서버 오류 로그로 넘어간다.
           setError(jobErrorMessage(next.error, "영상을 만들지 못했어요. 잠시 후 다시 시도해주세요."));
-          setErrorDetail(jobErrorDetail(next.error));
         }
       } catch (pollError) {
-        setError(pollError instanceof Error ? pollError.message : "작업 상태를 확인하지 못했습니다.");
+        setError(errorMessage(pollError, "작업 상태를 확인하지 못했습니다."));
       }
     }, 1500);
     return () => window.clearInterval(timer);
@@ -191,7 +190,6 @@ export function ShortsGenerator() {
     }
     else {
       setError("");
-      setErrorDetail(null);
     }
     if (inputRef.current) inputRef.current.value = "";
   }
@@ -207,7 +205,6 @@ export function ShortsGenerator() {
     }
     setSubmitting(true);
     setError("");
-    setErrorDetail(null);
     try {
       const created = await createVideoJob(
         clips.map(({ file, role, selection, caption }) => ({
@@ -219,7 +216,7 @@ export function ShortsGenerator() {
       // 폰에서는 진행률·결과가 화면 밖(맨 아래)에 있다 — 만들기를 눌렀으면 그리로 데려간다.
       scrollIntoViewOnNarrow(resultRef.current);
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "영상 작업을 접수하지 못했습니다.");
+      setError(errorMessage(submitError, "영상 작업을 접수하지 못했습니다."));
     } finally {
       setSubmitting(false);
     }
@@ -232,7 +229,6 @@ export function ShortsGenerator() {
     }
     setGeneratingCaptions(true);
     setError("");
-    setErrorDetail(null);
     try {
       const response = await createVideoCaptions(
         clips.map(({ role, description }, index) => ({
@@ -250,9 +246,7 @@ export function ShortsGenerator() {
       );
     } catch (captionError) {
       setError(
-        captionError instanceof Error
-          ? captionError.message
-          : "AI 자막 생성에 실패했습니다. 기본 문구를 직접 수정해 계속해주세요.",
+        errorMessage(captionError, "AI 자막 생성에 실패했습니다. 기본 문구를 직접 수정해 계속해주세요."),
       );
     } finally {
       setGeneratingCaptions(false);
@@ -267,7 +261,6 @@ export function ShortsGenerator() {
     setClips([]);
     setTopic("");
     setError("");
-    setErrorDetail(null);
   }
 
   const busy =
@@ -314,10 +307,7 @@ export function ShortsGenerator() {
         <Alert variant="destructive" className="mb-6">
           <Info />
           <AlertTitle>확인이 필요합니다</AlertTitle>
-          <AlertDescription>
-            {error}
-            {errorDetail && <span className="mt-1 block text-xs opacity-70">{errorDetail}</span>}
-          </AlertDescription>
+          <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 

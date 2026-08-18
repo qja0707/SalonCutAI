@@ -16,12 +16,20 @@ import { appendClientErrorLog } from "@/lib/server/client-error-file-log";
  */
 
 const MAX_FIELD = 500;
+// 수집 항목 전부가 MAX_FIELD 로 잘리므로 정상 본문은 수 KB 를 넘지 않는다.
+// 인증 없는 엔드포인트라 큰 본문은 읽기 전에 거절한다(#119 리뷰).
+const MAX_BODY_BYTES = 16 * 1024;
 
 function clip(value: unknown): string {
   return String(value ?? "").slice(0, MAX_FIELD);
 }
 
 export async function POST(request: Request) {
+  const length = Number(request.headers.get("content-length"));
+  if (!Number.isFinite(length) || length <= 0 || length > MAX_BODY_BYTES) {
+    // content-length 가 없거나 상한을 넘으면 본문을 읽지 않고 끝낸다.
+    return new NextResponse(null, { status: 413 });
+  }
   try {
     const body: unknown = await request.json();
     const data = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;

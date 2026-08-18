@@ -81,19 +81,6 @@ export function jobErrorMessage(
   return message;
 }
 
-/**
- * 한국어 안내 아래 작은 글씨로 병기할 원문 오류.
- *
- * 코드 매핑이 백엔드 문구를 덮은 경우에만 값을 준다 — 덮인 원문(영상 실패의
- * `str(exc)` 등)은 테스트 단계에서 진단 가치가 있어, 숨기는 대신 안내 밑에
- * 함께 보여준다. 테스터가 화면을 캡쳐하면 원문까지 같이 찍힌다(#119 리뷰 절충).
- * 백엔드 문구를 그대로 보여주는 경우에는 병기할 것이 없으므로 null.
- */
-export function jobErrorDetail(
-  jobError: { code?: string; message?: string } | null | undefined,
-): string | null {
-  if (!jobError?.code || !jobError.message) return null;
-  const byCode = MESSAGE_BY_CODE[jobError.code];
-  if (!byCode || byCode === jobError.message) return null;
-  return jobError.message;
-}
+// 원문 오류는 화면에 올리지 않는다 — 백엔드 예외 문자열에 내부 경로·명령 인자가
+// 섞여 나올 수 있음이 실측으로 확인됐다(#119 리뷰). 진단용 원문은 jobErrorMessage 가
+// reportClientError 의 detail 로 서버 오류 로그에만 남긴다.

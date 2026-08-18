@@ -47,7 +47,7 @@ import {
 import { IS_PUBLIC_PREVIEW, PUBLIC_PREVIEW_NOTICE } from "@/lib/public-preview";
 import { sampleAvatarFile } from "@/lib/sample-assets";
 import { CONSENT_CONTENT, CONSENT_VERSION } from "@/lib/consent";
-import { errorMessage, jobErrorDetail, jobErrorMessage } from "@/lib/api-client/error-message";
+import { errorMessage, jobErrorMessage } from "@/lib/api-client/error-message";
 
 /**
  * 배경 교체는 기능 2로 넘어갔다(8/12 수민님 회신). 이번 MVP 백엔드는 preserve 만 지원한다.
@@ -676,15 +676,7 @@ export default function FaceSwapPage() {
                     </>
                   ) : job?.status === "failed" ? (
                     <div className="space-y-3">
-                      <Alert variant="destructive">
-                        <AlertDescription>
-                          {jobErrorMessage(job.error, "이미지를 만들지 못했어요. 다시 시도해주세요.")}
-                          {/* 원문 병기 — 테스트 단계 진단용. 캡쳐 한 장에 안내와 원문이 같이 찍힌다 (#119 리뷰 절충) */}
-                          {jobErrorDetail(job.error) && (
-                            <span className="mt-1 block text-xs opacity-70">{jobErrorDetail(job.error)}</span>
-                          )}
-                        </AlertDescription>
-                      </Alert>
+                      <Alert variant="destructive"><AlertDescription>{jobErrorMessage(job.error, "이미지를 만들지 못했어요. 다시 시도해주세요.")}</AlertDescription></Alert>
                       {job.error?.retryable && <Button variant="outline" onClick={handleRetry}><RotateCcw className="h-4 w-4" />다시 만들기</Button>}
                     </div>
                   ) : (
