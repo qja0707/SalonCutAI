@@ -48,28 +48,36 @@ cd backend && cp .env.example .env
 
 ## 화면 구성
 
+화면 대제목과 메뉴 이름이 다릅니다 — 메뉴는 `AI 000` 형태를 쓰고 대제목만 새 이름을 씁니다 (PR #112).
+
 **MVP 3기능 (Discussion #23 기준)**
 
-| 라우트 | 기능 | 상태 |
+| 라우트 | 메뉴 이름 / 화면 대제목 | 상태 |
 |---|---|---|
-| `/face-swap` | ① 얼굴 교체 | job 기반 mock 완성 (접수→폴링→재시도→3규격→삭제). 동의 확인 화면, 얼굴 옵션 7축(PR #77), 결과물 AI 생성 배지·규격 쓰임새 병기(PR #75) 포함. 실제 모델 연동은 backend 대기 |
-| `/generate/blog` | ② 블로그 글 생성 | job 기반 mock 완성 (접수→폴링→재시도→삭제). 12필드 입력 폼·매장 프로필 쿠키 포함. 실제 모델 연동은 backend 대기 |
-| `/generate/shorts` | ③ AI 숏츠 | MVP 설계 확정. 역할 기반 편집 엔진 구현 착수, 화면·API 연결 전 |
+| `/face-swap` | AI 모델로 얼굴 변경 / **헤어 모델 만들기** | job 기반 mock 완성 (접수→폴링→재시도→3규격→삭제). 동의 확인, 얼굴 옵션 7축(#77), AI 생성 배지·규격 쓰임새(#75), 결과 흐름 개편(#105 — 겹쳐 가르는 슬라이더·대기 3단계 안내·폰 하단 고정 CTA·같은 설정으로 다음 사진), 복구·교체 시 사진 짝 잠금(#109). 실제 모델 연동은 backend 대기 |
+| `/generate/blog` | AI 블로그 글쓰기 / **간단 블로그 글쓰기** | 동기 생성 완성 (`/api/v1/text-gen/blog-generation` 한 번 호출로 결과를 바로 받습니다 — job·폴링 아님). 12필드 입력 폼·매장 프로필 쿠키·시술 키워드와 고민 칩(#115)·서식 포함 복사(#99). 실제 모델 연동은 backend 대기 |
+| `/generate/shorts` | AI 숏츠 만들기 / **간편 숏츠 만들기** | **backend 연결 완료** — `/api/v1/video-jobs`(#68)로 접수→폴링→9:16 재생·다운로드까지 동작합니다. 클립 2~8개·역할(시술 전/과정/디테일/마무리)·사용 구간·자막(AI 자막 생성 포함)·얼굴 자동 블러·24시간 TTL. 폰 동선 다듬기(#110) |
 
 **공통**
 
-`/user/signin` — 로그인 화면 (PR #76). 사이드바·모바일 헤더의 로그인 버튼에서 진입합니다.
+| 라우트·파일 | 내용 |
+|---|---|
+| `/` | 랜딩 홈 (#111·#112) — 혜택 중심 카피, 실제 결과물 히어로, Before/After 슬라이더 |
+| `/user/signin` | 로그인 화면 (#76). 사이드바·모바일 헤더의 로그인 버튼에서 진입합니다 |
+| `app/error.tsx` · `app/not-found.tsx` | 전역 오류·404 화면 (#113). 없으면 Next 기본 영문 화면이 나옵니다. **이 Next 버전의 error 경계 prop은 `reset`이 아니라 `retry`입니다** |
+| `components/theme-provider.tsx` | 화면 색 6종 + 기기 설정 따라가기 (#103). 토스 블루 / 토스 블루 다크 / 따뜻한 아이보리 / 밝은 아이보리 / 차콜 / 미드나잇. 목록은 `THEME_OPTIONS`가 단일 출처 |
 
 **확장 (MVP 제외 — 코드는 보존)**
 
 `/season-banner`, `/generate/caption`, `/style-consult`, `/sketch-consult`, `/marketing-calendar`, `/generate/image`, `/compare`(팀 내부 모델 비교 도구)
 
-## backend 계약 (2026-08-13 기준 · dev `f9c2db6`)
+## backend 계약 (2026-08-18 기준 · dev `731641a`)
 
 - **블로그 입력**: backend `BlogGenerationRequest` **12필드가 정본**.
   프론트 입력 UX 분류(프로필 기본값 / 필수 4개 / 선택 6개)는 Discussion #44 회신을 근거로 PR #56에서 구현했습니다. 선택 필드는 미입력 시 빈 문자열로 전송합니다. **`special_product` 처리는 PM 최종 확정 대기 상태**라, 관련 동작을 바꿀 때는 확인이 필요합니다
 - **블로그 출력**: backend는 **고정 키 객체** `sections: {before, process, after, home_care}`이고 각 값이 `{heading, body}`입니다. 프론트 화면은 배열을 유지하고, 변환은 api-client 응답 처리에서 `[before, process, after, home_care]` 순서로 합니다(`src/lib/api-client/types.ts`의 `BLOG_SECTION_ORDER`). backend 반환 모델(PR #45)과 프론트 어댑터(PR #37) 모두 머지 완료
 - **동의**: `consent: {agreed, consent_version}`을 job 생성 시 전송. 문구·버전은 `src/lib/consent.ts`가 단일 출처
+- **영상(숏츠)**: `/api/v1/video-jobs`(#68). `multipart/form-data`로 클립 2~8개와 옵션(역할·사용 구간·자막)을 올리고 job_id 로 폴링합니다. **얼굴 자동 블러는 고정**이고 결과는 9:16, 24시간 TTL. job 저장이 서버 프로세스 메모리라 **서버가 재시작되면 진행 중이던 작업은 사라집니다**
 - mock 계약 레이어는 `src/lib/api-client/`에 있습니다. `SALON_API_MODE=proxy` 분기는 PR #70에서 채워졌습니다 — `src/lib/api-client/server/response.ts`의 `proxyPendingResponse()`가 `BACKEND_API_URL`로 요청을 그대로 넘깁니다
 
 → `/api/generate-blog`(OpenAI 직접 호출) 라우트는 남아 있지만 화면에서는 쓰지 않습니다. 제거 시점은 별도로 정합니다.
