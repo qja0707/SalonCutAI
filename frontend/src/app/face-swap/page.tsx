@@ -47,6 +47,7 @@ import {
 import { IS_PUBLIC_PREVIEW, PUBLIC_PREVIEW_NOTICE } from "@/lib/public-preview";
 import { sampleAvatarFile } from "@/lib/sample-assets";
 import { CONSENT_CONTENT, CONSENT_VERSION } from "@/lib/consent";
+import { errorMessage, jobErrorMessage } from "@/lib/api-client/error-message";
 
 /**
  * 배경 교체는 기능 2로 넘어갔다(8/12 수민님 회신). 이번 MVP 백엔드는 preserve 만 지원한다.
@@ -163,7 +164,7 @@ export default function FaceSwapPage() {
         // 서버에서 사라진 작업(404)이면 저장분을 버린다.
         // 통신이 안 되는 것뿐이면 남겨두고 다음 새로고침에 다시 시도한다.
         if (isNotFoundError(error)) clearActiveJob("face-swap");
-        else setRequestError(error instanceof Error ? error.message : "이전 작업을 불러오지 못했습니다.");
+        else setRequestError(errorMessage(error, "이전 작업을 불러오지 못했습니다."));
       } finally {
         if (!cancelled) setRestoring(false);
       }
@@ -204,7 +205,7 @@ export default function FaceSwapPage() {
           setRecentRefresh((value) => value + 1);
         }
       } catch (error) {
-        if (!cancelled) setRequestError(error instanceof Error ? error.message : "작업 상태를 불러오지 못했습니다.");
+        if (!cancelled) setRequestError(errorMessage(error, "작업 상태를 불러오지 못했습니다."));
       }
     };
     void poll();
@@ -271,7 +272,7 @@ export default function FaceSwapPage() {
       scrollIntoViewOnNarrow(resultRef.current);
       writeActiveJob("face-swap", { jobId: created.job_id, startedAt: startedAtMs });
     } catch (error) {
-      setRequestError(error instanceof Error ? error.message : "작업을 시작하지 못했습니다.");
+      setRequestError(errorMessage(error, "작업을 시작하지 못했습니다."));
       setStartedAt(null);
     } finally {
       setRequesting(false);
@@ -290,7 +291,7 @@ export default function FaceSwapPage() {
       writeActiveJob("face-swap", { jobId, startedAt: startedAtMs });
       toast.success("홍보 이미지를 다시 만들고 있어요.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "다시 시도하지 못했습니다.");
+      toast.error(errorMessage(error, "다시 시도하지 못했습니다."));
     }
   }
 
@@ -348,7 +349,7 @@ export default function FaceSwapPage() {
       setPhoneStep(1);
       toast.success("작업을 삭제했습니다.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "작업을 삭제하지 못했습니다.");
+      toast.error(errorMessage(error, "작업을 삭제하지 못했습니다."));
     }
   }
 
@@ -665,7 +666,7 @@ export default function FaceSwapPage() {
                     </>
                   ) : job?.status === "failed" ? (
                     <div className="space-y-3">
-                      <Alert variant="destructive"><AlertDescription>{job.error?.message}</AlertDescription></Alert>
+                      <Alert variant="destructive"><AlertDescription>{jobErrorMessage(job.error, "이미지를 만들지 못했어요. 다시 시도해주세요.")}</AlertDescription></Alert>
                       {job.error?.retryable && <Button variant="outline" onClick={handleRetry}><RotateCcw className="h-4 w-4" />다시 만들기</Button>}
                     </div>
                   ) : (

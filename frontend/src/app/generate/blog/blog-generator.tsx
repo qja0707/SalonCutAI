@@ -23,6 +23,7 @@ import {
   useBlogProfile,
   type BlogFieldValues,
 } from "./blog-fields";
+import { errorMessage } from "@/lib/api-client/error-message";
 
 const EXPECTED_SECONDS = 16;
 
@@ -79,7 +80,7 @@ export function BlogGenerator() {
       setGenerationResult(created);
     } catch (error) {
       setRequestError(
-        error instanceof Error ? error.message : "작업을 시작하지 못했습니다.",
+        errorMessage(error, "글을 만들지 못했습니다. 잠시 후 다시 시도해주세요."),
       );
       setStartedAt(null);
     } finally {

@@ -42,6 +42,7 @@ import type {
   VideoRole,
   VideoSelection,
 } from "@/lib/api-client/types";
+import { jobErrorMessage } from "@/lib/api-client/error-message";
 
 type DescriptionMode = "preset" | "custom";
 type ClipDraft = VideoClipOptions & {
@@ -139,7 +140,7 @@ export function ShortsGenerator() {
       try {
         const next = await getVideoJob(job.job_id);
         setJob(next);
-        if (next.status === "failed") setError(next.error?.message || "영상 처리에 실패했습니다.");
+        if (next.status === "failed") setError(jobErrorMessage(next.error, "영상을 만들지 못했어요. 잠시 후 다시 시도해주세요."));
       } catch (pollError) {
         setError(pollError instanceof Error ? pollError.message : "작업 상태를 확인하지 못했습니다.");
       }

@@ -61,11 +61,13 @@ export async function proxyPendingResponse(
       headers: response.headers,
     });
   } catch (error) {
-    console.log(error);
+    // 원인은 서버 로그에만 남긴다. 예외 문자열을 그대로 내보내면
+    // `TypeError: fetch failed` 같은 영문이 사용자 화면까지 올라간다.
+    console.error("[proxy] 백엔드 요청 실패", error);
     return errorResponse(
       500,
       "INTERNAL_ERROR",
-      error ? String(error) : "알 수 없는 오류",
+      "서버에 문제가 생겼어요. 잠시 후 다시 시도해주세요.",
       true,
     );
   }
