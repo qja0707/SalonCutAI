@@ -92,7 +92,8 @@ export default function Home() {
           {/* "무료"는 쓰지 않는다(8/17 원장님) — 체험 계열 동사로 통일 */}
           <div className="mt-6 flex flex-wrap gap-3">
             <Link href="/face-swap" className={buttonVariants({ size: "lg" })}>바로 체험하기</Link>
-            <Link href="/face-swap" className={buttonVariants({ size: "lg", variant: "outline" })}>
+            {/* ?sample=1 — 얼굴 교체 화면이 예시 사진을 실은 채 열린다. 빈 화면에 떨어뜨리지 않는다 */}
+            <Link href="/face-swap?sample=1" className={buttonVariants({ size: "lg", variant: "outline" })}>
               📷 예시 사진으로 체험하기
             </Link>
           </div>

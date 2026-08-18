@@ -146,7 +146,17 @@ export default function FaceSwapPage() {
     void (async () => {
       const saved = readActiveJob("face-swap");
       try {
-        if (!saved) return;
+        if (!saved) {
+          // 랜딩의 "예시 사진으로 체험하기"에서 넘어온 경우 — 빈 1단계에 떨어뜨리지
+          // 않고 예시를 바로 싣는다. 복구할 job 이 있으면 그쪽이 우선이다(이미 만들던
+          // 사람에게 예시를 덮어씌우면 안 된다).
+          const wantsSample = new URLSearchParams(window.location.search).has("sample");
+          if (wantsSample) {
+            const sample = await sampleAvatarFile();
+            if (!cancelled) handlePhotoChange(sample);
+          }
+          return;
+        }
         const savedJob = await getFaceSwapJob(saved.jobId);
         if (cancelled) return;
         setJob(savedJob);
