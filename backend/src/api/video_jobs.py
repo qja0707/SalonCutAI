@@ -10,13 +10,26 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+)
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from src.ai_engine.video_gen.engine import ClipInput, process_shorts
+from src.api.dependencies import check_auth_token
 
-router = APIRouter(prefix="/video-jobs", tags=["video generation"])
+router = APIRouter(
+    prefix="/video-jobs",
+    tags=["video generation"],
+    dependencies=[Depends(check_auth_token)],
+)
 
 MAX_CLIPS = 8
 MIN_CLIPS = 2

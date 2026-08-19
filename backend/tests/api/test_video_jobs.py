@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from src.api import video_jobs
 from src.api.api import api_router
+from src.api.dependencies import check_auth_token
 
 
 def test_video_routes_use_one_api_v1_prefix():
@@ -30,6 +31,8 @@ def test_video_routes_use_one_api_v1_prefix():
 def test_create_and_get_video_job_returns_expected_status(monkeypatch, tmp_path):
     app = FastAPI()
     app.include_router(api_router)
+    # 이 테스트는 job 계약만 본다. 인증 계약은 test_api_auth.py 가 본다.
+    app.dependency_overrides[check_auth_token] = lambda: None
     client = TestClient(app)
 
     video_jobs._jobs.clear()

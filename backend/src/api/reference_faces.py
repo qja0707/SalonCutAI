@@ -8,14 +8,19 @@ label 은 사용자에게 그대로 보이는 문구다. 생성 시 쓴 매력�
 노출하지 않고 같은 조건 안에서 알파벳으로만 나눈다.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import FileResponse
 
 from src.ai_engine.image_gen import storage
+from src.api.dependencies import check_auth_token
 from src.exceptions.api_error import ApiError, new_request_id
 from src.schemas.face_swap import ReferenceFace, ReferenceFacesResponse
 
-router = APIRouter(prefix="/reference-faces", tags=["참조 얼굴"])
+router = APIRouter(
+    prefix="/reference-faces",
+    tags=["참조 얼굴"],
+    dependencies=[Depends(check_auth_token)],
+)
 
 
 # --- 메타데이터 ---
