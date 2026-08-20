@@ -145,8 +145,20 @@ export default function FaceSwapPage() {
     let cancelled = false;
     void (async () => {
       const saved = readActiveJob("face-swap");
+      // 랜딩의 "예시 사진으로 체험하기"에서 넘어온 경우 — 빈 1단계에 떨어뜨리지
+      // 않고 예시를 바로 싣는다. 복구할 job 이 있으면 그쪽이 우선이지만(이미 만들던
+      // 사람에게 예시를 덮어씌우면 안 된다), 그 job 이 만료(404)로 정리된 경우에는
+      // 예시 진입 의도를 살린다 — catch 에서도 불러야 해서 try 밖에 둔다.
+      const loadSampleIfWanted = async () => {
+        if (!new URLSearchParams(window.location.search).has("sample")) return;
+        const sample = await sampleAvatarFile();
+        if (!cancelled) handlePhotoChange(sample);
+      };
       try {
-        if (!saved) return;
+        if (!saved) {
+          await loadSampleIfWanted();
+          return;
+        }
         const savedJob = await getFaceSwapJob(saved.jobId);
         if (cancelled) return;
         setJob(savedJob);
@@ -163,8 +175,12 @@ export default function FaceSwapPage() {
         if (cancelled) return;
         // 서버에서 사라진 작업(404)이면 저장분을 버린다.
         // 통신이 안 되는 것뿐이면 남겨두고 다음 새로고침에 다시 시도한다.
-        if (isNotFoundError(error)) clearActiveJob("face-swap");
-        else setRequestError(errorMessage(error, "이전 작업을 불러오지 못했습니다."));
+        if (isNotFoundError(error)) {
+          clearActiveJob("face-swap");
+          // 만료된 job 을 정리한 경우에도 예시 진입 의도는 살린다 — 안 그러면
+          // ?sample=1 로 왔는데 빈 1단계에 남는다(#121 리뷰).
+          await loadSampleIfWanted();
+        } else setRequestError(errorMessage(error, "이전 작업을 불러오지 못했습니다."));
       } finally {
         if (!cancelled) setRestoring(false);
       }
