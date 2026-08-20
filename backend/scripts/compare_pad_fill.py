@@ -174,3 +174,37 @@ for stem in TESTS:
     print()
 
 print(f"저장: {OUT_DIR}")
+
+# --- 개선 전후 비교 이미지 ---
+
+
+def pad_before(img):
+    """수정 전 _blurred_bg_pad(). 검정 초기화 레이어와 바깥 페더링을 쓴다."""
+    w, h, nw, nh = _canvas(img)
+    ox, oy = (nw - w) // 2, (nh - h) // 2
+
+    scale = max(nw / w, nh / h) * 1.15
+    bw, bh = int(w * scale) + 1, int(h * scale) + 1
+    bg = (
+        img.resize((bw, bh), Image.LANCZOS)
+        .crop(
+            ((bw - nw) // 2, (bh - nh) // 2, (bw - nw) // 2 + nw, (bh - nh) // 2 + nh)
+        )
+        .filter(ImageFilter.GaussianBlur(int(min(nw, nh) * settings.PAD_BLUR_RATIO)))
+    )
+    bg = Image.eval(bg, lambda v: int(v * 0.92))
+
+    mask = Image.new("L", (nw, nh), 0)
+    ImageDraw.Draw(mask).rectangle([ox, oy, ox + w - 1, oy + h - 1], fill=255)
+    mask = mask.filter(ImageFilter.GaussianBlur(int(min(w, h) * 0.02)))
+
+    layer = Image.new("RGB", (nw, nh))
+    layer.paste(img, (ox, oy))
+    return Image.composite(layer, bg, mask)
+
+
+for stem in TESTS:
+    img = Image.open(IMAGE_DIR / f"{stem}.jpg").convert("RGB")
+    pad_before(img).save(OUT_DIR / f"{stem}_before.jpg", quality=95)
+
+print("개선 전 이미지 저장")
