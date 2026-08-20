@@ -1,10 +1,12 @@
 """비율 3종 변환.
 
-1:1·4:5 는 crop 우선, 9:16 은 fit_pad 고정이다.
-crop 이 안 되는 경우는 확대·블러 배경으로 여백을 채운다. 단색은 경계가 보인다.
+세 비율 모두 crop 우선이다. 머리가 창보다 넓으면 crop 을 포기하고
+확대·블러 배경으로 여백을 채운다. 단색은 경계가 보인다.
 
 머리 전체가 들어오는 것이 기준이다. 정수리 볼륨과 모발 끝이 잘리면
-시술 결과를 보여주는 사진으로서 의미가 없다.
+시술 결과를 보여주는 사진으로서 의미가 없다. 다만 9:16 은 0.5625 로
+매우 길어 그 기준을 그대로 쓰면 긴 머리가 전부 crop 을 포기한다.
+그래서 9:16 만 턱선 위 두상으로 판정한다.
 """
 
 import cv2
@@ -16,11 +18,16 @@ from PIL import Image, ImageDraw, ImageFilter
 from src.ai_engine.image_gen import loader, settings
 
 
-def get_head_box(img: Image.Image, pad_ratio: float = 0.0):
+def get_head_box(img: Image.Image, pad_ratio: float = 0.0, above_chin: bool = False):
     """머리 전체(헤어 + 얼굴) 바운딩 박스. 얼굴이 없으면 None.
 
     헤어 세그멘테이션과 얼굴 윤곽을 합친다. 헤어만 쓰면 이마가 빠지고
     얼굴만 쓰면 정수리가 빠진다.
+
+    above_chin 이면 턱선 아래를 버린다. 어깨로 흘러내린 모발까지 세면
+    박스가 프레임 폭을 채워 긴 머리가 전부 crop 을 포기하게 된다.
+    시술 결과 판단에 필요한 것은 정수리·앞머리·옆머리다.
+    얼굴 윤곽을 못 잡으면 턱선을 알 수 없어 전체를 그대로 쓴다.
     """
     arr = np.array(img.convert("RGB"))
     mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=arr)
@@ -39,6 +46,8 @@ def get_head_box(img: Image.Image, pad_ratio: float = 0.0):
         mask = np.zeros((h, w), np.uint8)
         cv2.fillPoly(mask, [pts], 255)
         head |= mask > 127
+        if above_chin:
+            head[int(pts[:, 1].max()) :, :] = False
 
     ys, xs = np.where(head)
     if len(ys) == 0:
@@ -57,10 +66,13 @@ def get_head_box(img: Image.Image, pad_ratio: float = 0.0):
 def _blurred_bg_pad(img: Image.Image, target: float) -> Image.Image:
     """원본을 확대·블러해 배경으로 깔고 그 위에 원본을 얹는다.
 
-    경계를 페더링해 붙여넣은 티를 없앤다.
+    배경은 원본 중앙을 확대한 것이라 원본 가장자리보다 어둡다. 그대로 두면
+    페더링 구간에서 섞이며 경계에 어두운 띠가 생긴다. 그래서 배경 밝기를
+    원본 가장자리에 맞추고, 페더링도 원본 안쪽으로만 준다.
     """
     w, h = img.size
     nw, nh = (w, int(w / target)) if w / h > target else (int(h * target), h)
+    ox, oy = (nw - w) // 2, (nh - h) // 2
 
     # 캔버스를 덮도록 확대 후 중앙 크롭. 1.15 는 가장자리 반복을 줄이는 여유다.
     scale = max(nw / w, nh / h) * 1.15
@@ -72,17 +84,38 @@ def _blurred_bg_pad(img: Image.Image, target: float) -> Image.Image:
         )
         .filter(ImageFilter.GaussianBlur(int(min(nw, nh) * settings.PAD_BLUR_RATIO)))
     )
-    if settings.PAD_DARKEN < 1.0:
-        bg = Image.eval(bg, lambda v: int(v * settings.PAD_DARKEN))
 
-    ox, oy = (nw - w) // 2, (nh - h) // 2
+    # --- 배경 밝기 정합 ---
+
+    src_g = np.array(img.convert("L"), dtype=float)
+    bg_g = np.array(bg.convert("L"), dtype=float)
+    if oy > 0:
+        src_v, pad_v = src_g[:60].mean(), bg_g[:oy].mean()
+    elif ox > 0:
+        src_v, pad_v = src_g[:, :60].mean(), bg_g[:, :ox].mean()
+    else:
+        src_v = pad_v = 0.0
+
+    if pad_v > 0:
+        k = min(max(src_v / pad_v, 0.5), 2.0)
+        bg = Image.fromarray(
+            np.clip(np.array(bg, dtype=float) * k, 0, 255).astype(np.uint8)
+        )
+
+    # --- 안쪽 페더링 ---
+
+    r = int(min(w, h) * settings.PAD_FEATHER_RATIO)
+    box = [ox, oy, ox + w - 1, oy + h - 1]
+    if oy > 0:
+        box = [box[0], box[1] + r, box[2], box[3] - r]
+    else:
+        box = [box[0] + r, box[1], box[2] - r, box[3]]
+
     mask = Image.new("L", (nw, nh), 0)
-    ImageDraw.Draw(mask).rectangle([ox, oy, ox + w - 1, oy + h - 1], fill=255)
-    mask = mask.filter(
-        ImageFilter.GaussianBlur(int(min(w, h) * settings.PAD_FEATHER_RATIO))
-    )
+    ImageDraw.Draw(mask).rectangle(box, fill=255)
+    mask = mask.filter(ImageFilter.GaussianBlur(r))
 
-    layer = Image.new("RGB", (nw, nh))
+    layer = bg.copy()
     layer.paste(img, (ox, oy))
     return Image.composite(layer, bg, mask)
 
@@ -97,17 +130,21 @@ def to_ratio(img: Image.Image, ratio: str, head_box=None) -> tuple[Image.Image, 
     w, h = img.size
     cw, ch = (int(h * target), h) if w / h > target else (w, int(w / target))
 
-    if ratio == "9:16":
-        return _blurred_bg_pad(img, target), "fit_pad"
-
     hb = head_box if head_box is not None else get_head_box(img)
     if hb is None:
         return _blurred_bg_pad(img, target), "fit_pad"
 
+    # 창 배치는 머리 전체로 하고, 판정만 비율에 따라 다르게 한다.
+    judge = hb
+    if ratio == "9:16":
+        judge = get_head_box(img, above_chin=True)
+        if judge is None:
+            return _blurred_bg_pad(img, target), "fit_pad"
+
     hx0, hy0, hx1, hy1 = hb
 
     # 가로가 넘치면 옆머리가 잘린다. crop 을 포기한다.
-    if hx1 - hx0 > cw:
+    if judge[2] - judge[0] > cw:
         return _blurred_bg_pad(img, target), "fit_pad"
 
     cx = (hx0 + hx1) // 2
