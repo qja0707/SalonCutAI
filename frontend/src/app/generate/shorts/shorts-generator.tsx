@@ -42,6 +42,7 @@ import type {
   VideoRole,
   VideoSelection,
 } from "@/lib/api-client/types";
+import { errorMessage, jobErrorMessage } from "@/lib/api-client/error-message";
 
 type DescriptionMode = "preset" | "custom";
 type ClipDraft = VideoClipOptions & {
@@ -139,9 +140,13 @@ export function ShortsGenerator() {
       try {
         const next = await getVideoJob(job.job_id);
         setJob(next);
-        if (next.status === "failed") setError(next.error?.message || "영상 처리에 실패했습니다.");
+        if (next.status === "failed") {
+          // 원문은 화면에 올리지 않는다 — 내부 경로·인자가 섞여 나올 수 있다(#119 리뷰).
+          // 진단용 원문은 jobErrorMessage 안에서 서버 오류 로그로 넘어간다.
+          setError(jobErrorMessage(next.error, "영상을 만들지 못했어요. 잠시 후 다시 시도해주세요."));
+        }
       } catch (pollError) {
-        setError(pollError instanceof Error ? pollError.message : "작업 상태를 확인하지 못했습니다.");
+        setError(errorMessage(pollError, "작업 상태를 확인하지 못했습니다."));
       }
     }, 1500);
     return () => window.clearInterval(timer);
@@ -183,7 +188,9 @@ export function ShortsGenerator() {
     if (candidates.length > accepted.length) {
       setError("MP4·MOV·WEBM·MKV 영상을 8개, 파일당 80MB, 전체 320MB까지 올릴 수 있습니다.");
     }
-    else setError("");
+    else {
+      setError("");
+    }
     if (inputRef.current) inputRef.current.value = "";
   }
 
@@ -209,7 +216,7 @@ export function ShortsGenerator() {
       // 폰에서는 진행률·결과가 화면 밖(맨 아래)에 있다 — 만들기를 눌렀으면 그리로 데려간다.
       scrollIntoViewOnNarrow(resultRef.current);
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "영상 작업을 접수하지 못했습니다.");
+      setError(errorMessage(submitError, "영상 작업을 접수하지 못했습니다."));
     } finally {
       setSubmitting(false);
     }
@@ -239,9 +246,7 @@ export function ShortsGenerator() {
       );
     } catch (captionError) {
       setError(
-        captionError instanceof Error
-          ? captionError.message
-          : "AI 자막 생성에 실패했습니다. 기본 문구를 직접 수정해 계속해주세요.",
+        errorMessage(captionError, "AI 자막 생성에 실패했습니다. 기본 문구를 직접 수정해 계속해주세요."),
       );
     } finally {
       setGeneratingCaptions(false);
