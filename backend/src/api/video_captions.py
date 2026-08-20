@@ -4,7 +4,7 @@ import logging
 import uuid
 from typing import Literal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from starlette.concurrency import run_in_threadpool
@@ -15,9 +15,14 @@ from src.ai_engine.video_gen.caption_generator import (
     GeneratedCaption,
     generate_captions,
 )
+from src.api.dependencies import check_auth_token
 from src.api.video_jobs import MAX_CLIPS, MIN_CLIPS
 
-router = APIRouter(prefix="/video-captions", tags=["video captions"])
+router = APIRouter(
+    prefix="/video-captions",
+    tags=["video captions"],
+    dependencies=[Depends(check_auth_token)],
+)
 logger = logging.getLogger(__name__)
 MAX_CONTEXT_LENGTH = 100
 

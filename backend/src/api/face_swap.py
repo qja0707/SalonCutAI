@@ -2,9 +2,9 @@
 
 HTTP 입출력과 요청 검증만 담당한다. job 생명주기는 service 계층이 안다.
 
-인증을 걸지 않는다. 결과 이미지를 <img src> 로 부르는데 그 요청에는
-Authorization 헤더를 실을 수 없다. job_id 가 UUID 이고 결과물은
-24시간 뒤 만료되므로 추측으로 접근하기 어렵다.
+모든 경로에 액세스 토큰 검증을 건다. 결과 이미지를 <img src> 로 불러도
+프론트 프록시가 쿠키의 토큰을 Authorization 헤더로 바꿔 전달하므로
+브라우저 요청에 헤더를 직접 싣지 못해도 검증이 동작한다.
 """
 
 import json
@@ -15,6 +15,7 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from src.ai_engine.image_gen import settings, storage
+from src.api.dependencies import check_auth_token
 from src.db_session.db import get_db
 from src.db_session.face_swap_model import STATUS_COMPLETED
 from src.exceptions.api_error import ApiError, new_request_id
@@ -31,7 +32,11 @@ from src.service import face_swap as face_swap_service
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
-router = APIRouter(prefix="/face-swap-jobs", tags=["얼굴 교체"])
+router = APIRouter(
+    prefix="/face-swap-jobs",
+    tags=["얼굴 교체"],
+    dependencies=[Depends(check_auth_token)],
+)
 
 
 # --- 검증 ---

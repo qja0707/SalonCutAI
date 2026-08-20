@@ -10,11 +10,14 @@ from src.ai_engine.video_gen.caption_generator import (
 )
 from src.api import video_captions
 from src.api.api import api_router
+from src.api.dependencies import check_auth_token
 
 
 def _client() -> TestClient:
     app = FastAPI()
     app.include_router(api_router)
+    # 이 파일은 자막 계약만 본다. 인증 계약은 test_api_auth.py 가 본다.
+    app.dependency_overrides[check_auth_token] = lambda: None
     return TestClient(app)
 
 
