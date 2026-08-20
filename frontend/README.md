@@ -64,7 +64,7 @@ cd backend && cp .env.example .env
 | 라우트·파일 | 내용 |
 |---|---|
 | `/` | 랜딩 홈 (#111·#112) — 혜택 중심 카피, 실제 결과물 히어로, Before/After 슬라이더 |
-| `/user/signin` | 로그인 화면 (#76). 사이드바·모바일 헤더의 로그인 버튼에서 진입합니다 |
+| `/user/signin` | 로그인 화면 (#76). 데스크톱은 우상단 상단 바, 폰은 모바일 헤더의 로그인 버튼에서 진입합니다 (#124) |
 | `app/error.tsx` · `app/not-found.tsx` | 전역 오류·404 화면 (#113). 없으면 Next 기본 영문 화면이 나옵니다. **이 Next 버전의 error 경계 prop은 `reset`이 아니라 `retry`입니다** |
 | `components/theme-provider.tsx` | 화면 색 6종 + 기기 설정 따라가기 (#103). 토스 블루 / 토스 블루 다크 / 따뜻한 아이보리 / 밝은 아이보리 / 차콜 / 미드나잇. 목록은 `THEME_OPTIONS`가 단일 출처 |
 
@@ -72,12 +72,13 @@ cd backend && cp .env.example .env
 
 `/season-banner`, `/generate/caption`, `/style-consult`, `/sketch-consult`, `/marketing-calendar`, `/generate/image`, `/compare`(팀 내부 모델 비교 도구)
 
-## backend 계약 (2026-08-18 기준 · dev `731641a`)
+## backend 계약 (2026-08-20 기준 · dev `a46b27e`)
 
 - **블로그 입력**: backend `BlogGenerationRequest` **12필드가 정본**.
   프론트 입력 UX 분류(프로필 기본값 / 필수 4개 / 선택 6개)는 Discussion #44 회신을 근거로 PR #56에서 구현했습니다. 선택 필드는 미입력 시 빈 문자열로 전송합니다. `special_product` 는 8/11 에 수렴이 끝났고, 폼 입력(`blog-fields.tsx`)과 프롬프트 사용(`blog_prompt.py`)이 모두 구현돼 있습니다
 - **블로그 출력**: backend는 **고정 키 객체** `sections: {before, process, after, home_care}`이고 각 값이 `{heading, body}`입니다. 프론트 화면은 배열을 유지하고, 변환은 api-client 응답 처리에서 `[before, process, after, home_care]` 순서로 합니다(`src/lib/api-client/types.ts`의 `BLOG_SECTION_ORDER`). backend 반환 모델(PR #45)과 프론트 어댑터(PR #37) 모두 머지 완료
 - **동의**: `consent: {agreed, consent_version}`을 job 생성 시 전송. 문구·버전은 `src/lib/consent.ts`가 단일 출처
+- **인증**: 기능 API 전부에 액세스 토큰 검증이 걸려 있습니다 (#127). 공개로 남은 것은 `auth`·`users`·`health` 뿐입니다. 프록시가 쿠키의 `accessToken` 을 `Authorization` 헤더로 바꿔 전달하므로 `<img src>` 처럼 헤더를 못 싣는 요청도 동작합니다
 - **영상(숏츠)**: `/api/v1/video-jobs`(#68). `multipart/form-data`로 클립 2~8개와 옵션(역할·사용 구간·자막)을 올리고 job_id 로 폴링합니다. **얼굴 자동 블러는 고정**이고 결과는 9:16, 24시간 TTL. job 저장이 서버 프로세스 메모리라 **서버가 재시작되면 진행 중이던 작업은 사라집니다**
 - mock 계약 레이어는 `src/lib/api-client/`에 있습니다. `SALON_API_MODE=proxy` 분기는 PR #70에서 채워졌습니다 — `src/lib/api-client/server/response.ts`의 `proxyPendingResponse()`가 `BACKEND_API_URL`로 요청을 그대로 넘깁니다
 
