@@ -52,7 +52,9 @@ def make_tokens(user_id: str):
     access_token_info = {"sub": user_id, "token_type": "access"}
     refresh_token_info = {"sub": user_id, "token_type": "refresh"}
 
-    access_token = create_jwt(access_token_info, expires_delta=timedelta(seconds=10))
+    access_token = create_jwt(
+        access_token_info, expires_delta=timedelta(minutes=access_token_expire_minutes)
+    )
     refresh_token = create_jwt(
         refresh_token_info, expires_delta=timedelta(days=refresh_token_expire_days)
     )
