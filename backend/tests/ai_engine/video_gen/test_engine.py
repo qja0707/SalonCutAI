@@ -4,6 +4,7 @@ import subprocess
 from io import BytesIO
 from pathlib import Path
 
+import cv2
 import numpy as np
 import pytest
 
@@ -47,6 +48,21 @@ def test_segment_start_uses_two_second_window():
     assert segment_start(8.0, "center") == 3
     assert segment_start(8.0, "end") == 6
     assert segment_start(1.5, "end") == 0
+
+
+def test_segment_start_aligns_end_window_to_source_frame_boundary():
+    assert segment_start(
+        5.005,
+        "end",
+        source_fps=30000 / 1001,
+        source_frames=150,
+    ) == pytest.approx(3.003)
+    assert segment_start(
+        5.005,
+        "end",
+        source_fps=24000 / 1001,
+        source_frames=120,
+    ) == pytest.approx(3.003)
 
 
 def test_ordered_clips_preserves_upload_order_inside_role(tmp_path):
@@ -247,6 +263,68 @@ def test_sampled_proxy_preserves_integer_start_passthrough_frame_hashes(tmp_path
 
     assert len(baseline_hashes) == len(indexes) == 13
     assert current_hashes == baseline_hashes
+
+
+@pytest.mark.parametrize(
+    ("rate", "source_frames"),
+    [("30000/1001", 150), ("24000/1001", 120)],
+)
+def test_sampled_proxy_decodes_end_window_without_reading_past_source(
+    tmp_path, rate, source_frames
+):
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg is None:
+        pytest.skip("ffmpeg is not installed")
+
+    source = tmp_path / f"end-{rate.replace('/', '-')}.mov"
+    subprocess.run(
+        [
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            f"testsrc2=s=64x64:r={rate}",
+            "-frames:v",
+            str(source_frames),
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            str(source),
+        ],
+        check=True,
+    )
+
+    capture = cv2.VideoCapture(str(source))
+    try:
+        duration = video_engine._duration(capture)
+        source_fps = capture.get(cv2.CAP_PROP_FPS)
+        source_frame_count = round(capture.get(cv2.CAP_PROP_FRAME_COUNT))
+    finally:
+        capture.release()
+
+    frames = list(
+        _sampled_proxy_frames(
+            ffmpeg,
+            source,
+            start_sec=segment_start(
+                duration,
+                "end",
+                source_fps=source_fps,
+                source_frames=source_frame_count,
+            ),
+            duration_sec=2.0,
+            frame_count=60,
+            width=64,
+            height=64,
+        )
+    )
+
+    assert [frame_index for frame_index, _ in frames] == _face_sample_indexes(60)
+    assert len({hashlib.sha256(frame.tobytes()).digest() for _, frame in frames}) == 13
 
 
 def test_face_box_interpolation_uses_nearest_detection_across_sampled_miss():
