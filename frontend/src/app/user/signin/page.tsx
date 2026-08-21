@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { Lock, Mail, LogIn, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
@@ -9,10 +8,7 @@ import { cn } from "@/lib/utils";
 import { signin } from "@/lib/api-client/client";
 import { useRouter } from "next/navigation";
 import { setCookie } from "@/lib/cookies";
-import {
-  ACCESS_TOKEN_EXPIRE_MS,
-  REFRESH_TOKEN_EXPIRE_MS,
-} from "@/lib/api-client/server/response";
+import { ACCESS_TOKEN_EXPIRE_MS, REFRESH_TOKEN_EXPIRE_MS } from "@/constants";
 
 export default function LoginPage() {
   const [id, setId] = useState("");

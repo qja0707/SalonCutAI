@@ -12,6 +12,9 @@ from typing import BinaryIO
 
 import cv2
 import numpy as np
+import static_ffmpeg
+
+static_ffmpeg.add_paths()
 
 OUTPUT_WIDTH = 1080
 OUTPUT_HEIGHT = 1920

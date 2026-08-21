@@ -3,12 +3,13 @@ import { cookies } from "next/headers";
 
 import { NextResponse } from "next/server";
 import type { ErrorEnvelope } from "@/lib/api-client/types";
+import { ACCESS_TOKEN_EXPIRE_MS, REFRESH_TOKEN_EXPIRE_MS } from "@/constants";
 
-// 30분 = 30 * 60초 * 1000ms
-export const ACCESS_TOKEN_EXPIRE_MS = 30 * 60 * 1000;
+interface TokenRefresh {
+  access_token: string;
+  refresh_token: string;
+}
 
-// 7일 = 7일 * 24시간 * 60분 * 60초 * 1000ms
-export const REFRESH_TOKEN_EXPIRE_MS = 7 * 24 * 60 * 60 * 1000;
 interface TokenRefresh {
   access_token: string;
   refresh_token: string;
@@ -31,6 +32,18 @@ export function errorResponse(
 }
 
 const refreshPromises = new Map<string, Promise<TokenRefresh | null>>();
+
+type ProxyFailure = {
+  status: number;
+  code: string;
+  message: string;
+};
+
+const VIDEO_PROXY_FAILURE: ProxyFailure = {
+  status: 503,
+  code: "VIDEO_BACKEND_UNAVAILABLE",
+  message: "영상 처리 서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.",
+};
 
 // 백엔드에 토큰 재발급을 요청하는 함수
 async function fetchNewAccessToken(
@@ -58,6 +71,7 @@ async function fetchNewAccessToken(
 
 export async function proxyPendingResponse(
   req: Request,
+  failure?: ProxyFailure,
 ): Promise<NextResponse> {
   const backendUrl = process.env.BACKEND_API_URL;
 
@@ -78,15 +92,16 @@ export async function proxyPendingResponse(
   try {
     // GET/HEAD 요청은 body가 없어야 함
     const hasBody = !["GET", "HEAD"].includes(req.method);
-    const body = hasBody ? await req.blob() : undefined;
-
-    // 첫 번째 백엔드 요청 시도
-    let response = await fetch(targetUrl, {
+    const body = hasBody ? req.body : undefined;
+    const requestInit: RequestInit & { duplex?: "half" } = {
       method: req.method,
       headers,
       body,
-      cache: "no-store",
-    });
+      cache: "no-store", // 프록시 요청 캐시 방지
+    };
+    if (body) requestInit.duplex = "half";
+
+    let response = await fetch(targetUrl, requestInit);
 
     let detail: string | undefined;
     if (response.status === 401) {
@@ -163,7 +178,7 @@ export async function proxyPendingResponse(
     // 204·205·304 응답은 Fetch 표준상 body가 없어야 하므로 null로 전달
     const responseData = [204, 205, 304].includes(response.status)
       ? null
-      : await response.blob();
+      : response.body;
 
     return new NextResponse(responseData, {
       status: response.status,
@@ -174,11 +189,20 @@ export async function proxyPendingResponse(
     // 원인은 서버 로그에만 남긴다. 예외 문자열을 그대로 내보내면
     // `TypeError: fetch failed` 같은 영문이 사용자 화면까지 올라간다.
     console.error("[proxy] 백엔드 요청 실패", error);
+    const resolvedFailure = failure ?? {
+      status: 500,
+      code: "INTERNAL_ERROR",
+      message: "서버에 문제가 생겼어요. 잠시 후 다시 시도해주세요.",
+    };
     return errorResponse(
-      500,
-      "INTERNAL_ERROR",
-      "서버에 문제가 생겼어요. 잠시 후 다시 시도해주세요.",
+      resolvedFailure.status,
+      resolvedFailure.code,
+      resolvedFailure.message,
       true,
     );
   }
+}
+
+export function proxyVideoResponse(req: Request): Promise<NextResponse> {
+  return proxyPendingResponse(req, VIDEO_PROXY_FAILURE);
 }
