@@ -4,6 +4,11 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import type { ErrorEnvelope } from "@/lib/api-client/types";
 
+// 30분 = 30 * 60초 * 1000ms
+export const ACCESS_TOKEN_EXPIRE_MS = 30 * 60 * 1000;
+
+// 7일 = 7일 * 24시간 * 60분 * 60초 * 1000ms
+export const REFRESH_TOKEN_EXPIRE_MS = 7 * 24 * 60 * 60 * 1000;
 interface TokenRefresh {
   access_token: string;
   refresh_token: string;
@@ -102,7 +107,9 @@ export async function proxyPendingResponse(
         // 내가 첫 번째로 에러를 맞닥뜨린 요청이라면, 실제 백엔드에 리프레시 요청을 보냅니다.
         refreshPromise = fetchNewAccessToken(refreshToken).finally(() => {
           // 재발급이 끝나면 락(Lock)을 해제하기 위해 Map에서 삭제합니다.
-          refreshPromises.delete(refreshToken);
+          setTimeout(() => {
+            refreshPromises.delete(refreshToken);
+          }, 500);
         });
 
         // 생성한 프로미스를 Map에 등록하여 다른 동시 요청들이 공유할 수 있게 합니다.
@@ -119,8 +126,18 @@ export async function proxyPendingResponse(
       if (refreshResult) {
         const { access_token, refresh_token } = refreshResult;
 
-        cookieStore.set("accessToken", access_token);
-        cookieStore.set("refreshToken", refresh_token);
+        const isSecure = process.env.NODE_ENV === "production";
+
+        cookieStore.set("accessToken", access_token, {
+          maxAge: ACCESS_TOKEN_EXPIRE_MS / 1000,
+          secure: isSecure,
+          sameSite: isSecure ? "strict" : "lax",
+        });
+        cookieStore.set("refreshToken", refresh_token, {
+          maxAge: REFRESH_TOKEN_EXPIRE_MS / 1000,
+          secure: isSecure,
+          sameSite: isSecure ? "strict" : "lax",
+        });
 
         // 성공적으로 갱신된 새로운 토큰으로 헤더를 교체하고 백엔드에 '재요청'을 보냅니다.
         headers.set("Authorization", `Bearer ${access_token}`);
