@@ -91,14 +91,15 @@ for path in sorted(IMAGE_DIR.glob("*.jpg")):
 
 # --- 출력 ---
 
-print(f"\n{'file':<26}{'현재':>8}{'턱선위':>8}{'변화':>10}")
-for name, cur, up in rows:
-    if cur is None:
-        print(f"{name:<26}{'얼굴없음':>8}")
-        continue
-    change = "→ crop" if up <= 1.0 < cur else ""
-    print(f"{name:<26}{cur:>8.2f}{up:>8.2f}{change:>10}")
+THRESHOLD = 0.9
 
-cur_n = sum(1 for _, c, _ in rows if c is not None and c <= 1.0)
-up_n = sum(1 for _, _, u in rows if u is not None and u <= 1.0)
-print(f"\ncrop  현재 {cur_n} / {len(rows)}   턱선위 {up_n} / {len(rows)}")
+print(f"\n{'file':<26}{'머리전체':>10}{'판정':>10}")
+for name, cur, _ in rows:
+    if cur is None:
+        print(f"{name:<26}{'얼굴없음':>10}")
+        continue
+    mode = "crop" if cur <= THRESHOLD else "fit_pad"
+    print(f"{name:<26}{cur:>10.4f}{mode:>10}")
+
+n = sum(1 for _, c, _ in rows if c is not None and c <= THRESHOLD)
+print(f"\n임계값 {THRESHOLD}   crop {n} / {len(rows)}")

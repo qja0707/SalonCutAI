@@ -4,9 +4,8 @@
 확대·블러 배경으로 여백을 채운다. 단색은 경계가 보인다.
 
 머리 전체가 들어오는 것이 기준이다. 정수리 볼륨과 모발 끝이 잘리면
-시술 결과를 보여주는 사진으로서 의미가 없다. 다만 9:16 은 0.5625 로
-매우 길어 그 기준을 그대로 쓰면 긴 머리가 전부 crop 을 포기한다.
-그래서 9:16 만 턱선 위 두상으로 판정한다.
+시술 결과를 보여주는 사진으로서 의미가 없다. 9:16 은 0.5625 로 매우
+길어 잘림 위험이 크므로 CROP_HEAD_MARGIN 만큼 여유를 두고 판정한다.
 """
 
 import cv2
@@ -18,16 +17,11 @@ from PIL import Image, ImageDraw, ImageFilter
 from src.ai_engine.image_gen import loader, settings
 
 
-def get_head_box(img: Image.Image, pad_ratio: float = 0.0, above_chin: bool = False):
+def get_head_box(img: Image.Image, pad_ratio: float = 0.0):
     """머리 전체(헤어 + 얼굴) 바운딩 박스. 얼굴이 없으면 None.
 
     헤어 세그멘테이션과 얼굴 윤곽을 합친다. 헤어만 쓰면 이마가 빠지고
     얼굴만 쓰면 정수리가 빠진다.
-
-    above_chin 이면 턱선 아래를 버린다. 어깨로 흘러내린 모발까지 세면
-    박스가 프레임 폭을 채워 긴 머리가 전부 crop 을 포기하게 된다.
-    시술 결과 판단에 필요한 것은 정수리·앞머리·옆머리다.
-    얼굴 윤곽을 못 잡으면 턱선을 알 수 없어 전체를 그대로 쓴다.
     """
     arr = np.array(img.convert("RGB"))
     mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=arr)
@@ -46,8 +40,6 @@ def get_head_box(img: Image.Image, pad_ratio: float = 0.0, above_chin: bool = Fa
         mask = np.zeros((h, w), np.uint8)
         cv2.fillPoly(mask, [pts], 255)
         head |= mask > 127
-        if above_chin:
-            head[int(pts[:, 1].max()) :, :] = False
 
     ys, xs = np.where(head)
     if len(ys) == 0:
@@ -134,17 +126,12 @@ def to_ratio(img: Image.Image, ratio: str, head_box=None) -> tuple[Image.Image, 
     if hb is None:
         return _blurred_bg_pad(img, target), "fit_pad"
 
-    # 창 배치는 머리 전체로 하고, 판정만 비율에 따라 다르게 한다.
-    judge = hb
-    if ratio == "9:16":
-        judge = get_head_box(img, above_chin=True)
-        if judge is None:
-            return _blurred_bg_pad(img, target), "fit_pad"
-
     hx0, hy0, hx1, hy1 = hb
 
     # 가로가 넘치면 옆머리가 잘린다. crop 을 포기한다.
-    if judge[2] - judge[0] > cw:
+    # 9:16 은 잘림 위험이 커서 창을 그대로 쓰지 않고 여유를 둔다.
+    limit = cw * settings.CROP_HEAD_MARGIN if ratio == "9:16" else cw
+    if hx1 - hx0 > limit:
         return _blurred_bg_pad(img, target), "fit_pad"
 
     cx = (hx0 + hx1) // 2
