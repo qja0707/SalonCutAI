@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# 화면 오류 수집 로그 (서버 런타임 생성, 7일 자동 삭제)
+/logs/
