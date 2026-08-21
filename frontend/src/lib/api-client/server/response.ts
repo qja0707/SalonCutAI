@@ -35,7 +35,7 @@ const VIDEO_PROXY_FAILURE: ProxyFailure = {
 export async function proxyPendingResponse(
   req: Request,
   failure?: ProxyFailure,
-): Promise<Response> {
+): Promise<NextResponse> {
   const backendUrl = process.env.BACKEND_API_URL;
 
   const { pathname, search } = new URL(req.url);
@@ -70,7 +70,7 @@ export async function proxyPendingResponse(
       ? null
       : response.body;
 
-    return new Response(responseData, {
+    return new NextResponse(responseData, {
       status: response.status,
       statusText: response.statusText,
       headers: response.headers,
@@ -93,6 +93,6 @@ export async function proxyPendingResponse(
   }
 }
 
-export function proxyVideoResponse(req: Request): Promise<Response> {
+export function proxyVideoResponse(req: Request): Promise<NextResponse> {
   return proxyPendingResponse(req, VIDEO_PROXY_FAILURE);
 }
