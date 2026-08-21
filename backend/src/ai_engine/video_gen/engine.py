@@ -6,6 +6,7 @@ import tempfile
 from bisect import bisect_left
 from collections.abc import Callable, Generator, Iterable
 from dataclasses import dataclass
+from math import ceil
 from pathlib import Path
 from typing import BinaryIO
 
@@ -104,13 +105,22 @@ def ordered_clips(clips: Iterable[ClipInput]) -> list[ClipInput]:
     return sorted(clips, key=lambda clip: ROLE_ORDER.get(clip.role, len(ROLE_ORDER)))
 
 
-def segment_start(duration_sec: float, selection: str) -> float:
+def segment_start(
+    duration_sec: float,
+    selection: str,
+    *,
+    source_fps: float | None = None,
+    source_frames: int | None = None,
+) -> float:
     if selection not in SELECTIONS:
         raise ValueError(f"unsupported selection: {selection}")
     remaining = max(0.0, duration_sec - CLIP_SECONDS)
     if selection == "center":
         return remaining / 2
     if selection == "end":
+        if source_fps and source_fps > 0 and source_frames and source_frames > 0:
+            window_frames = min(source_frames, ceil(CLIP_SECONDS * source_fps))
+            return max(0.0, (source_frames - window_frames) / source_fps)
         return remaining
     return 0.0
 
@@ -1213,12 +1223,19 @@ def process_shorts(
         capture = cv2.VideoCapture(str(clip.path))
         try:
             duration = _duration(capture)
+            source_fps = capture.get(cv2.CAP_PROP_FPS)
+            source_frames = round(capture.get(cv2.CAP_PROP_FRAME_COUNT))
             source_width = round(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
             source_height = round(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
             if source_width <= 0 or source_height <= 0:
                 raise ValueError("video dimensions could not be read")
             segment_duration = min(CLIP_SECONDS, duration)
-            start = segment_start(duration, clip.selection)
+            start = segment_start(
+                duration,
+                clip.selection,
+                source_fps=source_fps,
+                source_frames=source_frames,
+            )
             source_frame_count = max(1, round(segment_duration * OUTPUT_FPS))
         finally:
             capture.release()
