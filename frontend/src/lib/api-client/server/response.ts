@@ -121,7 +121,7 @@ export async function proxyPendingResponse(
 
     // 백엔드에서 401 Unauthorized (토큰 만료)가 내려온 경우
     if (detail === "토큰이 만료되었습니다." && refreshToken) {
-      if (isStream) {
+      if (isStream && hasBody) {
         console.warn(
           `[프록시] 대용량 스트림 요청 중 토큰 만료 발생. 내부 재시도가 불가능하므로 401을 그대로 반환합니다: ${pathname}`,
         );
