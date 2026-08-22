@@ -92,14 +92,19 @@ export async function proxyPendingResponse(
   try {
     // GET/HEAD 요청은 body가 없어야 함
     const hasBody = !["GET", "HEAD"].includes(req.method);
-    const body = hasBody ? req.body : undefined;
+    let requestBody = undefined;
+
+    if (hasBody) {
+      requestBody = await req.arrayBuffer(); // req.body 스트림을 읽어 메모리에 고정
+    }
+
     const requestInit: RequestInit & { duplex?: "half" } = {
       method: req.method,
       headers,
-      body,
+      body: requestBody,
       cache: "no-store", // 프록시 요청 캐시 방지
     };
-    if (body) requestInit.duplex = "half";
+    if (hasBody) requestInit.duplex = "half";
 
     let response = await fetch(targetUrl, requestInit);
 
@@ -160,7 +165,7 @@ export async function proxyPendingResponse(
         response = await fetch(targetUrl, {
           method: req.method,
           headers,
-          body,
+          body: requestBody,
           cache: "no-store",
         });
       } else {
