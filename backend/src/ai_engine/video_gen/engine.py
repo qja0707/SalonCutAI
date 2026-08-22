@@ -12,6 +12,7 @@ from typing import BinaryIO
 
 import cv2
 import numpy as np
+import static_ffmpeg
 
 OUTPUT_WIDTH = 1080
 OUTPUT_HEIGHT = 1920
@@ -1209,8 +1210,14 @@ def process_shorts(
 ) -> VideoResult:
     """Create one silent H.264 9:16 video using only CPU processing."""
     ffmpeg = shutil.which("ffmpeg")
+
     if not ffmpeg:
-        raise RuntimeError("ffmpeg is not installed")
+        static_ffmpeg.add_paths()
+
+        ffmpeg = shutil.which("ffmpeg")
+
+        if not ffmpeg:
+            raise RuntimeError("ffmpeg is not installed")
 
     clips = ordered_clips(clips)
     if not MIN_CLIPS <= len(clips) <= MAX_CLIPS:
