@@ -10,11 +10,6 @@ interface TokenRefresh {
   refresh_token: string;
 }
 
-interface TokenRefresh {
-  access_token: string;
-  refresh_token: string;
-}
-
 export function requestId(): string {
   return `req-${crypto.randomUUID()}`;
 }
@@ -72,6 +67,7 @@ async function fetchNewAccessToken(
 export async function proxyPendingResponse(
   req: Request,
   failure?: ProxyFailure,
+  isStream = false,
 ): Promise<NextResponse> {
   const backendUrl = process.env.BACKEND_API_URL;
 
@@ -95,7 +91,11 @@ export async function proxyPendingResponse(
     let requestBody = undefined;
 
     if (hasBody) {
-      requestBody = await req.arrayBuffer(); // req.body 스트림을 읽어 메모리에 고정
+      if (isStream) {
+        requestBody = req.body;
+      } else {
+        requestBody = await req.arrayBuffer(); // req.body 스트림을 읽어 메모리에 고정
+      }
     }
 
     const requestInit: RequestInit & { duplex?: "half" } = {
@@ -113,13 +113,24 @@ export async function proxyPendingResponse(
       try {
         const errorData = await response.clone().json();
         detail = errorData?.detail;
-      } catch {
+      } catch (e) {
         // json 파싱 실패 시 무시
+        console.debug("[프록시] 401 에러 바디 파싱 실패:", e);
       }
     }
 
     // 백엔드에서 401 Unauthorized (토큰 만료)가 내려온 경우
     if (detail === "토큰이 만료되었습니다." && refreshToken) {
+      if (isStream) {
+        console.warn(
+          `[프록시] 대용량 스트림 요청 중 토큰 만료 발생. 내부 재시도가 불가능하므로 401을 그대로 반환합니다: ${pathname}`,
+        );
+        return errorResponse(
+          401,
+          "UNAUTHORIZED",
+          "인증 세션이 만료되었습니다. 다시 시도해주세요.",
+        );
+      }
       // 다른 동시 요청이 이미 재발급을 진행 중인지 확인합니다.
       let refreshPromise = refreshPromises.get(refreshToken);
 
@@ -209,5 +220,5 @@ export async function proxyPendingResponse(
 }
 
 export function proxyVideoResponse(req: Request): Promise<NextResponse> {
-  return proxyPendingResponse(req, VIDEO_PROXY_FAILURE);
+  return proxyPendingResponse(req, VIDEO_PROXY_FAILURE, true);
 }
