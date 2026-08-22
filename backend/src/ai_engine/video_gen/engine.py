@@ -33,6 +33,7 @@ SELFIE_SEGMENTER_MODEL_PATH = (
 FACE_SKIN_CLASS = 3
 ROLE_ORDER = {"before": 0, "process": 1, "detail": 2, "after": 3}
 SELECTIONS = {"start", "center", "end"}
+AUDIO_MODES = {"mute", "original", "tts"}
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,10 @@ class ClipInput:
     role: str
     selection: str
     caption: str
+    start_sec: float | None = None
+    end_sec: float | None = None
+    clip_order: int | None = None
+    keep_audio: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -49,6 +54,7 @@ class VideoResult:
     width: int
     height: int
     faces_blurred: int
+    audio_included: bool = False
 
 
 @dataclass(frozen=True)
@@ -99,10 +105,19 @@ class ClipPlan:
     source_height: int
     track: FaceTrack
     geometry: RenderGeometry
+    has_audio: bool = False
 
 
 def ordered_clips(clips: Iterable[ClipInput]) -> list[ClipInput]:
     """Keep upload order inside the same role and arrange the story roles."""
+    clips = list(clips)
+    explicit_orders = [clip.clip_order for clip in clips if clip.clip_order is not None]
+    if explicit_orders:
+        if len(explicit_orders) != len(clips):
+            raise ValueError("clip_order must be set for every clip or omitted")
+        if len(set(explicit_orders)) != len(explicit_orders):
+            raise ValueError("clip_order values must be unique")
+        return sorted(clips, key=lambda clip: clip.clip_order or 0)
     return sorted(clips, key=lambda clip: ROLE_ORDER.get(clip.role, len(ROLE_ORDER)))
 
 
@@ -311,7 +326,9 @@ def _font_path() -> Path | None:
     return next((path for path in candidates if path.exists()), None)
 
 
-def _wrap_caption(caption: str, line_length: int = 17) -> str:
+def _wrap_caption(
+    caption: str, line_length: int = 17, *, max_lines: int | None = None
+) -> str:
     caption = " ".join(caption.strip().split())[:80]
     lines: list[str] = []
     current = ""
@@ -327,6 +344,9 @@ def _wrap_caption(caption: str, line_length: int = 17) -> str:
             current = current[line_length:]
     if current:
         lines.append(current)
+    if max_lines is not None and len(lines) > max_lines:
+        lines = lines[:max_lines]
+        lines[-1] = f"{lines[-1][: max(1, line_length - 1)].rstrip()}…"
     return "\n".join(lines)
 
 
@@ -341,8 +361,8 @@ def _caption_filter(caption_path: Path) -> str:
     return (
         f"drawtext=fontfile='{_filter_path(font_path)}':"
         f"textfile='{_filter_path(caption_path)}':expansion=none:"
-        "fontcolor=white:fontsize=52:line_spacing=16:"
-        "box=1:boxcolor=black@0.67:boxborderw=24:"
+        "fontcolor=white:fontsize=58:line_spacing=14:"
+        "borderw=5:bordercolor=black@0.95:shadowx=2:shadowy=2:"
         "x=(w-text_w)/2:y=h*0.76-(text_h/2):fix_bounds=1"
     )
 
@@ -353,6 +373,34 @@ def _duration(capture: cv2.VideoCapture) -> float:
     if fps <= 0 or frames <= 0:
         raise ValueError("video duration could not be read")
     return frames / fps
+
+
+def _has_audio_stream(path: Path) -> bool:
+    ffprobe = shutil.which("ffprobe")
+    if not ffprobe:
+        raise RuntimeError("ffprobe is not installed")
+    completed = subprocess.run(
+        [
+            ffprobe,
+            "-v",
+            "error",
+            "-select_streams",
+            "a:0",
+            "-show_entries",
+            "stream=index",
+            "-of",
+            "csv=p=0",
+            str(path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise ValueError(
+            f"video audio stream could not be read: {completed.stderr.strip()}"
+        )
+    return bool(completed.stdout.strip())
 
 
 def _decoder_command(
@@ -960,11 +1008,63 @@ def _clip_filter(
     return chains
 
 
+def _audio_filter_chains(
+    plans: list[ClipPlan],
+    audio_mode: str,
+    tts_input_index: int | None,
+) -> list[str]:
+    if audio_mode == "mute":
+        return []
+    if audio_mode not in AUDIO_MODES:
+        raise ValueError(f"unsupported audio mode: {audio_mode}")
+    if audio_mode == "tts" and tts_input_index is None:
+        raise ValueError("tts audio input is required for tts mode")
+
+    chains: list[str] = []
+    outputs: list[str] = []
+    offset_sec = 0.0
+    for index, plan in enumerate(plans):
+        target_sec = plan.frame_count / OUTPUT_FPS
+        use_original = plan.has_audio and (
+            (audio_mode == "original" and plan.clip.keep_audio is not False)
+            or (audio_mode == "tts" and plan.clip.keep_audio is True)
+        )
+        if use_original:
+            source = f"[{index}:a]"
+            trim = ""
+        elif audio_mode == "tts":
+            source = f"[{tts_input_index}:a]"
+            trim = f"atrim=start={offset_sec:.6f}:end={offset_sec + target_sec:.6f},"
+        else:
+            source = "anullsrc=r=48000:cl=stereo"
+            trim = ""
+
+        if source.startswith("["):
+            chain = source
+        else:
+            chain = source + ","
+        chain += (
+            trim
+            + "aresample=48000,"
+            + "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,"
+            + f"apad=pad_dur={target_sec:.6f},atrim=duration={target_sec:.6f},"
+            + f"asetpts=PTS-STARTPTS[audio{index}]"
+        )
+        chains.append(chain)
+        outputs.append(f"[audio{index}]")
+        offset_sec += target_sec
+    chains.append("".join(outputs) + f"concat=n={len(outputs)}:v=0:a=1[audio]")
+    return chains
+
+
 def _filter_graph(
     plans: list[ClipPlan],
     blur_faces: bool,
     caption_paths: list[Path | None] | None = None,
     mask_input_indexes: list[int | None] | None = None,
+    *,
+    audio_mode: str = "mute",
+    tts_input_index: int | None = None,
 ) -> str:
     if not plans:
         raise ValueError("at least one clip plan is required")
@@ -992,6 +1092,7 @@ def _filter_graph(
         + f"trim=end_frame={sum(plan.frame_count for plan in plans)},"
         + "setpts=PTS-STARTPTS[video]"
     )
+    chains.extend(_audio_filter_chains(plans, audio_mode, tts_input_index))
     return ";\n".join(chains)
 
 
@@ -1035,7 +1136,7 @@ def _graph_decoder_command(
 def _write_caption_files(plans: list[ClipPlan], output_path: Path) -> list[Path | None]:
     paths: list[Path | None] = []
     for index, plan in enumerate(plans):
-        caption = _wrap_caption(plan.clip.caption)
+        caption = _wrap_caption(plan.clip.caption, line_length=20, max_lines=2)
         if not caption:
             paths.append(None)
             continue
@@ -1052,6 +1153,9 @@ def _render_command(
     caption_paths: list[Path | None],
     output_path: Path,
     mask_paths: list[Path | None] | None = None,
+    *,
+    audio_mode: str = "mute",
+    tts_audio_path: Path | None = None,
 ) -> list[str]:
     command = [ffmpeg, "-hide_banner", "-loglevel", "error", "-y"]
     for plan in plans:
@@ -1078,13 +1182,33 @@ def _render_command(
         command.extend(["-i", str(mask_path)])
         mask_input_indexes.append(next_input_index)
         next_input_index += 1
+    tts_input_index: int | None = None
+    if audio_mode == "tts":
+        if tts_audio_path is None:
+            raise ValueError("tts_audio_path is required for tts mode")
+        command.extend(["-i", str(tts_audio_path)])
+        tts_input_index = next_input_index
     command.extend(
         [
             "-filter_complex",
-            _filter_graph(plans, blur_faces, caption_paths, mask_input_indexes),
+            _filter_graph(
+                plans,
+                blur_faces,
+                caption_paths,
+                mask_input_indexes,
+                audio_mode=audio_mode,
+                tts_input_index=tts_input_index,
+            ),
             "-map",
             "[video]",
-            "-an",
+        ]
+    )
+    if audio_mode == "mute":
+        command.append("-an")
+    else:
+        command.extend(["-map", "[audio]"])
+    command.extend(
+        [
             "-frames:v",
             str(sum(plan.frame_count for plan in plans)),
             "-c:v",
@@ -1095,11 +1219,11 @@ def _render_command(
             "23",
             "-pix_fmt",
             "yuv420p",
-            "-movflags",
-            "+faststart",
-            str(output_path),
         ]
     )
+    if audio_mode != "mute":
+        command.extend(["-c:a", "aac", "-b:a", "192k"])
+    command.extend(["-movflags", "+faststart", str(output_path)])
     return command
 
 
@@ -1207,8 +1331,10 @@ def process_shorts(
     *,
     blur_faces: bool = True,
     progress: Callable[[int], None] | None = None,
+    audio_mode: str = "mute",
+    tts_audio_path: Path | None = None,
 ) -> VideoResult:
-    """Create one silent H.264 9:16 video using only CPU processing."""
+    """Create one H.264 9:16 edit."""
     ffmpeg = shutil.which("ffmpeg")
 
     if not ffmpeg:
@@ -1218,6 +1344,10 @@ def process_shorts(
 
         if not ffmpeg:
             raise RuntimeError("ffmpeg is not installed")
+    if audio_mode not in AUDIO_MODES:
+        raise ValueError(f"unsupported audio mode: {audio_mode}")
+    if audio_mode == "tts" and tts_audio_path is None:
+        raise ValueError("tts_audio_path is required for tts mode")
 
     clips = ordered_clips(clips)
     if not MIN_CLIPS <= len(clips) <= MAX_CLIPS:
@@ -1236,14 +1366,31 @@ def process_shorts(
             source_height = round(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
             if source_width <= 0 or source_height <= 0:
                 raise ValueError("video dimensions could not be read")
-            segment_duration = min(CLIP_SECONDS, duration)
-            start = segment_start(
-                duration,
-                clip.selection,
-                source_fps=source_fps,
-                source_frames=source_frames,
-            )
+            if (clip.start_sec is None) != (clip.end_sec is None):
+                raise ValueError("start_sec and end_sec must be provided together")
+            if clip.start_sec is not None and clip.end_sec is not None:
+                if clip.start_sec < 0 or clip.end_sec <= clip.start_sec:
+                    raise ValueError("clip range must satisfy 0 <= start_sec < end_sec")
+                frame_tolerance = 1 / source_fps if source_fps > 0 else 0
+                if clip.end_sec > duration + frame_tolerance:
+                    raise ValueError("clip range exceeds source duration")
+                if clip.start_sec >= duration:
+                    raise ValueError("clip range starts after source duration")
+                start = clip.start_sec
+                target_duration = min(clip.end_sec, duration) - start
+                segment_duration = target_duration
+            else:
+                target_duration = CLIP_SECONDS
+                segment_duration = min(target_duration, duration)
+                start = segment_start(
+                    duration,
+                    clip.selection,
+                    source_fps=source_fps,
+                    source_frames=source_frames,
+                )
+            target_frame_count = max(1, round(target_duration * OUTPUT_FPS))
             source_frame_count = max(1, round(segment_duration * OUTPUT_FPS))
+            has_audio = _has_audio_stream(clip.path) if audio_mode != "mute" else False
         finally:
             capture.release()
 
@@ -1257,17 +1404,18 @@ def process_shorts(
             source_height,
             detector,
         )
-        track = _pad_face_track(track, round(CLIP_SECONDS * OUTPUT_FPS))
+        track = _pad_face_track(track, target_frame_count)
         plans.append(
             ClipPlan(
                 clip=clip,
                 start_sec=start,
                 segment_duration_sec=segment_duration,
-                frame_count=round(CLIP_SECONDS * OUTPUT_FPS),
+                frame_count=target_frame_count,
                 source_width=source_width,
                 source_height=source_height,
                 track=track,
                 geometry=_render_geometry(track, source_width, source_height),
+                has_audio=has_audio,
             )
         )
         if progress:
@@ -1288,7 +1436,14 @@ def process_shorts(
                 _write_face_skin_mask_video(ffmpeg, plan, mask_path, segmenter)
                 mask_paths[index] = mask_path
         command = _render_command(
-            ffmpeg, plans, blur_faces, caption_paths, output_path, mask_paths
+            ffmpeg,
+            plans,
+            blur_faces,
+            caption_paths,
+            output_path,
+            mask_paths,
+            audio_mode=audio_mode,
+            tts_audio_path=tts_audio_path,
         )
         completed = subprocess.run(command, capture_output=True, text=True, check=False)
         if completed.returncode != 0:
@@ -1318,4 +1473,5 @@ def process_shorts(
         faces_blurred=(
             sum(sum(plan.geometry.face_present) for plan in plans) if blur_faces else 0
         ),
+        audio_included=audio_mode != "mute",
     )

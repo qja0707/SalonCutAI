@@ -3,6 +3,7 @@ import shutil
 import subprocess
 from io import BytesIO
 from pathlib import Path
+from types import SimpleNamespace
 
 import cv2
 import numpy as np
@@ -18,6 +19,7 @@ from src.ai_engine.video_gen.engine import (
     FaceTrack,
     NormalizedFaceBox,
     YuNetFaceDetector,
+    _audio_filter_chains,
     _caption_filter,
     _decoder_command,
     _face_sample_indexes,
@@ -39,6 +41,7 @@ from src.ai_engine.video_gen.engine import (
     _write_caption_files,
     center_crop,
     ordered_clips,
+    process_shorts,
     segment_start,
 )
 
@@ -78,6 +81,21 @@ def test_ordered_clips_preserves_upload_order_inside_role(tmp_path):
         "process-2.mp4",
         "after.mp4",
     ]
+
+
+def test_ordered_clips_uses_explicit_order_only_when_all_clips_set_it(tmp_path):
+    clips = [
+        ClipInput(tmp_path / "before.mp4", "before", "center", "", clip_order=2),
+        ClipInput(tmp_path / "after.mp4", "after", "center", "", clip_order=0),
+        ClipInput(tmp_path / "detail.mp4", "detail", "center", "", clip_order=1),
+    ]
+    assert [clip.path.name for clip in ordered_clips(clips)] == [
+        "after.mp4",
+        "detail.mp4",
+        "before.mp4",
+    ]
+    with pytest.raises(ValueError, match="every clip"):
+        ordered_clips([clips[0], ClipInput(tmp_path / "plain.mp4", "after", "end", "")])
 
 
 def test_center_crop_returns_vertical_canvas():
@@ -497,7 +515,9 @@ def test_korean_caption_is_written_as_utf8_and_added_to_ffmpeg_graph(tmp_path):
 
     paths = _write_caption_files([plan], output)
     assert paths[0] is not None
-    assert paths[0].read_text(encoding="utf-8") == _wrap_caption(plan.clip.caption)
+    assert paths[0].read_text(encoding="utf-8") == _wrap_caption(
+        plan.clip.caption, line_length=20, max_lines=2
+    )
 
     graph = _filter_graph([plan], blur_faces=True, caption_paths=paths)
     assert "drawtext=fontfile=" in graph
@@ -507,6 +527,82 @@ def test_korean_caption_is_written_as_utf8_and_added_to_ffmpeg_graph(tmp_path):
     assert _wrap_caption("얼굴형에 어울리는 방향으로 진행합니다") == (
         "얼굴형에 어울리는 방향으로\n진행합니다"
     )
+
+
+def test_default_caption_is_two_lines_without_black_box(tmp_path):
+    wrapped = _wrap_caption("가" * 80, line_length=20, max_lines=2)
+    assert len(wrapped.splitlines()) == 2
+    assert wrapped.endswith("…")
+
+    caption_path = tmp_path / "caption.txt"
+    caption_path.write_text(wrapped, encoding="utf-8")
+    caption_filter = _caption_filter(caption_path)
+    assert "y=h*0.76" in caption_filter
+    assert "borderw=5" in caption_filter
+    assert "box=1" not in caption_filter
+
+
+def test_audio_filters_cover_keep_audio_matrix_and_do_not_overlap_tts(tmp_path):
+    track = FaceTrack((None,) * 30, sampled_frames=7, detected_samples=0)
+    original = ClipPlan(
+        clip=ClipInput(
+            tmp_path / "original.mp4",
+            "before",
+            "center",
+            "",
+            keep_audio=True,
+        ),
+        start_sec=0.0,
+        segment_duration_sec=1.0,
+        frame_count=30,
+        source_width=1080,
+        source_height=1920,
+        track=track,
+        geometry=_render_geometry(track, 1080, 1920),
+        has_audio=True,
+    )
+    muted = ClipPlan(
+        clip=ClipInput(
+            tmp_path / "muted.mp4",
+            "process",
+            "center",
+            "",
+            keep_audio=False,
+        ),
+        start_sec=0.0,
+        segment_duration_sec=1.0,
+        frame_count=30,
+        source_width=1080,
+        source_height=1920,
+        track=track,
+        geometry=_render_geometry(track, 1080, 1920),
+        has_audio=True,
+    )
+    silent = ClipPlan(
+        clip=ClipInput(tmp_path / "silent.mp4", "after", "center", ""),
+        start_sec=0.0,
+        segment_duration_sec=1.0,
+        frame_count=30,
+        source_width=1080,
+        source_height=1920,
+        track=track,
+        geometry=_render_geometry(track, 1080, 1920),
+        has_audio=False,
+    )
+
+    original_chains = _audio_filter_chains([original, muted, silent], "original", None)
+    original_graph = ";".join(original_chains)
+    assert "[0:a]aresample=48000" in original_graph
+    assert original_chains[1].startswith("anullsrc=r=48000:cl=stereo")
+    assert "atrim=duration=1.000000" in original_chains[1]
+    assert original_chains[2].startswith("anullsrc=r=48000:cl=stereo")
+    assert "concat=n=3:v=0:a=1[audio]" in original_graph
+
+    tts_graph = ";".join(_audio_filter_chains([original, muted, silent], "tts", 3))
+    assert "[0:a]aresample=48000" in tts_graph
+    assert "[3:a]atrim=start=1.000000:end=2.000000" in tts_graph
+    assert "[3:a]atrim=start=2.000000:end=3.000000" in tts_graph
+    assert "[3:a]atrim=start=0.000000:end=1.000000" not in tts_graph
 
 
 def test_render_command_encodes_filter_graph_without_python_rawvideo_pipe(tmp_path):
@@ -585,3 +681,209 @@ def test_render_command_uses_mask_input_and_alphamerge(tmp_path):
     assert str(mask) in command
     assert "[1:v]fps=30" in graph
     assert "alphamerge" in graph
+
+
+def test_explicit_range_takes_precedence_over_selection(monkeypatch, tmp_path):
+    class FakeCapture:
+        def __init__(self, _path):
+            self.values = {
+                cv2.CAP_PROP_FPS: 30,
+                cv2.CAP_PROP_FRAME_COUNT: 30,
+                cv2.CAP_PROP_FRAME_WIDTH: 720,
+                cv2.CAP_PROP_FRAME_HEIGHT: 1280,
+            }
+
+        def get(self, key):
+            return self.values[key]
+
+        def release(self):
+            return None
+
+    captured_commands = []
+
+    def fake_track(
+        _ffmpeg,
+        _path,
+        _start,
+        _duration,
+        frame_count,
+        _width,
+        _height,
+        _detector,
+    ):
+        return FaceTrack((None,) * frame_count, 1, 0)
+
+    def fake_run(command, **_kwargs):
+        captured_commands.append(command)
+        return SimpleNamespace(returncode=0, stderr="")
+
+    monkeypatch.setattr(video_engine.cv2, "VideoCapture", FakeCapture)
+    monkeypatch.setattr(video_engine, "YuNetFaceDetector", lambda: object())
+    monkeypatch.setattr(video_engine, "_track_primary_face", fake_track)
+    monkeypatch.setattr(video_engine.subprocess, "run", fake_run)
+
+    ranged = [
+        ClipInput(
+            tmp_path / "range-1.mp4",
+            "before",
+            "end",
+            "",
+            start_sec=0.1,
+            end_sec=0.6,
+        ),
+        ClipInput(
+            tmp_path / "range-2.mp4",
+            "after",
+            "start",
+            "",
+            start_sec=0.2,
+            end_sec=0.9,
+        ),
+    ]
+    ranged_result = process_shorts(
+        ranged,
+        tmp_path / "ranged.mp4",
+        blur_faces=False,
+    )
+    assert ranged_result.duration_sec == 1.2
+    ranged_command = captured_commands[-1]
+    assert [
+        ranged_command[index + 1]
+        for index, value in enumerate(ranged_command)
+        if value == "-ss"
+    ] == ["0.100000", "0.200000"]
+    assert ranged_command[ranged_command.index("-frames:v") + 1] == "36"
+
+
+def test_rendered_original_and_tts_audio_stay_synced(monkeypatch, tmp_path):
+    ffmpeg = shutil.which("ffmpeg")
+    ffprobe = shutil.which("ffprobe")
+    if ffmpeg is None or ffprobe is None:
+        pytest.skip("ffmpeg and ffprobe are required")
+
+    monkeypatch.setattr(video_engine, "OUTPUT_WIDTH", 64)
+    monkeypatch.setattr(video_engine, "OUTPUT_HEIGHT", 112)
+    monkeypatch.setattr(video_engine, "OUTPUT_FPS", 10)
+
+    with_audio = tmp_path / "with-audio.mp4"
+    silent = tmp_path / "silent.mp4"
+    tts = tmp_path / "tts.wav"
+    subprocess.run(
+        [
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=red:s=64x112:r=10",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:sample_rate=48000",
+            "-t",
+            "1",
+            "-c:v",
+            "libx264",
+            "-c:a",
+            "aac",
+            "-shortest",
+            str(with_audio),
+        ],
+        check=True,
+    )
+    subprocess.run(
+        [
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=blue:s=64x112:r=10",
+            "-t",
+            "1",
+            "-c:v",
+            "libx264",
+            str(silent),
+        ],
+        check=True,
+    )
+    subprocess.run(
+        [
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=880:sample_rate=48000",
+            "-t",
+            "2",
+            str(tts),
+        ],
+        check=True,
+    )
+
+    track = FaceTrack((None,) * 10, sampled_frames=3, detected_samples=0)
+    plans = []
+    for index, (path, has_audio) in enumerate(((with_audio, True), (silent, False))):
+        clip = ClipInput(
+            path,
+            "before" if index == 0 else "after",
+            "center",
+            "",
+            keep_audio=index == 0,
+        )
+        plans.append(
+            ClipPlan(
+                clip=clip,
+                start_sec=0.0,
+                segment_duration_sec=1.0,
+                frame_count=10,
+                source_width=64,
+                source_height=112,
+                track=track,
+                geometry=_render_geometry(track, 64, 112),
+                has_audio=has_audio,
+            )
+        )
+
+    for audio_mode, tts_path in (("original", None), ("tts", tts)):
+        output = tmp_path / f"{audio_mode}.mp4"
+        command = _render_command(
+            ffmpeg,
+            plans,
+            False,
+            [None, None],
+            output,
+            audio_mode=audio_mode,
+            tts_audio_path=tts_path,
+        )
+        subprocess.run(command, capture_output=True, text=True, check=True)
+        completed = subprocess.run(
+            [
+                ffprobe,
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration:stream=codec_type",
+                "-of",
+                "default=noprint_wrappers=1",
+                str(output),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert "codec_type=video" in completed.stdout
+        assert "codec_type=audio" in completed.stdout
+        duration_line = next(
+            line
+            for line in completed.stdout.splitlines()
+            if line.startswith("duration=")
+        )
+        assert float(duration_line.split("=", 1)[1]) == pytest.approx(2.0, abs=0.1)
