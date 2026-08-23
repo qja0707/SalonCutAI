@@ -219,6 +219,9 @@ export async function proxyPendingResponse(
   }
 }
 
-export function proxyVideoResponse(req: Request): Promise<NextResponse> {
-  return proxyPendingResponse(req, VIDEO_PROXY_FAILURE, true);
+export function proxyVideoResponse(
+  req: Request,
+  isStream = true,
+): Promise<NextResponse> {
+  return proxyPendingResponse(req, VIDEO_PROXY_FAILURE, isStream);
 }
