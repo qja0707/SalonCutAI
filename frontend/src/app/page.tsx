@@ -77,10 +77,16 @@ function Steps({ items }: { items: string[] }) {
 export default function Home() {
   return (
     <div className="mx-auto max-w-6xl px-6 pb-20">
-      {/* 히어로 */}
+      {/* 01 헤어 모델 만들기 — 히어로와 통합(실측: 정적 사진 히어로 + 아래 01 슬라이더가
+          같은 사진 짝을 두 번 보여주는 중복이었다). 히어로의 카피·체험 버튼은 그대로
+          맨 위로 올리고, 01의 소제목·스텝 리스트·중복 CTA는 걷어냈다. */}
       <section className="grid items-center gap-10 py-12 lg:grid-cols-[1.05fr_.95fr] lg:gap-14 lg:py-20">
         <div>
-          <h1 className={`${HEADING} text-3xl leading-snug font-semibold text-balance md:text-4xl lg:text-[2.6rem]`}>
+          <p className="flex items-center gap-2 text-xs font-medium tracking-widest text-muted-foreground">
+            <Scissors className="h-3.5 w-3.5" />
+            01 · 헤어 모델 만들기
+          </p>
+          <h1 className={`${HEADING} mt-2 text-3xl leading-snug font-semibold text-balance md:text-4xl lg:text-[2.6rem]`}>
             마케팅에 지친 우리,
             <br />
             <span className="text-primary">오늘 시술한 내 작품이 모델이 된다면?</span>
@@ -99,9 +105,8 @@ export default function Home() {
         </div>
 
         <div className="relative mx-auto w-full max-w-sm shadow-xl">
-          {/* 01번 섹션과 같은 컴포넌트 — 정적 사진 대신 자동으로 좌우 스윕해서, 스크롤
-              안 하는 방문자도 "얼굴만 바뀌고 머리는 그대로"를 바로 본다. 아래 01에서
-              드래그로 다시 보여주니 여기선 중복 정적 이미지를 없앴다. */}
+          {/* 정적 사진 대신 자동으로 좌우 스윕해서, 스크롤 안 하는 방문자도 "얼굴만
+              바뀌고 머리는 그대로"를 바로 본다. */}
           <BeforeAfterSlider
             beforeUrl="/sample-assets/landing-hero-before.jpg"
             afterUrl="/sample-assets/landing-hero-swap.jpg"
@@ -124,40 +129,6 @@ export default function Home() {
             <b className="font-semibold text-foreground">{head}</b> · {tail}
           </p>
         ))}
-      </section>
-
-      {/* 01 얼굴 교체 */}
-      <section className="grid items-center gap-8 py-14 lg:grid-cols-2 lg:gap-14 lg:py-20">
-        <div>
-          <ChapterHeading num="01 · 헤어 모델 만들기" icon={Scissors}>
-            모델 섭외 없이,
-            <br />
-            시술 사진이 홍보 이미지로
-          </ChapterHeading>
-          <p className="mt-4 text-sm leading-7 text-muted-foreground">
-            얼굴은 AI 모델로 교체, 공들인 머리 모양·색은 그대로 정확하게.
-            32가지 AI 모델 중 골라 몇 초 만에 자연스럽게 완성됩니다.
-          </p>
-          <Steps items={[
-            "시술 사진 올리기",
-            "AI 모델 고르기",
-            "SNS 3규격으로 저장",
-          ]} />
-          <Link href="/face-swap" className={buttonVariants({ variant: "outline", className: "mt-6" })}>
-            헤어 모델 체험하기
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-
-        {/* 진짜로 움직이는 확인 슬라이더 — 얼굴 교체 화면과 같은 컴포넌트, 위 사진 짝 사용 */}
-        <div className="mx-auto w-full max-w-sm shadow-lg">
-          <BeforeAfterSlider
-            beforeUrl="/sample-assets/landing-hero-before.jpg"
-            afterUrl="/sample-assets/landing-hero-swap.jpg"
-            beforeLabel="원본"
-            afterLabel="교체 후"
-          />
-        </div>
       </section>
 
       {/* 02 블로그 — 그림을 먼저 (교차 배치) */}
