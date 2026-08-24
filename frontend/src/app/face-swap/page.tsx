@@ -48,6 +48,7 @@ import { IS_PUBLIC_PREVIEW, PUBLIC_PREVIEW_NOTICE } from "@/lib/public-preview";
 import { sampleAvatarFile } from "@/lib/sample-assets";
 import { CONSENT_CONTENT, CONSENT_VERSION } from "@/lib/consent";
 import { errorMessage, jobErrorMessage } from "@/lib/api-client/error-message";
+import { PageShell } from "@/components/flow/page-shell";
 
 /**
  * 배경 교체는 기능 2로 넘어갔다(8/12 수민님 회신). 이번 MVP 백엔드는 preserve 만 지원한다.
@@ -427,15 +428,23 @@ export default function FaceSwapPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10 pb-28 lg:pb-10">
-      <h1 className="text-2xl font-semibold tracking-tight">💇 헤어 모델 만들기</h1>
-      <p className="mt-2 max-w-2xl text-muted-foreground">
-        시술 사진 한 장이면 손님 얼굴 걱정 없이 바로 올릴 홍보 이미지가 나옵니다.
-        얼굴만 AI 모델로 바꾸고 공들인 헤어·의상·배경은 그대로 — 동의받은 사진만 올려주세요.
-      </p>
-
-      {IS_PUBLIC_PREVIEW && <Alert className="mt-4"><AlertDescription>{PUBLIC_PREVIEW_NOTICE}</AlertDescription></Alert>}
-
+    <PageShell
+      className="pb-28 lg:pb-10"
+      title="💇 헤어 모델 만들기"
+      description={
+        <>
+          시술 사진 한 장이면 손님 얼굴 걱정 없이 바로 올릴 홍보 이미지가 나옵니다.
+          얼굴만 AI 모델로 바꾸고 공들인 헤어·의상·배경은 그대로 — 동의받은 사진만 올려주세요.
+        </>
+      }
+      notice={
+        IS_PUBLIC_PREVIEW && (
+          <Alert>
+            <AlertDescription>{PUBLIC_PREVIEW_NOTICE}</AlertDescription>
+          </Alert>
+        )
+      }
+    >
       <FaceSwapStepProgress step={phoneStep} />
 
       {/*
@@ -745,6 +754,6 @@ export default function FaceSwapPage() {
 // 서버 기본값 mock, 인증·HTTPS 준비 후 proxy 구현
 // 진행 시간은 안내 문구에만 사용하고 실패는 서버 상태로 판정`}
       />
-    </div>
+    </PageShell>
   );
 }

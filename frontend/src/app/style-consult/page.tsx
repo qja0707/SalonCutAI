@@ -30,6 +30,7 @@ import {
   type PersonaAnswers,
 } from "@/lib/style-taxonomy";
 import { buildStylePrompt } from "@/lib/style-prompt";
+import { PageShell } from "@/components/flow/page-shell";
 
 type StyleRecommendation = {
   recommendation: string;
@@ -123,13 +124,16 @@ export default function StyleConsultPage() {
     : null;
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight">🎨 퍼스널 스타일 상담</h1>
-      <p className="mt-2 max-w-xl text-muted-foreground">
-        고객 얼굴은 그대로 두고, 원하는 헤어스타일만 미리 씌워서 보여드려요. 시술 전 상담에서
-        &ldquo;저한테 이 스타일 어울릴까요?&rdquo;에 바로 답할 수 있습니다.
-      </p>
-
+    <PageShell
+      width="5xl"
+      title="🎨 퍼스널 스타일 상담"
+      description={
+        <>
+          고객 얼굴은 그대로 두고, 원하는 헤어스타일만 미리 씌워서 보여드려요. 시술 전 상담에서
+          &ldquo;저한테 이 스타일 어울릴까요?&rdquo;에 바로 답할 수 있습니다.
+        </>
+      }
+    >
       <div className="mt-8 grid gap-8 lg:grid-cols-2">
         <div className="space-y-6">
           <Card>
@@ -305,6 +309,6 @@ export default function StyleConsultPage() {
         codeHint={`// /api/style-recommendation/route.ts — buildStylePrompt()가 카테고리·추구미·\n// 페르소나(실제 매장 상담 카드 3~15번 문항 기반) 답변을 하나의 프롬프트로 조합해\n// OpenAI/Gemini에 실제로 전달함 (src/lib/style-prompt.ts)\n\n// TODO(R2/R4): 위 응답의 imagePrompt를 ControlNet+IP-Adapter 이미지 생성 호출에 그대로 사용`}
         livePrompt={compiledPrompt}
       />
-    </div>
+    </PageShell>
   );
 }

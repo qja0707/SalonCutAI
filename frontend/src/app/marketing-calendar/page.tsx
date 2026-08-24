@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { DevNote } from "@/components/dev-note";
 import { cn } from "@/lib/utils";
 import { MARKETING_CALENDAR, SEASON_STYLE, getCalendarMonth } from "@/lib/marketing-calendar";
+import { PageShell } from "@/components/flow/page-shell";
 
 export default function MarketingCalendarPage() {
   const now = new Date();
@@ -20,13 +21,16 @@ export default function MarketingCalendarPage() {
   const blogHref = `/generate/blog?${new URLSearchParams({ topic: data.blogTopic, theme: data.theme, label }).toString()}`;
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight">📅 1년 마케팅 캘린더</h1>
-      <p className="mt-2 max-w-2xl text-muted-foreground">
-        한국 미용실 시장의 계절·명절·시험 시즌에 맞춘 12개월 마케팅 테마입니다. 달을 고르면 그 달의
-        프로모션 아이디어가 뜨고, AI 이미지·블로그 생성 도구로 바로 이어서 만들 수 있어요.
-      </p>
-
+    <PageShell
+      width="5xl"
+      title="📅 1년 마케팅 캘린더"
+      description={
+        <>
+          한국 미용실 시장의 계절·명절·시험 시즌에 맞춘 12개월 마케팅 테마입니다. 달을 고르면 그 달의
+          프로모션 아이디어가 뜨고, AI 이미지·블로그 생성 도구로 바로 이어서 만들 수 있어요.
+        </>
+      }
+    >
       <div className="mt-8 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
         {MARKETING_CALENDAR.map((m) => {
           const active = m.month === selectedMonth;
@@ -146,6 +150,6 @@ export default function MarketingCalendarPage() {
         ]}
         codeHint={`// 캘린더 데이터: src/lib/marketing-calendar.ts (월별 테마·프롬프트·글감)\n// 실제 생성은 /generate/image, /generate/blog, /generate/caption 도구 페이지에서 이뤄짐\n// (query string으로 prompt/topic/context를 넘겨 자동 채움)`}
       />
-    </div>
+    </PageShell>
   );
 }

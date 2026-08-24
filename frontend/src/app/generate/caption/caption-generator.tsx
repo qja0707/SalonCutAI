@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DevNote } from "@/components/dev-note";
+import { PageShell } from "@/components/flow/page-shell";
 
 const TONES = ["차분하게", "발랄하게", "전문적으로", "친근하게"];
 
@@ -54,18 +55,17 @@ export function CaptionGenerator() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight">📸 AI 인스타 캡션 생성</h1>
-      <p className="mt-2 max-w-xl text-muted-foreground">
-        시술 사진에 곁들일 카드 문구와 인스타그램 캡션을 만드는 범용 도구예요. 얼굴 교체 등 다른 기능에서
-        만든 시술 설명을 그대로 가져와 이어서 생성할 수도 있어요.
-      </p>
-      {label && (
-        <Badge variant="secondary" className="mt-3">
-          연결된 컨텍스트 · {label}
-        </Badge>
-      )}
-
+    <PageShell
+      width="5xl"
+      title="📸 AI 인스타 캡션 생성"
+      description={
+        <>
+          시술 사진에 곁들일 카드 문구와 인스타그램 캡션을 만드는 범용 도구예요. 얼굴 교체 등 다른 기능에서
+          만든 시술 설명을 그대로 가져와 이어서 생성할 수도 있어요.
+        </>
+      }
+      badge={label && <Badge variant="secondary">연결된 컨텍스트 · {label}</Badge>}
+    >
       <div className="mt-8 grid gap-8 lg:grid-cols-2">
         <div className="space-y-6">
           <Card>
@@ -140,7 +140,7 @@ export function CaptionGenerator() {
         ]}
         codeHint={`// /api/caption/route.ts — OpenAI/Gemini 실제 호출\n// 다른 페이지에서 /generate/caption?context=...&label=... 로 링크하면 내용이 자동 채워짐`}
       />
-    </div>
+    </PageShell>
   );
 }
 

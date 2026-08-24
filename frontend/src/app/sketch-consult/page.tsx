@@ -12,6 +12,7 @@ import { BeforeAfter } from "@/components/before-after";
 import { ResultPlaceholder } from "@/components/result-placeholder";
 import { DevNote } from "@/components/dev-note";
 import { sampleSketchFile } from "@/lib/sample-assets";
+import { PageShell } from "@/components/flow/page-shell";
 
 const LENGTHS = ["숏", "미디움", "롱"];
 
@@ -36,14 +37,17 @@ export default function SketchConsultPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight">✏️ 스케치 상담</h1>
-      <p className="mt-2 max-w-xl text-muted-foreground">
-        상담하면서 대략 그린 스케치를 실사 헤어 이미지로 바꿔드려요. &ldquo;머리 길이는 여기까지, 앞머리는
-        이렇게&rdquo; — 그 자리에서 바로 보여줄 수 있습니다.
-      </p>
-      <p className="mt-1 text-sm text-muted-foreground">여유가 될 때 도전하는 목표 기능이라, 지금은 스케치 파일 업로드로 대체되어 있습니다.</p>
-
+    <PageShell
+      width="5xl"
+      title="✏️ 스케치 상담"
+      description={
+        <>
+          상담하면서 대략 그린 스케치를 실사 헤어 이미지로 바꿔드려요. &ldquo;머리 길이는 여기까지, 앞머리는
+          이렇게&rdquo; — 그 자리에서 바로 보여줄 수 있습니다.
+        </>
+      }
+      footnote="여유가 될 때 도전하는 목표 기능이라, 지금은 스케치 파일 업로드로 대체되어 있습니다."
+    >
       <div className="mt-8 grid gap-8 lg:grid-cols-2">
         <div className="space-y-6">
           <Card>
@@ -105,6 +109,6 @@ export default function SketchConsultPage() {
         change="스케치 → 실사 전체"
         codeHint={`async function generate(sketch, length) {\n  // TODO(R2/R4): ControlNet Scribble 호출\n  // 캔버스 직접 그리기는 별도 캔버스 라이브러리로 교체 예정\n}`}
       />
-    </div>
+    </PageShell>
   );
 }
