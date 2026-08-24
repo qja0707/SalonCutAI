@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { FaceSwapSlotBar } from "@/components/face-swap-slot-bar";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -29,6 +28,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  StepNav,
+  StepProgress,
+  scrollToResultOnNarrow,
+  stepVisibility,
+} from "@/components/flow/step-flow";
 import {
   createVideoJob,
   createVideoCaptions,
@@ -60,6 +65,11 @@ const MAX_TOTAL_BYTES = 320 * 1024 * 1024;
 const MAX_CAPTION_CONTEXT_LENGTH = 100;
 const CUSTOM_DESCRIPTION_VALUE = "__custom__";
 const ACCEPTED_VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".webm", ".mkv"]);
+
+/** 결과까지 포함한 단계 수. 진행 표시는 입력 2단계만 센다 — 클립별 카드는 쪼개지 않는다,
+ * 클립이 8개면 8단계가 되어 버린다(Discussion #149). */
+const PHONE_STEPS = ["영상 업로드", "컷 역할·구간·자막"] as const;
+const PHONE_INPUT_STEP_COUNT = 2;
 
 function isAcceptedVideoFile(file: File): boolean {
   const extension = file.name.includes(".")
@@ -112,18 +122,6 @@ function defaultRole(index: number, total: number): VideoRole {
   return index % 2 ? "process" : "detail";
 }
 
-/**
- * 결과 자리로 데려간다 — 좁은 화면에서만 (face-swap 페이지와 같은 규칙).
- * 1024px 이상은 결과 패널이 옆에 이미 보이므로 움직이지 않는다.
- */
-function scrollIntoViewOnNarrow(element: HTMLElement | null): void {
-  if (!element || typeof window === "undefined") return;
-  if (window.matchMedia("(min-width: 1024px)").matches) return;
-
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  element.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
-}
-
 export function ShortsGenerator() {
   const [clips, setClips] = useState<ClipDraft[]>([]);
   const [job, setJob] = useState<VideoJobResponse | null>(null);
@@ -133,6 +131,9 @@ export function ShortsGenerator() {
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const resultRef = useRef<HTMLElement>(null);
+  // 폰 단계식(A안, Discussion #149 — 얼굴 교체·블로그와 같은 흐름)에서 지금 보여줄 단계.
+  // 1~2 는 입력, 3 은 결과. lg 이상에서는 쓰이지 않는다 — 카드가 전부 렌더된다.
+  const [phoneStep, setPhoneStep] = useState(1);
 
   useEffect(() => {
     if (!job || !["queued", "processing"].includes(job.status)) return;
@@ -213,8 +214,9 @@ export function ShortsGenerator() {
         })),
       );
       setJob(await getVideoJob(created.job_id));
+      setPhoneStep(PHONE_INPUT_STEP_COUNT + 1);
       // 폰에서는 진행률·결과가 화면 밖(맨 아래)에 있다 — 만들기를 눌렀으면 그리로 데려간다.
-      scrollIntoViewOnNarrow(resultRef.current);
+      scrollToResultOnNarrow(resultRef.current);
     } catch (submitError) {
       setError(errorMessage(submitError, "영상 작업을 접수하지 못했습니다."));
     } finally {
@@ -261,6 +263,7 @@ export function ShortsGenerator() {
     setClips([]);
     setTopic("");
     setError("");
+    setPhoneStep(1);
   }
 
   const busy =
@@ -278,6 +281,15 @@ export function ShortsGenerator() {
       {busy ? "영상 만드는 중" : "숏츠 만들기"}
     </Button>
   );
+
+  const stepReady: Record<number, boolean> = {
+    1: clips.length > 0,
+    2: clips.length >= 2,
+  };
+  const stepHint: Record<number, string> = {
+    1: "영상을 1개 이상 올려주세요.",
+    2: "",
+  };
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8 pb-28 sm:px-6 lg:py-12 lg:pb-12">
@@ -303,17 +315,24 @@ export function ShortsGenerator() {
         </AlertDescription>
       </Alert>
 
+      <StepProgress step={phoneStep} steps={PHONE_STEPS} />
+
+      {/*
+        요청 오류는 단계 게이트 밖에서 보여준다. 결과 칼럼(3단계) 안에 두면
+        폰에서 입력 단계 도중 실패했을 때 오류가 숨겨진 칼럼에 찍혀 아무것도 안 보인다
+        — 얼굴 교체·블로그 화면에서 같은 이유로 이미 고친 문제다.
+      */}
       {error && (
-        <Alert variant="destructive" className="mb-6">
+        <Alert variant="destructive" className="mt-4">
           <Info />
           <AlertTitle>확인이 필요합니다</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="mt-6 grid gap-6 lg:mt-0 lg:grid-cols-[minmax(0,1fr)_360px]">
         <section className="space-y-6">
-          <Card>
+          <Card className={stepVisibility(1, phoneStep)}>
             <CardHeader>
               <CardTitle>1. 영상 업로드</CardTitle>
               <CardDescription>MP4·MOV·WEBM·MKV 파일을 2~8개 올려주세요. 파일당 80MB, 전체 320MB까지 지원합니다.</CardDescription>
@@ -337,11 +356,16 @@ export function ShortsGenerator() {
                 className="hidden"
                 onChange={(event) => addFiles(event.target.files)}
               />
+              {clips.length > 0 && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  클립 {clips.length}개 · 예상 {expectedSeconds}초
+                </p>
+              )}
             </CardContent>
           </Card>
 
           {clips.length > 0 && (
-            <Card>
+            <Card className={stepVisibility(2, phoneStep)}>
               <CardHeader>
                 <CardTitle>2. 컷 역할·구간·자막</CardTitle>
                 <CardDescription>
@@ -404,33 +428,48 @@ export function ShortsGenerator() {
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label htmlFor={`role-${clip.id}`}>컷 역할</Label>
-                        <select
-                          id={`role-${clip.id}`}
+                        <Select
                           value={clip.role}
                           disabled={busy}
-                          onChange={(event) => {
-                            const role = event.target.value as VideoRole;
+                          onValueChange={(value) => {
+                            if (!value) return;
+                            const role = value as VideoRole;
                             updateClip(clip.id, {
                               role,
                               caption: ROLE_OPTIONS.find((option) => option.value === role)?.caption || clip.caption,
                             });
                           }}
-                          className="h-9 w-full rounded-md border bg-background px-3 text-sm"
                         >
-                          {ROLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                        </select>
+                          <SelectTrigger id={`role-${clip.id}`} className="w-full">
+                            <SelectValue>
+                              {(value: VideoRole) => ROLE_OPTIONS.find((option) => option.value === value)?.label ?? value}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ROLE_OPTIONS.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor={`selection-${clip.id}`}>사용 구간</Label>
-                        <select
-                          id={`selection-${clip.id}`}
+                        <Select
                           value={clip.selection}
                           disabled={busy}
-                          onChange={(event) => updateClip(clip.id, { selection: event.target.value as VideoSelection })}
-                          className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+                          onValueChange={(value) => value && updateClip(clip.id, { selection: value as VideoSelection })}
                         >
-                          {SELECTION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                        </select>
+                          <SelectTrigger id={`selection-${clip.id}`} className="w-full">
+                            <SelectValue>
+                              {(value: VideoSelection) => SELECTION_OPTIONS.find((option) => option.value === value)?.label ?? value}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {SELECTION_OPTIONS.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                     <div className="mt-4 space-y-2">
@@ -499,7 +538,7 @@ export function ShortsGenerator() {
           )}
         </section>
 
-        <aside ref={resultRef}>
+        <aside ref={resultRef} className={stepVisibility(PHONE_INPUT_STEP_COUNT + 1, phoneStep)}>
           <Card className="sticky top-6">
             <CardHeader>
               <CardTitle>3. 결과 확인</CardTitle>
@@ -547,14 +586,18 @@ export function ShortsGenerator() {
         </aside>
       </div>
 
-      {/* 폰 전용 — 클립 수·예상 길이를 상시 보여주고 만들기 버튼을 엄지 거리에 둔다 (lg 미만) */}
-      <FaceSwapSlotBar
-        slots={[
-          { label: `클립 ${clips.length}개`, done: clips.length >= 2 },
-          { label: `예상 ${expectedSeconds}초`, done: clips.length >= 2 },
-        ]}
-        cta={generateCta}
-      />
+      {phoneStep <= PHONE_INPUT_STEP_COUNT && (
+        <StepNav
+          step={phoneStep}
+          totalSteps={PHONE_INPUT_STEP_COUNT}
+          canGoNext={stepReady[phoneStep]}
+          nextHint={stepHint[phoneStep]}
+          onPrev={() => setPhoneStep((n) => Math.max(1, n - 1))}
+          onNext={() => setPhoneStep((n) => Math.min(PHONE_INPUT_STEP_COUNT, n + 1))}
+          cta={generateCta}
+          width="max-w-7xl"
+        />
+      )}
     </div>
   );
 }
