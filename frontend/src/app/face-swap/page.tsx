@@ -6,6 +6,7 @@ import { ChevronDown, Download, Images, Loader2, RotateCcw, Sparkles, Trash2 } f
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { FaceCheck } from "@/components/face-check";
+import { BeforeAfterSlider } from "@/components/before-after";
 import { EXPECTED_SECONDS, FaceSwapWaiting } from "@/components/face-swap-waiting";
 import {
   StepNav,
@@ -601,7 +602,10 @@ export default function FaceSwapPage() {
           <div className="hidden lg:block">{generateCta}</div>
         </div>
 
-        <div className={`space-y-5 ${phoneOnlyStep(PHONE_INPUT_STEP_COUNT + 1)}`} ref={resultRef}>
+        <div
+          className={`space-y-5 ${jobId ? phoneOnlyStep(PHONE_INPUT_STEP_COUNT + 1) : phoneOnlyStep(PHONE_INPUT_STEP_COUNT)}`}
+          ref={resultRef}
+        >
           <h2 className="text-base font-semibold">결과</h2>
 
           {restored && (
@@ -613,13 +617,36 @@ export default function FaceSwapPage() {
           )}
 
           {!jobId ? (
-            <Card className="flex aspect-square items-center justify-center border-dashed">
-              <p className="max-w-[260px] text-center text-sm text-muted-foreground">
-                {restoring
-                  ? "이전에 만들던 작업이 있는지 확인하고 있어요."
-                  : "사진과 옵션을 채운 뒤 버튼을 누르면 홍보 이미지 결과가 표시됩니다."}
-              </p>
-            </Card>
+            restoring ? (
+              <Card className="flex aspect-square items-center justify-center border-dashed">
+                <p className="max-w-[260px] text-center text-sm text-muted-foreground">
+                  이전에 만들던 작업이 있는지 확인하고 있어요.
+                </p>
+              </Card>
+            ) : (
+              // 결과 예시(Discussion #149 제안 2) — 랜딩과 같은 컴포넌트·사진 짝을 그대로 쓴다.
+              // "표시됩니다" 라고 글로 설명하는 대신, 이 화면이 실제로 만드는 것을 보여준다.
+              <Card>
+                <CardHeader><CardTitle className="text-base">이런 결과가 나와요</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="relative">
+                    <BeforeAfterSlider
+                      beforeUrl="/sample-assets/landing-hero-before.jpg"
+                      afterUrl="/sample-assets/landing-hero-swap.jpg"
+                      beforeLabel="원본"
+                      afterLabel="교체 후"
+                    />
+                    <span className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                      예시
+                    </span>
+                  </div>
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    머리·의상·배경은 그대로, 얼굴만 AI 모델로. 사진과 옵션을 채운 뒤 버튼을 누르면
+                    직접 만든 결과가 여기에 표시됩니다.
+                  </p>
+                </CardContent>
+              </Card>
+            )
           ) : (
             <>
               {active && <FaceSwapWaiting job={job} elapsedSeconds={elapsedSeconds} />}

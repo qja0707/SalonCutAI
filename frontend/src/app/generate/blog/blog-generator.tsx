@@ -216,7 +216,10 @@ export function BlogGenerator() {
         </div>
 
         <div
-          className={`space-y-4 ${stepVisibility(PHONE_INPUT_STEP_COUNT + 1, phoneStep)}`}
+          className={`space-y-4 ${stepVisibility(
+            generationResult ? PHONE_INPUT_STEP_COUNT + 1 : PHONE_INPUT_STEP_COUNT,
+            phoneStep,
+          )}`}
           ref={resultRef}
         >
           <h2 className="text-base font-semibold">결과</h2>
@@ -227,6 +230,37 @@ export function BlogGenerator() {
                 {progressMessage(elapsedSeconds)}
               </AlertDescription>
             </Alert>
+          )}
+          {/*
+            결과 예시(Discussion #149 제안 2) — 랜딩과 같은 문구를 그대로 쓴다.
+            만들기 전까지 이 자리가 비어 있던 것이 원래 문제였다(#149: "블로그 →
+            아무것도 없음 — 빈 여백"). 실제 결과와 같은 모양(제목 + 도입 + 시술 과정)
+            으로 보여줘야 "여기서 뭐가 나오는지"에 답이 된다.
+          */}
+          {!requesting && !generationResult && (
+            <div className="relative space-y-3 rounded-lg border p-4">
+              <span className="absolute top-3 right-3 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                예시
+              </span>
+              <p className="text-lg font-semibold">
+                손상모도 부드럽게, 다크 브라운 롱 웨이브
+              </p>
+              <div>
+                <p className="text-sm font-medium">도입</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  탈색 이력이 있는 손상모라 걱정하셨던 손님. 전처리부터 차근차근 진행했습니다…
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-medium">시술 과정</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  1차 클리닉 후 저온 디지털펌으로 컬을 잡고, 다크 브라운 컬러를 올렸습니다…
+                </p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                필수 항목을 채우고 만들기를 누르면 직접 만든 글이 이 자리에 표시됩니다.
+              </p>
+            </div>
           )}
           {generationResult && (
             <div className="space-y-4 rounded-lg border p-4">

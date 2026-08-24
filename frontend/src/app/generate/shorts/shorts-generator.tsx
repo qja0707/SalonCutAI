@@ -8,6 +8,7 @@ import {
   Film,
   Info,
   LoaderCircle,
+  Play,
   Plus,
   ShieldCheck,
   Sparkles,
@@ -105,6 +106,17 @@ const SELECTION_OPTIONS: { value: VideoSelection; label: string }[] = [
   { value: "center", label: "가운데 2초" },
   { value: "end", label: "뒤 2초" },
 ];
+
+/**
+ * 결과 예시(Discussion #149 제안 2) — 랜딩의 SHORTS_CLIPS 와 같은 문구. 빈 결과
+ * 자리에 "9:16 · 무음" 프레임과 클립 목록을 그대로 보여준다 — 만들기 전에는
+ * "완성 영상이 여기에 표시됩니다" 라는 글자뿐이었다(#149 실측).
+ */
+const EXAMPLE_CLIPS = [
+  { role: "시술 과정", caption: "섬세하게 완성해 가는 시술 과정", sec: "0:06" },
+  { role: "디테일", caption: "작은 디테일까지 꼼꼼하게", sec: "0:05" },
+  { role: "마무리", caption: "완성된 스타일을 확인해 보세요", sec: "0:04" },
+] as const;
 
 const DESCRIPTION_OPTIONS = [
   "시술 전 상태",
@@ -560,7 +572,10 @@ export function ShortsGenerator() {
           )}
         </section>
 
-        <aside ref={resultRef} className={stepVisibility(PHONE_INPUT_STEP_COUNT + 1, phoneStep)}>
+        <aside
+          ref={resultRef}
+          className={stepVisibility(job ? PHONE_INPUT_STEP_COUNT + 1 : PHONE_INPUT_STEP_COUNT, phoneStep)}
+        >
           <Card className="sticky top-6">
             <CardHeader>
               <CardTitle>3. 결과 확인</CardTitle>
@@ -597,10 +612,34 @@ export function ShortsGenerator() {
                   <p className="mt-2 text-xs text-muted-foreground">{job.progress}%</p>
                 </div>
               ) : (
-                <div className="flex aspect-[9/16] flex-col items-center justify-center rounded-2xl bg-muted/50 px-6 text-center">
-                  <Film className="mb-4 h-10 w-10 text-muted-foreground" />
-                  <p className="text-sm font-medium">완성 영상이 여기에 표시됩니다</p>
-                  <p className="mt-2 text-xs leading-5 text-muted-foreground">영상 2개 이상을 올리고 컷 설정을 확인한 뒤 숏츠 만들기를 눌러주세요.</p>
+                <div className="space-y-3">
+                  <div className="relative aspect-[9/16] overflow-hidden rounded-2xl border bg-gradient-to-b from-muted to-muted-foreground/25">
+                    <span className="absolute inset-0 m-auto flex h-12 w-12 items-center justify-center rounded-full bg-background/90 shadow">
+                      <Play className="ml-0.5 h-5 w-5" />
+                    </span>
+                    <span className="absolute bottom-3 left-3 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white">
+                      9:16 · 무음
+                    </span>
+                    <span className="absolute top-3 right-3 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                      예시
+                    </span>
+                  </div>
+                  <ul className="space-y-2">
+                    {EXAMPLE_CLIPS.map((clip) => (
+                      <li key={clip.role} className="rounded-xl border bg-card px-3 py-2 text-xs text-card-foreground">
+                        <p className="flex items-center gap-1.5 font-semibold">
+                          <Captions className="h-3.5 w-3.5 text-primary" />
+                          {clip.role}
+                          <span className="ml-auto font-normal text-muted-foreground">{clip.sec}</span>
+                        </p>
+                        <p className="mt-1 truncate text-muted-foreground">&ldquo;{clip.caption}&rdquo;</p>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    영상 2개 이상을 올리고 컷 설정을 확인한 뒤 숏츠 만들기를 누르면 직접 만든
+                    영상이 이 자리에 표시됩니다.
+                  </p>
                 </div>
               )}
             </CardContent>
