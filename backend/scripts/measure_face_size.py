@@ -23,7 +23,12 @@ from PIL import Image
 
 from src.ai_engine.image_gen import downloads, loader, settings, validate
 
-IMAGE_DIRS = [Path.home() / "normal", Path.home() / "upper", Path.home() / "phone"]
+IMAGE_DIRS = [
+    Path.home() / "normal",
+    Path.home() / "upper",
+    Path.home() / "salon",
+    Path.home() / "phone",
+]
 SDXL_TARGET = 1024
 VAE_SCALE = 8
 PHONE_LONG_SIDE = 4032  # 아이폰 기본 해상도
