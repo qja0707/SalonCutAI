@@ -71,6 +71,14 @@ const ACCEPTED_VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".webm", ".mkv"]);
 const PHONE_STEPS = ["영상 업로드", "컷 역할·구간·자막"] as const;
 const PHONE_INPUT_STEP_COUNT = 2;
 
+/**
+ * 목적지 색(Discussion #149 3번) — 인스타 릴스. 얼굴 교체와 목적지가 같아(둘 다
+ * 인스타) 그라디언트 양 끝을 나눠 쓴다 — 숏폼은 주황·노랑 끝. 흰 글자 5.18:1,
+ * wash 위 4.60:1 — 둘 다 WCAG AA 통과.
+ */
+const IDENTITY_INK = "#C2410C";
+const IDENTITY_WASH = "#fdefe4";
+
 function isAcceptedVideoFile(file: File): boolean {
   const extension = file.name.includes(".")
     ? `.${file.name.split(".").pop()?.toLowerCase()}`
@@ -276,7 +284,12 @@ export function ShortsGenerator() {
   // 구간이 클립당 2초 고정이므로 예상 길이는 클립 수 × 2초로 미리 알려줄 수 있다.
   const expectedSeconds = clips.length * 2;
   const generateCta = (
-    <Button onClick={generate} disabled={busy || clips.length < 2} className="w-full">
+    <Button
+      onClick={generate}
+      disabled={busy || clips.length < 2}
+      className="w-full"
+      style={{ backgroundColor: IDENTITY_INK }}
+    >
       {busy ? <LoaderCircle className="animate-spin" /> : <Film />}
       {busy ? "영상 만드는 중" : "숏츠 만들기"}
     </Button>
@@ -295,8 +308,17 @@ export function ShortsGenerator() {
     <div className="mx-auto w-full max-w-7xl px-4 py-8 pb-28 sm:px-6 lg:py-12 lg:pb-12">
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          {/* "MVP"는 내부 용어라 사용자 화면에 노출하지 않는다(8/17 문구 정합). */}
-          <Badge variant="secondary" className="mb-3">시술 영상 자동 편집</Badge>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <Badge
+              variant="secondary"
+              className="border-0"
+              style={{ backgroundColor: IDENTITY_WASH, color: IDENTITY_INK }}
+            >
+              인스타 릴스 · 스토리
+            </Badge>
+            {/* "MVP"는 내부 용어라 사용자 화면에 노출하지 않는다(8/17 문구 정합). */}
+            <Badge variant="secondary">시술 영상 자동 편집</Badge>
+          </div>
           {/* 대제목은 새 네이밍, 메뉴는 AI 숏츠 만들기 — 역할 분리(8/17 원장님) */}
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">🎬 간편 숏츠 만들기</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
@@ -315,7 +337,7 @@ export function ShortsGenerator() {
         </AlertDescription>
       </Alert>
 
-      <StepProgress step={phoneStep} steps={PHONE_STEPS} />
+      <StepProgress step={phoneStep} steps={PHONE_STEPS} activeColor={IDENTITY_INK} />
 
       {/*
         요청 오류는 단계 게이트 밖에서 보여준다. 결과 칼럼(3단계) 안에 두면

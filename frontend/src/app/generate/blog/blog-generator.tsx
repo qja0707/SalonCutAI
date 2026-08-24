@@ -38,6 +38,14 @@ const EXPECTED_SECONDS = 16;
 const PHONE_STEPS = ["매장 정보", "이번 시술", "모발 상태"] as const;
 const PHONE_INPUT_STEP_COUNT = 3;
 
+/**
+ * 목적지 색(Discussion #149 3번) — 네이버 블로그. 원색 #03C75A 는 흰 글자 대비
+ * 2.25:1 로 버튼에 못 써서, 짙은 변형만 쓴다. 흰 글자 5.19:1, wash 위 4.68:1 —
+ * 둘 다 WCAG AA 통과. 앱의 완료색 #00c471 과는 충분히 떨어져 있다(색 거리 88).
+ */
+const IDENTITY_INK = "#017E3B";
+const IDENTITY_WASH = "#e4f8ed";
+
 function progressMessage(elapsedSeconds: number): string {
   if (elapsedSeconds < 5) return "요청 내용을 확인하고 있어요";
   if (elapsedSeconds <= EXPECTED_SECONDS)
@@ -125,6 +133,7 @@ export function BlogGenerator() {
     <Button
       className="w-full"
       size="lg"
+      style={{ backgroundColor: IDENTITY_INK }}
       onClick={handleGenerate}
       disabled={requesting || !isBlogFieldsReady(fields)}
     >
@@ -160,9 +169,20 @@ export function BlogGenerator() {
           정보는 저장돼 다음부터는 더 빨라져요.
         </>
       }
-      badge={label && <Badge variant="secondary">연결된 컨텍스트 · {label}</Badge>}
+      badge={
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge
+            variant="secondary"
+            className="border-0"
+            style={{ backgroundColor: IDENTITY_WASH, color: IDENTITY_INK }}
+          >
+            네이버 블로그
+          </Badge>
+          {label && <Badge variant="secondary">연결된 컨텍스트 · {label}</Badge>}
+        </div>
+      }
     >
-      <StepProgress step={phoneStep} steps={PHONE_STEPS} />
+      <StepProgress step={phoneStep} steps={PHONE_STEPS} activeColor={IDENTITY_INK} />
 
       {/*
         요청 오류는 단계 게이트 밖에서 보여준다. 결과 칼럼(4단계) 안에 두면

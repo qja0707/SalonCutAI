@@ -42,29 +42,41 @@ export function scrollIntoViewOnNarrow(element: HTMLElement | null): void {
 export function StepProgress({
   step,
   steps,
+  activeColor,
 }: {
   /** 1부터 시작. steps.length 를 넘으면(결과 단계) "완료"로 표시한다 */
   step: number;
   /** 입력 단계 라벨. 결과 단계는 포함하지 않는다 */
   steps: readonly string[];
+  /**
+   * 채워진 막대·"완료" 문구 색. 생략하면 테마 primary(bg-primary/text-primary)를 쓴다.
+   * 목적지 색(Discussion #149 3번)을 쓰는 화면만 넘긴다 — 얼굴 교체·블로그·숏폼.
+   */
+  activeColor?: string;
 }) {
   const done = step > steps.length;
+  const fillStyle = activeColor ? { backgroundColor: activeColor } : undefined;
+  const textStyle = activeColor ? { color: activeColor } : undefined;
 
   return (
     <div className="mt-6 lg:hidden" aria-live="polite">
       <ol className="flex items-center gap-1.5" aria-label="진행 단계">
         {steps.map((_, index) => {
           const n = index + 1;
+          const filled = done || n < step;
+          const current = n === step;
           return (
             <li
               key={n}
+              style={filled || current ? fillStyle : undefined}
               className={cn(
                 "h-1 flex-1 rounded-full transition-colors",
-                done || n < step
-                  ? "bg-primary"
-                  : n === step
-                    ? "bg-primary/45"
+                filled
+                  ? !activeColor && "bg-primary"
+                  : current
+                    ? !activeColor && "bg-primary/45"
                     : "bg-muted",
+                current && activeColor && "opacity-45",
               )}
             />
           );
@@ -72,7 +84,9 @@ export function StepProgress({
       </ol>
       <p className="mt-2 text-xs text-muted-foreground">
         {done ? (
-          <span className="font-medium text-primary">완료</span>
+          <span className={cn("font-medium", !activeColor && "text-primary")} style={textStyle}>
+            완료
+          </span>
         ) : (
           <>
             <span className="font-medium text-foreground">

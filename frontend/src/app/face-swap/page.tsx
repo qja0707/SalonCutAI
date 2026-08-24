@@ -82,6 +82,15 @@ const TERMINAL = new Set(["completed", "failed"]);
 const PHONE_STEPS = ["시술 사진", "사진 활용 동의", "AI 모델", "이미지 옵션"] as const;
 const PHONE_INPUT_STEP_COUNT = 4;
 
+/**
+ * 목적지 색(Discussion #149 3번) — 결과물을 올릴 곳에서 색을 가져온다.
+ * 얼굴 교체와 숏폼은 둘 다 인스타로 가서, 인스타 그라디언트의 양 끝을 나눠 쓴다 —
+ * 얼굴 교체는 퍼플·마젠타 끝. 흰 글자 대비 6.59:1(버튼·진행바), 배지는
+ * 옅은 wash 위에 ink 글자로 5.73:1 — 둘 다 WCAG AA(4.5:1) 통과.
+ */
+const IDENTITY_INK = "#A32D74";
+const IDENTITY_WASH = "#fdeaf5";
+
 function progressMessage(job: FaceSwapJobResponse | null, elapsedSeconds: number): string {
   if (job?.status === "queued" && job.queue_position) {
     return `대기 순번 ${job.queue_position}번 · 사진을 확인하고 있어요`;
@@ -386,6 +395,7 @@ export default function FaceSwapPage() {
     <Button
       className="w-full"
       size="lg"
+      style={{ backgroundColor: IDENTITY_INK }}
       onClick={handleGenerate}
       disabled={busy || restoring || !consentAgreed || !isFaceReady(face)}
       aria-describedby={
@@ -428,6 +438,15 @@ export default function FaceSwapPage() {
           얼굴만 AI 모델로 바꾸고 공들인 헤어·의상·배경은 그대로 — 동의받은 사진만 올려주세요.
         </>
       }
+      badge={
+        <Badge
+          variant="secondary"
+          className="border-0"
+          style={{ backgroundColor: IDENTITY_WASH, color: IDENTITY_INK }}
+        >
+          인스타 피드 · 스토리
+        </Badge>
+      }
       notice={
         IS_PUBLIC_PREVIEW && (
           <Alert>
@@ -436,7 +455,7 @@ export default function FaceSwapPage() {
         )
       }
     >
-      <StepProgress step={phoneStep} steps={PHONE_STEPS} />
+      <StepProgress step={phoneStep} steps={PHONE_STEPS} activeColor={IDENTITY_INK} />
 
       {/*
         요청 오류는 단계 게이트 밖에서 보여준다. 결과 칼럼(5단계) 안에 두면
