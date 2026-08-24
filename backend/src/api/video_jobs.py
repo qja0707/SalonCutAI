@@ -6,6 +6,7 @@ import tempfile
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Literal
@@ -20,7 +21,13 @@ from fastapi import (
     UploadFile,
 )
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field, ValidationError, field_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from src.ai_engine.video_gen.engine import ClipInput, process_shorts
 from src.api.dependencies import check_auth_token
@@ -49,21 +56,50 @@ class ClipOptions(BaseModel):
     role: Literal["before", "process", "detail", "after"]
     selection: Literal["start", "center", "end"] = "center"
     caption: str = Field(default="", max_length=80)
+    start_sec: float | None = Field(default=None, ge=0)
+    end_sec: float | None = Field(default=None, gt=0)
+    clip_order: int | None = Field(default=None, ge=0)
+    keep_audio: bool | None = None
 
     @field_validator("caption")
     @classmethod
     def strip_caption(cls, value: str) -> str:
         return value.strip()
 
+    @model_validator(mode="after")
+    def validate_range(self):
+        if (self.start_sec is None) != (self.end_sec is None):
+            raise ValueError("start_sec and end_sec must be provided together")
+        if (
+            self.start_sec is not None
+            and self.end_sec is not None
+            and self.end_sec <= self.start_sec
+        ):
+            raise ValueError("end_sec must be greater than start_sec")
+        return self
+
 
 class VideoJobPayload(BaseModel):
     clips: list[ClipOptions] = Field(min_length=MIN_CLIPS, max_length=MAX_CLIPS)
     blur_faces: Literal[True] = True
+    audio_mode: Literal["mute", "original", "tts"] = "mute"
+
+    @model_validator(mode="after")
+    def validate_clip_order(self):
+        orders = [clip.clip_order for clip in self.clips]
+        if any(order is not None for order in orders):
+            if any(order is None for order in orders):
+                raise ValueError("clip_order must be set for every clip or omitted")
+            if len(set(orders)) != len(orders):
+                raise ValueError("clip_order values must be unique")
+        return self
 
 
 _jobs: dict[str, dict] = {}
 _lock = threading.Lock()
 _worker_lock = threading.Lock()
+TtsAudioProvider = Callable[[list[ClipInput], Path], Path]
+_tts_audio_provider: TtsAudioProvider | None = None
 
 
 def _now() -> datetime:
@@ -139,12 +175,20 @@ def _process_job(job_id: str) -> None:
         clips = list(job["clips"])
         output_path = Path(job["output_path"])
         blur_faces = bool(job["blur_faces"])
+        audio_mode = str(job["audio_mode"])
     try:
+        tts_audio_path = None
+        if audio_mode == "tts":
+            if _tts_audio_provider is None:
+                raise RuntimeError("TTS audio provider is not configured")
+            tts_audio_path = _tts_audio_provider(clips, output_path.parent)
         result = process_shorts(
             clips,
             output_path,
             blur_faces=blur_faces,
             progress=lambda value: _set_job(job_id, progress=value),
+            audio_mode=audio_mode,
+            tts_audio_path=tts_audio_path,
         )
         _set_job(
             job_id,
@@ -159,7 +203,8 @@ def _process_job(job_id: str) -> None:
             meta={
                 "processing_sec": round(time.perf_counter() - started, 3),
                 "faces_blurred": result.faces_blurred,
-                "audio_included": False,
+                "audio_included": result.audio_included,
+                "audio_mode": audio_mode,
             },
         )
     except Exception as exc:  # noqa: BLE001 -- persist worker failures for polling clients
@@ -187,6 +232,11 @@ async def create_video_job(
         raise HTTPException(
             status_code=422, detail="영상 역할·구간·자막 설정을 확인해주세요."
         ) from exc
+    if options.audio_mode == "tts" and _tts_audio_provider is None:
+        raise HTTPException(
+            status_code=501,
+            detail="AI 내레이션은 음성 생성기가 연결된 뒤 사용할 수 있습니다.",
+        )
     if len(clips) != len(options.clips):
         raise HTTPException(
             status_code=422, detail="업로드 영상 수와 설정 수가 일치하지 않습니다."
@@ -221,6 +271,10 @@ async def create_video_job(
                     selection=clip_options.selection,
                     caption=clip_options.caption
                     or ROLE_DEFAULT_CAPTIONS[clip_options.role],
+                    start_sec=clip_options.start_sec,
+                    end_sec=clip_options.end_sec,
+                    clip_order=clip_options.clip_order,
+                    keep_audio=clip_options.keep_audio,
                 )
             )
     except Exception:
@@ -250,6 +304,7 @@ async def create_video_job(
         "clips": saved_clips,
         "output_path": str(directory / "shorts.mp4"),
         "blur_faces": options.blur_faces,
+        "audio_mode": options.audio_mode,
     }
     with _lock:
         _jobs[job_id] = job
