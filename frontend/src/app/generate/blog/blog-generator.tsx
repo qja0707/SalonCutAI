@@ -24,6 +24,7 @@ import {
   type BlogFieldValues,
 } from "./blog-fields";
 import { errorMessage } from "@/lib/api-client/error-message";
+import { PageShell } from "@/components/flow/page-shell";
 
 const EXPECTED_SECONDS = 16;
 
@@ -99,22 +100,19 @@ export function BlogGenerator() {
     }
   }
 
+  // 대제목은 새 네이밍, 메뉴는 AI 블로그 글쓰기 — 역할 분리(8/17 원장님)
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
-      {/* 대제목은 새 네이밍, 메뉴는 AI 블로그 글쓰기 — 역할 분리(8/17 원장님) */}
-      <h1 className="text-2xl font-semibold tracking-tight">
-        📝 간단 블로그 글쓰기
-      </h1>
-      <p className="mt-2 max-w-xl text-muted-foreground">
-        빈칸만 채우면 네이버 블로그에 바로 붙여넣을 완성 후기가 나옵니다. 매장
-        정보는 저장돼 다음부터는 더 빨라져요.
-      </p>
-      {label && (
-        <Badge variant="secondary" className="mt-3">
-          연결된 컨텍스트 · {label}
-        </Badge>
-      )}
-
+    <PageShell
+      width="5xl"
+      title="📝 간단 블로그 글쓰기"
+      description={
+        <>
+          빈칸만 채우면 네이버 블로그에 바로 붙여넣을 완성 후기가 나옵니다. 매장
+          정보는 저장돼 다음부터는 더 빨라져요.
+        </>
+      }
+      badge={label && <Badge variant="secondary">연결된 컨텍스트 · {label}</Badge>}
+    >
       <div className="mt-8 grid gap-8 lg:grid-cols-2">
         <div className="space-y-6">
           <BlogFields
@@ -225,6 +223,6 @@ export function BlogGenerator() {
 // 서버 기본값 mock, 인증·HTTPS 준비 후 proxy 구현
 // 기존 /api/generate-blog는 이번 작업에서 제거하지 않음`}
       />
-    </div>
+    </PageShell>
   );
 }
