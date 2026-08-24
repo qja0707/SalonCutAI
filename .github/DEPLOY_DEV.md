@@ -17,6 +17,141 @@
 - `flock`으로 중복 실행을 막고, 기존 `backend/.env`를 `/tmp`로 복사하지 않습니다.
 - 설치 시 현재 정상 배포 SHA를 `.git/saloncutai-last-success`에 기록해 불필요한 최초 재배포를 막습니다.
 
+## 운영 설치본 롤아웃
+
+저장소 파일과 VM의 운영 설치본은 별개입니다. `.github/scripts/pull-deploy-dev.sh`를 변경해 `dev`에 병합해도 systemd가 실행하는 `/usr/local/bin/saloncutai-dev-pull`은 자동으로 바뀌지 않습니다. `.github/systemd/`의 service·timer 파일도 `/etc/systemd/system` 설치본에 자동 반영되지 않습니다. 이 경로를 변경한 PR은 병합과 별도로 설치본 롤아웃 승인을 받아야 합니다.
+
+아래 wrapper 절차는 같은 SSH shell에서 끝까지 실행합니다. `APPROVED_SHA`, `PREVIOUS_APPROVED_SHA`, `DEPLOY_USER`는 승인 기록과 VM 실측값으로 바꿉니다. VM 주소, 개인 계정명, 현재 해시, 실제 백업 파일명은 공개 문서에 기록하지 않습니다.
+
+### wrapper 사전 확인과 lock
+
+```bash
+APP_DIR=/opt/salon-web/repo
+INSTALLED=/usr/local/bin/saloncutai-dev-pull
+SOURCE_PATH=.github/scripts/pull-deploy-dev.sh
+APPROVED_SHA=승인된40자리mergeSHA
+PREVIOUS_APPROVED_SHA=현재설치본의이전승인40자리SHA
+DEPLOY_USER=실제배포사용자
+
+git -C "$APP_DIR" fetch origin dev --prune
+[[ "$APPROVED_SHA" =~ ^[0-9a-f]{40}$ ]]
+[[ "$PREVIOUS_APPROVED_SHA" =~ ^[0-9a-f]{40}$ ]]
+[[ "$(git -C "$APP_DIR" rev-parse origin/dev)" == "$APPROVED_SHA" ]]
+git -C "$APP_DIR" cat-file -e "$APPROVED_SHA^{commit}"
+git -C "$APP_DIR" cat-file -e "$PREVIOUS_APPROVED_SHA^{commit}"
+
+exec 9>"$APP_DIR/.git/saloncutai-pull.lock"
+flock -n 9 || { echo '자동 pull이 실행 중입니다. 롤아웃을 중단합니다.' >&2; exit 1; }
+[[ "$(systemctl show saloncutai-dev-pull.service -p ActiveState --value)" != active ]]
+```
+
+lock을 얻은 shell을 닫거나 별도 shell에서 설치를 계속하지 않습니다. 설치 전에 현재 설치본이 이전 승인 커밋의 blob과 같은지 확인합니다. 다르면 VM에서 수동 수정됐을 수 있으므로 덮어쓰지 않고 중단합니다.
+
+```bash
+EXPECTED_CURRENT_SHA256=$(git -C "$APP_DIR" cat-file blob \
+  "$PREVIOUS_APPROVED_SHA:$SOURCE_PATH" | sha256sum | awk '{print $1}')
+TARGET_SHA256=$(git -C "$APP_DIR" cat-file blob \
+  "$APPROVED_SHA:$SOURCE_PATH" | sha256sum | awk '{print $1}')
+INSTALLED_SHA256=$(sha256sum "$INSTALLED" | awk '{print $1}')
+
+[[ "$INSTALLED_SHA256" == "$EXPECTED_CURRENT_SHA256" ]] || {
+  echo '현재 설치본이 이전 승인 blob과 다릅니다. 수동 변경을 확인하십시오.' >&2
+  exit 1
+}
+
+read -r OWNER GROUP MODE SIZE < <(stat -c '%U %G %a %s' "$INSTALLED")
+[[ "$OWNER" == "$DEPLOY_USER" || "$OWNER" == root ]]
+```
+
+### 백업과 원자 교체
+
+백업은 owner·group·mode·mtime을 보존합니다. 대상 blob은 워킹 트리 파일을 복사하지 않고 정확한 승인 SHA에서 추출합니다. 임시 파일은 설치본과 같은 filesystem에 만들고, 해시와 Bash 문법을 확인한 뒤 `mv`로 원자 교체합니다.
+
+```bash
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+BACKUP="${INSTALLED}.backup-${STAMP}"
+TEMP="$(dirname "$INSTALLED")/.saloncutai-dev-pull.tmp.$$"
+
+cleanup_rollout_temp() {
+  sudo rm -f -- "$TEMP"
+}
+trap cleanup_rollout_temp EXIT
+
+sudo cp --preserve=mode,ownership,timestamps -- "$INSTALLED" "$BACKUP"
+BACKUP_SHA256=$(sha256sum "$BACKUP" | awk '{print $1}')
+[[ "$BACKUP_SHA256" == "$EXPECTED_CURRENT_SHA256" ]]
+
+git -C "$APP_DIR" cat-file blob "$APPROVED_SHA:$SOURCE_PATH" \
+  | sudo tee "$TEMP" >/dev/null
+sudo chown "$OWNER:$GROUP" "$TEMP"
+sudo chmod "$MODE" "$TEMP"
+[[ "$(sha256sum "$TEMP" | awk '{print $1}')" == "$TARGET_SHA256" ]]
+sudo bash -n "$TEMP"
+sudo mv -f -- "$TEMP" "$INSTALLED"
+
+[[ "$(sha256sum "$INSTALLED" | awk '{print $1}')" == "$TARGET_SHA256" ]]
+[[ "$(stat -c '%U %G %a' "$INSTALLED")" == "$OWNER $GROUP $MODE" ]]
+sudo bash -n "$INSTALLED"
+stat -c 'owner=%U group=%G mode=%a size=%s mtime=%y' "$INSTALLED" "$BACKUP"
+```
+
+배포 실패 알림용 credential은 읽거나 출력하거나 변경하지 않습니다. 경로와 권한 조건은 설치 스크립트의 `ISSUE_TOKEN_FILE` 상수를 따릅니다.
+
+### 자동 타이머 관측과 성공 기준
+
+설치 후 wrapper를 수동 실행하지 않습니다. lock을 해제하고 다음 scheduled timer를 관측합니다.
+
+```bash
+exec 9>&-
+systemctl list-timers saloncutai-dev-pull.timer --no-pager --all
+systemctl show saloncutai-dev-pull.timer saloncutai-dev-pull.service \
+  -p Id -p ActiveState -p SubState -p Result -p ExecMainStatus \
+  -p LastTriggerUSec --no-pager
+journalctl -u saloncutai-dev-pull.service -n 160 --no-pager -o short-iso
+cat "$APP_DIR/.git/saloncutai-last-success"
+git -C "$APP_DIR" status --porcelain=v1
+systemctl show salon-api.service salon-web.service \
+  -p Id -p ActiveState -p SubState -p MainPID -p NRestarts --no-pager
+```
+
+첫 타이머가 `Result=success`, `ExecMainStatus=0`이고 dirty marker가 없으며 앱 서비스 PID와 `NRestarts`가 유지돼야 합니다. 다음 타이머가 실패하거나 두 scheduled 주기 안에 성공 기록이 없으면 새 설치본을 유지하지 않고 롤백합니다.
+
+### wrapper 롤백
+
+롤백도 자동 pull lock을 확보한 같은 shell에서 수행합니다. 기록한 백업 SHA와 owner·mode를 다시 확인하고, 같은 filesystem의 임시 파일을 거쳐 원자 복구합니다.
+
+```bash
+ROLLBACK_TEMP="$(dirname "$INSTALLED")/.saloncutai-dev-pull.rollback.$$"
+exec 9>"$APP_DIR/.git/saloncutai-pull.lock"
+flock -n 9 || { echo '자동 pull이 실행 중입니다. 롤백을 중단합니다.' >&2; exit 1; }
+[[ "$(sha256sum "$BACKUP" | awk '{print $1}')" == "$BACKUP_SHA256" ]]
+
+sudo cp --preserve=mode,ownership,timestamps -- "$BACKUP" "$ROLLBACK_TEMP"
+[[ "$(stat -c '%U %G %a' "$ROLLBACK_TEMP")" == "$OWNER $GROUP $MODE" ]]
+sudo bash -n "$ROLLBACK_TEMP"
+sudo mv -f -- "$ROLLBACK_TEMP" "$INSTALLED"
+[[ "$(sha256sum "$INSTALLED" | awk '{print $1}')" == "$BACKUP_SHA256" ]]
+sudo bash -n "$INSTALLED"
+exec 9>&-
+```
+
+롤백 뒤에도 wrapper를 수동 실행하지 않고 다음 scheduled timer를 관측합니다. 백업은 리뷰와 운영 확인이 끝날 때까지 보존하고, 폐기 시각과 담당자를 운영 기록에 남깁니다.
+
+### systemd service·timer 롤아웃
+
+`.github/systemd/saloncutai-dev-pull.service`와 `.timer`도 별도 설치 대상입니다. wrapper와 같은 승인 SHA·known-good 해시·lock·backup·same-filesystem atomic replace 원칙을 적용하되 다음 차이가 있습니다.
+
+1. 승인 SHA의 두 unit blob을 각각 임시 파일로 추출합니다.
+2. 현재 `/etc/systemd/system` 설치본이 이전 승인 blob과 같은지 확인합니다.
+3. owner `root`, group `root`, mode `644`를 유지합니다.
+4. `systemd-analyze verify`로 임시 unit을 검사한 뒤 원자 교체합니다.
+5. 두 파일의 해시를 다시 확인하고 `sudo systemctl daemon-reload`를 실행합니다.
+6. timer schedule이 바뀐 경우에만 별도 승인 아래 timer 재시작을 수행합니다. pull service는 수동 실행하지 않습니다.
+7. 다음 scheduled timer의 result·journal·앱 서비스 무변화를 확인합니다.
+8. 실패하면 두 unit을 함께 원자 롤백하고 `daemon-reload` 후 다음 timer를 다시 관측합니다.
+
+설치본 drift 자동 감지는 후속 개선 후보입니다. wrapper가 자기 해시와 대상 SHA blob 해시를 비교해 비차단 경고를 남기는 것은 가능하지만, 이전 wrapper는 최초 drift를 스스로 감지할 수 없고 알림 연결 시 중복·오탐 검증이 추가됩니다. 마감 직전 배포 경로 코드를 늘리지 않고 이번에는 문서 절차로 관리합니다.
+
 ## GitHub에 필요한 저장소 변수
 
 Repository `Settings → Secrets and variables → Actions → Variables`에 다음 두 값을 등록합니다.
