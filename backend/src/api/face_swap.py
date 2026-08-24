@@ -102,7 +102,7 @@ def _validate_face(image_bytes: bytes) -> ApiError | None:
     from src.ai_engine.image_gen import validate
 
     img = Image.open(BytesIO(image_bytes)).convert("RGB")
-    return validate.validate_image(img)
+    return validate.validate_image(storage.to_stored_size(img))
 
 
 # --- 접수 ---
