@@ -35,29 +35,29 @@ export type PageShellWidth = keyof typeof WIDTH;
  * 이 화면에 처음 온 게 아니면 true. 설명 문단이 매번 반복 노출되는 걸 막으려고
  * 만들었다 — 화면(pathname)별로 localStorage 에 방문 기록을 남긴다.
  *
- * "읽기"는 useState 지연 초기화로 마운트 시 딱 한 번만 한다 — 매 렌더마다 다시
- * 읽으면, effect 가 방문 기록을 쓴 직후 같은 화면 안에서 리렌더링이 일어날 때
- * (다른 상태 변화로) 방금 온 첫 방문인데도 바로 숨겨지는 문제가 있었다(실측).
- * "쓰기"만 effect 에서 한다.
+ * 초깃값은 항상 false(첫 방문)로 서버 렌더와 맞춘다 — 마운트 시 바로 localStorage를
+ * 읽어버리면, 서버는 window가 없어 항상 false를 렌더하는데 클라이언트 첫 렌더만
+ * true가 돼서 하이드레이션 직후 "새로고침하면 에러(#418)"가 났다(실측 재현:
+ * ynow98, PR #160). "읽기·쓰기" 둘 다 effect로 미뤄서 첫 페인트는 항상 서버와
+ * 같게 하고, 재방문이면 그 직후 한 번만 상태를 바꾼다.
  */
 function useReturningVisitor(pathname: string): boolean {
   const key = `pageshell-visited:${pathname}`;
-
-  const [returning] = useState(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return window.localStorage.getItem(key) !== null;
-    } catch {
-      return false;
-    }
-  });
+  const [returning, setReturning] = useState(false);
 
   useEffect(() => {
+    let alreadyVisited = false;
     try {
+      alreadyVisited = window.localStorage.getItem(key) !== null;
       window.localStorage.setItem(key, "1");
     } catch {
       // localStorage 를 막아둔 환경(프라이빗 모드 등)에서는 매번 첫 방문처럼 보여준다.
     }
+    // 서버는 항상 false를 렌더하므로 하이드레이션 직후에만 true로 바꾼다 — 여기서
+    // 안 바꾸면 재방문자에게 설명 문단이 계속 남는다. SSR-세이프 클라이언트 상태의
+    // 표준 패턴이라 캐스케이딩 렌더링 경고보다 정확성을 우선한다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (alreadyVisited) setReturning(true);
   }, [key]);
 
   return returning;
