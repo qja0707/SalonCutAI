@@ -1,15 +1,82 @@
 from __future__ import annotations
 
+import asyncio
 import json
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from src.ai_engine.video_gen.engine import VideoResult
 from src.api import video_jobs
 from src.api.api import api_router
 from src.api.dependencies import check_auth_token
+
+
+def test_video_file_limit_accepts_159_mib_and_rejects_161_mib():
+    assert video_jobs.MAX_FILE_BYTES == 160 * 1024 * 1024
+
+    destination = MagicMock()
+    one_mib = MagicMock()
+    one_mib.__len__.return_value = 1024 * 1024
+
+    def upload_with_size(mib):
+        upload = MagicMock()
+        upload.read = AsyncMock(side_effect=[one_mib] * mib + [b""])
+        return upload
+
+    assert (
+        asyncio.run(video_jobs._save_upload(upload_with_size(159), destination))
+        == 159 * 1024 * 1024
+    )
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(video_jobs._save_upload(upload_with_size(161), destination))
+
+    assert error.value.status_code == 413
+    assert error.value.detail == "파일당 최대 크기는 160MB입니다."
+
+
+@pytest.mark.parametrize(
+    ("sizes", "expected_status"),
+    [
+        ([160 * 1024 * 1024, 160 * 1024 * 1024], 202),
+        ([160 * 1024 * 1024, 160 * 1024 * 1024 + 1], 413),
+    ],
+)
+def test_video_total_limit_allows_320_mib_and_rejects_larger(
+    monkeypatch, tmp_path, sizes, expected_status
+):
+    app = FastAPI()
+    app.include_router(api_router)
+    app.dependency_overrides[check_auth_token] = lambda: None
+    client = TestClient(app)
+
+    video_jobs._jobs.clear()
+    monkeypatch.setattr(video_jobs, "_job_root", lambda: tmp_path)
+    monkeypatch.setattr(video_jobs, "_run_job", lambda _job_id: None)
+    remaining_sizes = iter(sizes)
+
+    async def fake_save_upload(_upload, _destination):
+        return next(remaining_sizes)
+
+    monkeypatch.setattr(video_jobs, "_save_upload", fake_save_upload)
+    payload = {"clips": [{"role": "before"}, {"role": "after"}]}
+    response = client.post(
+        "/api/v1/video-jobs",
+        files=[
+            ("clips", ("before.mp4", b"before", "video/mp4")),
+            ("clips", ("after.mp4", b"after", "video/mp4")),
+        ],
+        data={"payload": json.dumps(payload)},
+    )
+
+    assert response.status_code == expected_status
+    if expected_status == 413:
+        assert response.json()["detail"] == "전체 영상 크기는 최대 320MB입니다."
+        assert list(tmp_path.iterdir()) == []
+    video_jobs._jobs.clear()
 
 
 def test_video_routes_use_one_api_v1_prefix():

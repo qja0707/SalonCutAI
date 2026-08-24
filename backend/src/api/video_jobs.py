@@ -40,7 +40,7 @@ router = APIRouter(
 
 MAX_CLIPS = 8
 MIN_CLIPS = 2
-MAX_FILE_BYTES = 80 * 1024 * 1024
+MAX_FILE_BYTES = 160 * 1024 * 1024
 MAX_TOTAL_BYTES = 320 * 1024 * 1024
 TTL_HOURS = 24
 ALLOWED_SUFFIXES = {".mp4", ".mov", ".webm", ".mkv"}
