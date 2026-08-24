@@ -29,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   createVideoJob,
   createVideoCaptions,
@@ -129,6 +130,7 @@ export function ShortsGenerator() {
   const [job, setJob] = useState<VideoJobResponse | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [generatingCaptions, setGeneratingCaptions] = useState(false);
+  const [blurFaces, setBlurFaces] = useState(true);
   const [topic, setTopic] = useState("");
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -211,6 +213,7 @@ export function ShortsGenerator() {
           file,
           options: { role, selection, caption },
         })),
+        blurFaces,
       );
       setJob(await getVideoJob(created.job_id));
       // 폰에서는 진행률·결과가 화면 밖(맨 아래)에 있다 — 만들기를 눌렀으면 그리로 데려간다.
@@ -260,6 +263,7 @@ export function ShortsGenerator() {
     setJob(null);
     setClips([]);
     setTopic("");
+    setBlurFaces(true);
     setError("");
   }
 
@@ -350,6 +354,22 @@ export function ShortsGenerator() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="rounded-xl border bg-muted/20 p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <Label htmlFor="blur-faces">얼굴 블러 적용</Label>
+                    <Switch
+                      id="blur-faces"
+                      checked={blurFaces}
+                      disabled={busy}
+                      onCheckedChange={setBlurFaces}
+                    />
+                  </div>
+                  {!blurFaces && (
+                    <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                      본인만 등장하거나 모든 출연자에게 촬영·게시 동의를 받은 영상에서만 꺼주세요. 완성 영상을 확인한 뒤 게시해주세요.
+                    </p>
+                  )}
+                </div>
+                <div className="rounded-xl border bg-muted/20 p-4">
                   <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                     <div className="space-y-2">
                       <Label htmlFor="caption-topic">시술명 또는 홍보 주제 (선택)</Label>
@@ -395,7 +415,10 @@ export function ShortsGenerator() {
                         variant="ghost"
                         size="icon"
                         disabled={busy}
-                        onClick={() => setClips((current) => current.filter((item) => item.id !== clip.id))}
+                        onClick={() => {
+                          if (clips.length === 1) setBlurFaces(true);
+                          setClips((current) => current.filter((item) => item.id !== clip.id));
+                        }}
                         aria-label={`${clip.file.name} 제거`}
                       >
                         <Trash2 />
@@ -514,7 +537,11 @@ export function ShortsGenerator() {
                   <div className="rounded-xl bg-muted/60 p-3 text-xs text-muted-foreground">
                     <p className="flex items-center gap-2 text-foreground"><CheckCircle2 className="h-4 w-4 text-primary" />영상 생성 완료</p>
                     <p className="mt-2">길이 {job.result?.duration_sec.toFixed(1)}초 · 처리 {job.meta?.processing_sec.toFixed(1)}초</p>
-                    <p className="mt-1">얼굴 검출·블러 {job.meta?.faces_blurred ?? 0}회</p>
+                    <p className="mt-1">
+                      {job.meta?.blur_faces === false
+                        ? "얼굴 블러 꺼짐"
+                        : `얼굴 검출·블러 ${job.meta?.faces_blurred ?? 0}회`}
+                    </p>
                   </div>
                   <a
                     href={videoJobUrl(job.job_id)}

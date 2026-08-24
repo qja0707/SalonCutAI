@@ -81,7 +81,7 @@ class ClipOptions(BaseModel):
 
 class VideoJobPayload(BaseModel):
     clips: list[ClipOptions] = Field(min_length=MIN_CLIPS, max_length=MAX_CLIPS)
-    blur_faces: Literal[True] = True
+    blur_faces: bool = True
     audio_mode: Literal["mute", "original", "tts"] = "mute"
 
     @model_validator(mode="after")
@@ -203,6 +203,7 @@ def _process_job(job_id: str) -> None:
             meta={
                 "processing_sec": round(time.perf_counter() - started, 3),
                 "faces_blurred": result.faces_blurred,
+                "blur_faces": blur_faces,
                 "audio_included": result.audio_included,
                 "audio_mode": audio_mode,
             },

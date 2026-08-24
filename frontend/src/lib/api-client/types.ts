@@ -139,6 +139,7 @@ export type VideoJobResponse = {
   meta: {
     processing_sec: number;
     faces_blurred: number;
+    blur_faces: boolean;
     audio_included: boolean;
   } | null;
   error: ApiError | null;
