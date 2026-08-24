@@ -31,7 +31,7 @@ import {
 import {
   StepNav,
   StepProgress,
-  scrollToResultOnNarrow,
+  scrollIntoViewOnNarrow,
   stepVisibility,
 } from "@/components/flow/step-flow";
 import {
@@ -216,7 +216,7 @@ export function ShortsGenerator() {
       setJob(await getVideoJob(created.job_id));
       setPhoneStep(PHONE_INPUT_STEP_COUNT + 1);
       // 폰에서는 진행률·결과가 화면 밖(맨 아래)에 있다 — 만들기를 눌렀으면 그리로 데려간다.
-      scrollToResultOnNarrow(resultRef.current);
+      scrollIntoViewOnNarrow(resultRef.current);
     } catch (submitError) {
       setError(errorMessage(submitError, "영상 작업을 접수하지 못했습니다."));
     } finally {

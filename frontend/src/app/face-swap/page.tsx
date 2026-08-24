@@ -8,10 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { FaceCheck } from "@/components/face-check";
 import { EXPECTED_SECONDS, FaceSwapWaiting } from "@/components/face-swap-waiting";
 import {
-  FaceSwapStepNav,
-  FaceSwapStepProgress,
-  PHONE_INPUT_STEP_COUNT,
-} from "@/components/face-swap-step-nav";
+  StepNav,
+  StepProgress,
+  scrollIntoViewOnNarrow,
+  stepVisibility,
+} from "@/components/flow/step-flow";
 import { FaceSwapRecentStrip } from "@/components/face-swap-recent-strip";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -77,20 +78,9 @@ const RATIO_USAGE: Record<Ratio, { label: string; badge?: string }> = {
 };
 const TERMINAL = new Set(["completed", "failed"]);
 
-/**
- * 좁은 화면에서만 그 자리로 데려간다.
- *
- * 1024px 이상에서는 입력과 결과가 좌우로 나란히 있어 이미 눈에 들어온다.
- * 그보다 좁으면 1·2·3·4 단계가 세로로 쌓여서, 만들기를 눌러도 결과가 화면 밖에 있다.
- * 무엇이 일어났는지 안 보이는 것이 지금 폰에서 제일 답답한 지점이다.
- */
-function scrollIntoViewOnNarrow(element: HTMLElement | null): void {
-  if (!element || typeof window === "undefined") return;
-  if (window.matchMedia("(min-width: 1024px)").matches) return;
-
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  element.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
-}
+/** 결과까지 포함한 단계 수. 진행 표시는 입력 4단계만 센다. */
+const PHONE_STEPS = ["시술 사진", "사진 활용 동의", "AI 모델", "이미지 옵션"] as const;
+const PHONE_INPUT_STEP_COUNT = 4;
 
 function progressMessage(job: FaceSwapJobResponse | null, elapsedSeconds: number): string {
   if (job?.status === "queued" && job.queue_position) {
@@ -409,9 +399,10 @@ export default function FaceSwapPage() {
 
   /**
    * 폰에서 이 단계의 카드를 보여줄지. lg 이상에서는 항상 보인다.
-   * 결과 칼럼도 같은 규칙을 쓴다(단계 5).
+   * 결과 칼럼도 같은 규칙을 쓴다(단계 5). 공용 stepVisibility 에 위임한다
+   * (블로그·숏츠와 같은 판정 — Discussion #149 PR 2).
    */
-  const phoneOnlyStep = (n: number) => (phoneStep === n ? "" : "hidden lg:block");
+  const phoneOnlyStep = (n: number) => stepVisibility(n, phoneStep);
 
   // 단계별로 다음으로 넘어갈 조건. 4단계(옵션)는 기본값이 있어 항상 통과한다.
   const stepReady: Record<number, boolean> = {
@@ -445,7 +436,7 @@ export default function FaceSwapPage() {
         )
       }
     >
-      <FaceSwapStepProgress step={phoneStep} />
+      <StepProgress step={phoneStep} steps={PHONE_STEPS} />
 
       {/*
         요청 오류는 단계 게이트 밖에서 보여준다. 결과 칼럼(5단계) 안에 두면
@@ -733,8 +724,9 @@ export default function FaceSwapPage() {
       />
 
       {phoneStep <= PHONE_INPUT_STEP_COUNT && (
-        <FaceSwapStepNav
+        <StepNav
           step={phoneStep}
+          totalSteps={PHONE_INPUT_STEP_COUNT}
           canGoNext={stepReady[phoneStep]}
           nextHint={stepHint[phoneStep]}
           onPrev={() => setPhoneStep((n) => Math.max(1, n - 1))}

@@ -28,7 +28,7 @@ import { PageShell } from "@/components/flow/page-shell";
 import {
   StepNav,
   StepProgress,
-  scrollToResultOnNarrow,
+  scrollIntoViewOnNarrow,
   stepVisibility,
 } from "@/components/flow/step-flow";
 
@@ -94,7 +94,7 @@ export function BlogGenerator() {
       console.log("created:", created);
       setGenerationResult(created);
       setPhoneStep(PHONE_INPUT_STEP_COUNT + 1);
-      scrollToResultOnNarrow(resultRef.current);
+      scrollIntoViewOnNarrow(resultRef.current);
     } catch (error) {
       setRequestError(
         errorMessage(error, "글을 만들지 못했습니다. 잠시 후 다시 시도해주세요."),

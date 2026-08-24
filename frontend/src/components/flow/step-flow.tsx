@@ -5,9 +5,10 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 /**
- * 폰 전용 단계식 진행 — 얼굴 교체 화면의 A안(`components/face-swap-step-nav.tsx`,
- * 원장님 확정 8/18)을 일반화한 것. 그 화면은 아직 이 컴포넌트로 옮기지 않았다
- * (Discussion #149 PR 2) — 동작이 이미 확정된 화면이라 별도 PR로 검증하며 옮긴다.
+ * 폰 전용 단계식 진행 — 얼굴 교체 화면의 A안(원장님 확정 8/18)을 일반화한 것.
+ * 원래 `components/face-swap-step-nav.tsx` 에 있었고, 블로그·숏츠에 먼저
+ * 적용한 뒤(Discussion #149) 얼굴 교체도 이 공용 컴포넌트로 옮겼다. 세 화면이
+ * 전부 같은 조작 방식을 쓴다 — 옛 파일은 삭제했다.
  *
  * 폰에서는 카드가 세로로 쌓여 화면이 계속 길어진다. 아래를 채우는 동안 위에서
  * 무엇이 빠졌는지 안 보이고, 만들기 버튼이 화면 밖에 있으면 다 채우고도 어디를
@@ -23,13 +24,14 @@ export function stepVisibility(step: number, current: number): string {
 }
 
 /**
- * 좁은 화면에서만 결과 자리로 데려간다.
+ * 좁은 화면에서만 그 자리로 데려간다.
  *
  * 1024px 이상에서는 입력과 결과가 좌우로 나란히 있어 이미 눈에 들어온다. 그보다
- * 좁으면 단계가 순서대로 넘어가므로, 결과 단계로 넘어간 뒤에도 스크롤 위치가
- * 이전 단계에 남아 있으면 무엇이 바뀌었는지 안 보인다.
+ * 좁으면 단계가 순서대로 넘어가므로, 다음 단계로 넘어간 뒤에도 스크롤 위치가
+ * 이전 단계에 남아 있으면 무엇이 바뀌었는지 안 보인다. 결과로 갈 때(만들기 클릭)와
+ * 입력으로 돌아갈 때(얼굴 교체의 "같은 설정으로 다음 사진") 양쪽에 다 쓴다.
  */
-export function scrollToResultOnNarrow(element: HTMLElement | null): void {
+export function scrollIntoViewOnNarrow(element: HTMLElement | null): void {
   if (!element || typeof window === "undefined") return;
   if (window.matchMedia("(min-width: 1024px)").matches) return;
 
