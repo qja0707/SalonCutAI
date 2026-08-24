@@ -6,6 +6,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from src.ai_engine.video_gen.engine import VideoResult
 from src.api import video_jobs
 from src.api.api import api_router
 from src.api.dependencies import check_auth_token
@@ -44,7 +45,6 @@ def test_create_and_get_video_job_returns_expected_status(monkeypatch, tmp_path)
             {"role": "before", "selection": "center", "caption": "비포"},
             {"role": "after", "selection": "center", "caption": "애프터"},
         ],
-        "blur_faces": True,
     }
     response = client.post(
         "/api/v1/video-jobs",
@@ -57,8 +57,73 @@ def test_create_and_get_video_job_returns_expected_status(monkeypatch, tmp_path)
 
     assert response.status_code == 202
     job_id = response.json()["job_id"]
+    assert video_jobs._jobs[job_id]["blur_faces"] is True
     assert client.get(f"/api/v1/video-jobs/{job_id}").status_code == 200
     assert client.get(f"/api/v1/api/v1/video-jobs/{job_id}").status_code == 404
+    video_jobs._jobs.clear()
+
+
+def test_video_job_accepts_false_blur_faces(monkeypatch, tmp_path):
+    app = FastAPI()
+    app.include_router(api_router)
+    app.dependency_overrides[check_auth_token] = lambda: None
+    client = TestClient(app)
+
+    video_jobs._jobs.clear()
+    monkeypatch.setattr(video_jobs, "_job_root", lambda: tmp_path)
+    monkeypatch.setattr(video_jobs, "_run_job", lambda _job_id: None)
+    payload = {
+        "clips": [
+            {"role": "before", "selection": "center", "caption": "비포"},
+            {"role": "after", "selection": "center", "caption": "애프터"},
+        ],
+        "blur_faces": False,
+    }
+    response = client.post(
+        "/api/v1/video-jobs",
+        files=[
+            ("clips", ("before.mp4", b"before", "video/mp4")),
+            ("clips", ("after.mp4", b"after", "video/mp4")),
+        ],
+        data={"payload": json.dumps(payload)},
+    )
+
+    assert response.status_code == 202
+    assert video_jobs._jobs[response.json()["job_id"]]["blur_faces"] is False
+    video_jobs._jobs.clear()
+
+
+def test_completed_video_meta_reports_actual_blur_faces(monkeypatch, tmp_path):
+    job_id = "blur-off-job"
+    output = tmp_path / "shorts.mp4"
+    video_jobs._jobs[job_id] = {
+        "status": "queued",
+        "progress": 0,
+        "queue_position": 1,
+        "clips": [],
+        "output_path": str(output),
+        "blur_faces": False,
+        "audio_mode": "mute",
+    }
+    captured: dict[str, bool] = {}
+
+    def fake_process_shorts(_clips, _output, *, blur_faces, **_kwargs):
+        captured["blur_faces"] = blur_faces
+        return VideoResult(
+            duration_sec=4.0,
+            width=1080,
+            height=1920,
+            faces_blurred=0,
+            audio_included=False,
+        )
+
+    monkeypatch.setattr(video_jobs, "process_shorts", fake_process_shorts)
+
+    video_jobs._process_job(job_id)
+
+    assert captured["blur_faces"] is False
+    assert video_jobs._jobs[job_id]["status"] == "completed"
+    assert video_jobs._jobs[job_id]["meta"]["blur_faces"] is False
     video_jobs._jobs.clear()
 
 

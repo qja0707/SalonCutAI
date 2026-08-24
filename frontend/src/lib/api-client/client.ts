@@ -141,12 +141,13 @@ export async function signin(payload: SigninPayload): Promise<SigninResponse> {
 }
 export async function createVideoJob(
   clips: { file: File; options: VideoClipOptions }[],
+  blurFaces = true,
 ): Promise<CreateVideoJobResponse> {
   const form = new FormData();
   for (const clip of clips) form.append("clips", clip.file);
   form.append(
     "payload",
-    JSON.stringify({ clips: clips.map((clip) => clip.options), blur_faces: true }),
+    JSON.stringify({ clips: clips.map((clip) => clip.options), blur_faces: blurFaces }),
   );
   return parseResponse<CreateVideoJobResponse>(
     await fetch("/api/v1/video-jobs", { method: "POST", body: form }),
