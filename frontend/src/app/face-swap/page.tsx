@@ -394,7 +394,7 @@ export default function FaceSwapPage() {
    */
   const generateCta = (
     <Button
-      className="w-full"
+      className="w-full transition-[filter] hover:brightness-90 active:brightness-95"
       size="lg"
       style={{ backgroundColor: IDENTITY_INK }}
       onClick={handleGenerate}

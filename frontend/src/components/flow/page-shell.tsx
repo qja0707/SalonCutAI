@@ -1,4 +1,8 @@
+"use client";
+
 import type { LucideIcon } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -27,6 +31,38 @@ const WIDTH = {
 
 export type PageShellWidth = keyof typeof WIDTH;
 
+/**
+ * 이 화면에 처음 온 게 아니면 true. 설명 문단이 매번 반복 노출되는 걸 막으려고
+ * 만들었다 — 화면(pathname)별로 localStorage 에 방문 기록을 남긴다.
+ *
+ * "읽기"는 useState 지연 초기화로 마운트 시 딱 한 번만 한다 — 매 렌더마다 다시
+ * 읽으면, effect 가 방문 기록을 쓴 직후 같은 화면 안에서 리렌더링이 일어날 때
+ * (다른 상태 변화로) 방금 온 첫 방문인데도 바로 숨겨지는 문제가 있었다(실측).
+ * "쓰기"만 effect 에서 한다.
+ */
+function useReturningVisitor(pathname: string): boolean {
+  const key = `pageshell-visited:${pathname}`;
+
+  const [returning] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem(key) !== null;
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(key, "1");
+    } catch {
+      // localStorage 를 막아둔 환경(프라이빗 모드 등)에서는 매번 첫 방문처럼 보여준다.
+    }
+  }, [key]);
+
+  return returning;
+}
+
 export function PageShell({
   title,
   icon: Icon,
@@ -53,6 +89,9 @@ export function PageShell({
   className?: string;
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+  const isReturningVisitor = useReturningVisitor(pathname);
+
   const heading = (
     <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
   );
@@ -72,7 +111,7 @@ export function PageShell({
         heading
       )}
 
-      {description && (
+      {description && !isReturningVisitor && (
         <p className="mt-2 max-w-2xl text-muted-foreground">{description}</p>
       )}
       {footnote && (
