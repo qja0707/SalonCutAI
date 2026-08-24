@@ -303,7 +303,7 @@ export function ShortsGenerator() {
     <Button
       onClick={generate}
       disabled={busy || clips.length < 2}
-      className="w-full"
+      className="w-full transition-[filter] hover:brightness-90 active:brightness-95"
       style={{ backgroundColor: IDENTITY_INK }}
     >
       {busy ? <LoaderCircle className="animate-spin" /> : <Film />}
@@ -335,8 +335,9 @@ export function ShortsGenerator() {
             {/* "MVP"는 내부 용어라 사용자 화면에 노출하지 않는다(8/17 문구 정합). */}
             <Badge variant="secondary">시술 영상 자동 편집</Badge>
           </div>
-          {/* 대제목은 새 네이밍, 메뉴는 AI 숏츠 만들기 — 역할 분리(8/17 원장님) */}
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">🎬 간편 숏츠 만들기</h1>
+          {/* 대제목은 릴스로 통일(Discussion #149) — 배지("인스타 릴스 · 스토리")와
+              맞춘다. 메뉴는 AI 숏츠 만들기 그대로 — 역할 분리(8/17 원장님) */}
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">🎬 간편 릴스 만들기</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
             찍어둔 시술 클립만 고르면 9:16 숏츠로 자동 편집됩니다. 편집 프로그램 없이 폰
             영상 그대로 — 얼굴 블러까지 자동입니다.
