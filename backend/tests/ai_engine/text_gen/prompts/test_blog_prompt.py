@@ -23,7 +23,7 @@ def test_blog_prompt_generation():
 
     # 2. Act: Generate the prompt
     blog_prompt_instance = BlogPrompt(request=request)
-    system_prompt, user_prompt = blog_prompt_instance.get_prompt()
+    system_prompt, user_prompt, _ = blog_prompt_instance.get_prompt()
 
     # 3. Assert: Verify the prompts' content
     # Check that the system prompt is not empty and contains key instructions (Updated to match new prompt)

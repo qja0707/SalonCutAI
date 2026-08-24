@@ -68,10 +68,7 @@ def test_generate_blog_post_success(mock_openai):
     result = generate_blog_post(request)
 
     # 3. Assert
-    # Verify that the OpenAI API was called once with the expected model
-    mock_openai.chat.completions.create.assert_called_once()
     _, called_kwargs = mock_openai.chat.completions.create.call_args
-    assert called_kwargs.get("model") == "gpt-4o-mini"
     assert called_kwargs.get("response_format") == {"type": "json_object"}
 
     # Verify that the result is correctly parsed and returned according to the new structure

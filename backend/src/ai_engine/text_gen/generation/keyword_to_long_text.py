@@ -16,11 +16,11 @@ def generate_blog_post(request: BlogGenerationRequest):
     blog_prompt_instance = BlogPrompt(request=request)
 
     # Get the system and user prompts
-    system_prompt, user_prompt = blog_prompt_instance.get_prompt()
+    system_prompt, user_prompt, edit_prompt = blog_prompt_instance.get_prompt()
 
     # 3. GPT-4o-mini API 호출
     response = openAI.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5.4-nano",
         response_format={"type": "json_object"},  # ⭐️ JSON 전용 출력 보장
         messages=[
             {"role": "system", "content": system_prompt},
@@ -31,15 +31,38 @@ def generate_blog_post(request: BlogGenerationRequest):
                 ],
             },
         ],
-        temperature=0.7,
     )
 
     result_dict = json.loads(response.choices[0].message.content)
 
     response = BlogGenerationResponse.model_validate(result_dict)
 
+    edit_response = openAI.chat.completions.create(
+        model="gpt-5.4",
+        response_format={"type": "json_object"},  # ⭐️ JSON 전용 출력 보장
+        messages=[
+            {"role": "system", "content": edit_prompt},
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"[입력 파라미터]:{user_prompt}, [AI 생성 결과물]:{response}",
+                    },
+                ],
+            },
+        ],
+    )
+
+    edit_dict = json.loads(edit_response.choices[0].message.content)
+
+    if edit_dict.get("status") == "PASS":
+        return response
+
+    edit_response = BlogGenerationResponse.model_validate(edit_dict)
+
     # 4. 결과 출력
-    return response
+    return edit_response
 
 
 # 사용 예시
