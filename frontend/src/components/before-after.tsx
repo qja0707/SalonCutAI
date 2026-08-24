@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronsLeftRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export function BeforeAfter({
   originalUrl,
@@ -43,14 +44,35 @@ export function BeforeAfterSlider({
   afterUrl,
   beforeLabel = "올린 사진",
   afterLabel = "바꾼 결과",
+  autoPlay = false,
 }: {
   beforeUrl: string;
   afterUrl: string;
   beforeLabel?: string;
   afterLabel?: string;
+  /**
+   * 랜딩 히어로 전용 — 손대지 않아도 좌우로 천천히 왔다갔다 보여준다. 사용자가
+   * 직접 드래그·키보드 조작하면 그 즉시 멈춘다. 실제 결과 비교 화면(얼굴 교체 등)은
+   * 본인 사진을 직접 살펴봐야 하니 쓰지 않는다. `prefers-reduced-motion` 이면 돌지 않는다.
+   */
+  autoPlay?: boolean;
 }) {
   const frameRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState(50);
+  const [dragging, setDragging] = useState(false);
+  const [autoPlaying, setAutoPlaying] = useState(autoPlay);
+
+  useEffect(() => {
+    if (!autoPlaying) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    let atRight = false;
+    const id = setInterval(() => {
+      atRight = !atRight;
+      setPosition(atRight ? 78 : 22);
+    }, 2200);
+    return () => clearInterval(id);
+  }, [autoPlaying]);
 
   function moveTo(clientX: number) {
     const rect = frameRef.current?.getBoundingClientRect();
@@ -73,20 +95,28 @@ export function BeforeAfterSlider({
       // touch-none 으로 다 뺏으면 폰에서 이 큰 프레임 위로 스크롤이 안 된다.
       style={{ touchAction: "pan-y" }}
       onPointerDown={(event) => {
+        setAutoPlaying(false);
+        setDragging(true);
         event.currentTarget.setPointerCapture(event.pointerId);
         moveTo(event.clientX);
       }}
       onPointerMove={(event) => {
         if (event.currentTarget.hasPointerCapture(event.pointerId)) moveTo(event.clientX);
       }}
+      onPointerUp={() => setDragging(false)}
+      onPointerCancel={() => setDragging(false)}
       onKeyDown={(event) => {
+        setAutoPlaying(false);
         if (event.key === "ArrowLeft") setPosition((p) => Math.max(0, p - 5));
         if (event.key === "ArrowRight") setPosition((p) => Math.min(100, p + 5));
       }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={beforeUrl} alt={beforeLabel} draggable={false} className="absolute inset-0 h-full w-full object-cover" />
-      <div className="absolute inset-0" style={{ clipPath: `inset(0 0 0 ${position}%)` }}>
+      <div
+        className={cn("absolute inset-0", !dragging && "transition-[clip-path] duration-[1400ms] ease-in-out")}
+        style={{ clipPath: `inset(0 0 0 ${position}%)` }}
+      >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={afterUrl} alt={afterLabel} draggable={false} className="absolute inset-0 h-full w-full object-cover" />
         <span className="pointer-events-none absolute right-2 bottom-2 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
@@ -95,7 +125,13 @@ export function BeforeAfterSlider({
       </div>
 
       {/* 경계선과 손잡이. 조작은 프레임 전체가 받으므로 여기는 그림만 그린다. */}
-      <div className="pointer-events-none absolute inset-y-0" style={{ left: `${position}%` }}>
+      <div
+        className={cn(
+          "pointer-events-none absolute inset-y-0",
+          !dragging && "transition-[left] duration-[1400ms] ease-in-out",
+        )}
+        style={{ left: `${position}%` }}
+      >
         <div className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-white/90 shadow-[0_0_4px_rgba(0,0,0,0.4)]" />
         <div className="absolute top-1/2 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white text-neutral-700 shadow-md">
           <ChevronsLeftRight className="h-4 w-4" />

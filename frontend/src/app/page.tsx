@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -99,21 +98,17 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="relative mx-auto w-full max-w-sm">
-          <div className="relative aspect-[4/5] overflow-hidden rounded-3xl border shadow-xl">
-            {/* 이 서비스로 실제 시술 사진을 얼굴 교체해 만든 결과물 — 얼굴은 AI, 머리·배경은 실제 */}
-            <Image
-              src="/sample-assets/landing-hero-swap.jpg"
-              alt="얼굴 교체로 만든 홍보 이미지 — 시술한 머리는 그대로, 얼굴은 AI 모델"
-              fill
-              priority
-              sizes="(min-width: 1024px) 24rem, 90vw"
-              className="object-cover"
-            />
-            <span className="absolute top-3 left-3 rounded-full bg-black/55 px-2 py-1 text-[10px] font-medium tracking-wider text-white">
-              AI 생성
-            </span>
-          </div>
+        <div className="relative mx-auto w-full max-w-sm shadow-xl">
+          {/* 01번 섹션과 같은 컴포넌트 — 정적 사진 대신 자동으로 좌우 스윕해서, 스크롤
+              안 하는 방문자도 "얼굴만 바뀌고 머리는 그대로"를 바로 본다. 아래 01에서
+              드래그로 다시 보여주니 여기선 중복 정적 이미지를 없앴다. */}
+          <BeforeAfterSlider
+            beforeUrl="/sample-assets/landing-hero-before.jpg"
+            afterUrl="/sample-assets/landing-hero-swap.jpg"
+            beforeLabel="원본"
+            afterLabel="교체 후"
+            autoPlay
+          />
           <div className="absolute -left-2 bottom-6 rounded-xl border bg-card/95 px-3.5 py-2.5 text-xs leading-5 text-card-foreground shadow-lg backdrop-blur">
             시술한 머리 그대로,
             <br />
