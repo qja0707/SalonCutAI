@@ -13,7 +13,7 @@ import {
 } from "@/lib/api-client/types";
 import { Copy, Loader2, Sparkles } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   BlogFields,
@@ -25,8 +25,18 @@ import {
 } from "./blog-fields";
 import { errorMessage } from "@/lib/api-client/error-message";
 import { PageShell } from "@/components/flow/page-shell";
+import {
+  StepNav,
+  StepProgress,
+  scrollToResultOnNarrow,
+  stepVisibility,
+} from "@/components/flow/step-flow";
 
 const EXPECTED_SECONDS = 16;
+
+/** 결과까지 포함한 단계 수. 진행 표시는 입력 3단계만 센다. */
+const PHONE_STEPS = ["매장 정보", "이번 시술", "모발 상태"] as const;
+const PHONE_INPUT_STEP_COUNT = 3;
 
 function progressMessage(elapsedSeconds: number): string {
   if (elapsedSeconds < 5) return "요청 내용을 확인하고 있어요";
@@ -49,6 +59,10 @@ export function BlogGenerator() {
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [requestError, setRequestError] = useState<string | null>(null);
+  // 폰 단계식(A안, Discussion #149 — 얼굴 교체와 같은 흐름)에서 지금 보여줄 단계.
+  // 1~3 은 입력, 4 는 결과. lg 이상에서는 쓰이지 않는다 — 카드가 전부 렌더된다.
+  const [phoneStep, setPhoneStep] = useState(1);
+  const resultRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!requesting || startedAt === null) return;
@@ -79,6 +93,8 @@ export function BlogGenerator() {
 
       console.log("created:", created);
       setGenerationResult(created);
+      setPhoneStep(PHONE_INPUT_STEP_COUNT + 1);
+      scrollToResultOnNarrow(resultRef.current);
     } catch (error) {
       setRequestError(
         errorMessage(error, "글을 만들지 못했습니다. 잠시 후 다시 시도해주세요."),
@@ -100,9 +116,42 @@ export function BlogGenerator() {
     }
   }
 
+  /**
+   * 만들기 버튼 하나를 두 자리에서 그린다 — 데스크톱은 입력 칼럼 끝, 폰은 하단 고정 바.
+   * 얼굴 교체 화면과 같은 이유다: 폰에서 버튼이 화면 밖에 있는 것이 가장 답답한
+   * 지점이었다(#149 — 실측 3.1화면 분량, 버튼이 2.7화면 아래).
+   */
+  const generateCta = (
+    <Button
+      className="w-full"
+      size="lg"
+      onClick={handleGenerate}
+      disabled={requesting || !isBlogFieldsReady(fields)}
+    >
+      {requesting ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <Sparkles className="h-4 w-4" />
+      )}
+      {requesting ? progressMessage(elapsedSeconds) : "블로그 글 만들기"}
+    </Button>
+  );
+
+  const stepReady: Record<number, boolean> = {
+    1: true,
+    2: isBlogFieldsReady(fields),
+    3: true,
+  };
+  const stepHint: Record<number, string> = {
+    1: "",
+    2: "메인 시술 · 베이스 컷 · 디자인 포인트 · 고객이 겪던 불편을 채워주세요.",
+    3: "",
+  };
+
   // 대제목은 새 네이밍, 메뉴는 AI 블로그 글쓰기 — 역할 분리(8/17 원장님)
   return (
     <PageShell
+      className="pb-28 lg:pb-10"
       width="5xl"
       title="📝 간단 블로그 글쓰기"
       description={
@@ -113,42 +162,44 @@ export function BlogGenerator() {
       }
       badge={label && <Badge variant="secondary">연결된 컨텍스트 · {label}</Badge>}
     >
+      <StepProgress step={phoneStep} steps={PHONE_STEPS} />
+
+      {/*
+        요청 오류는 단계 게이트 밖에서 보여준다. 결과 칼럼(4단계) 안에 두면
+        폰에서 입력 단계 도중 실패했을 때 오류가 숨겨진 칼럼에 찍혀 아무것도 안 보인다
+        — 얼굴 교체 화면에서 같은 이유로 이미 고친 문제다.
+      */}
+      {requestError && (
+        <Alert variant="destructive" className="mt-4">
+          <AlertDescription>{requestError}</AlertDescription>
+        </Alert>
+      )}
+
       <div className="mt-8 grid gap-8 lg:grid-cols-2">
         <div className="space-y-6">
           <BlogFields
             values={fields}
             onChange={setFields}
             disabled={requesting}
+            phoneStep={phoneStep}
           />
 
-          <Button
-            className="w-full"
-            size="lg"
-            onClick={handleGenerate}
-            disabled={requesting || !isBlogFieldsReady(fields)}
-          >
-            {requesting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4" />
+          <div className={stepVisibility(PHONE_INPUT_STEP_COUNT, phoneStep)}>
+            {generateCta}
+            {!isBlogFieldsReady(fields) && (
+              <p className="mt-3 text-sm text-muted-foreground">
+                메인 시술 · 베이스 컷 · 디자인 포인트 · 고객이 겪던 불편을 채우면
+                만들 수 있어요.
+              </p>
             )}
-            {requesting ? progressMessage(elapsedSeconds) : "블로그 글 만들기"}
-          </Button>
-          {!isBlogFieldsReady(fields) && (
-            <p className="text-sm text-muted-foreground">
-              메인 시술 · 베이스 컷 · 디자인 포인트 · 고객이 겪던 불편을 채우면
-              만들 수 있어요.
-            </p>
-          )}
+          </div>
         </div>
 
-        <div className="space-y-4">
+        <div
+          className={`space-y-4 ${stepVisibility(PHONE_INPUT_STEP_COUNT + 1, phoneStep)}`}
+          ref={resultRef}
+        >
           <h2 className="text-base font-semibold">결과</h2>
-          {requestError && (
-            <Alert variant="destructive">
-              <AlertDescription>{requestError}</AlertDescription>
-            </Alert>
-          )}
           {requesting && (
             <Alert>
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -202,6 +253,19 @@ export function BlogGenerator() {
           )}
         </div>
       </div>
+
+      {phoneStep <= PHONE_INPUT_STEP_COUNT && (
+        <StepNav
+          step={phoneStep}
+          totalSteps={PHONE_INPUT_STEP_COUNT}
+          canGoNext={stepReady[phoneStep]}
+          nextHint={stepHint[phoneStep]}
+          onPrev={() => setPhoneStep((n) => Math.max(1, n - 1))}
+          onNext={() => setPhoneStep((n) => Math.min(PHONE_INPUT_STEP_COUNT, n + 1))}
+          cta={generateCta}
+          width="max-w-5xl"
+        />
+      )}
 
       <DevNote
         guideExample="MOCK-002 · 블로그 독립 job 종단 흐름"
