@@ -13,8 +13,10 @@ import { cn } from "@/lib/utils";
  * **각 화면이 쓰던 값을 그대로 넘겨** 배치를 건드리지 않는다. 통일은 별도 PR 에서 이
  * prop 만 지우면 된다 (기본값이 이미 `6xl` — 얼굴 교체·랜딩 기준).
  *
- * 숏츠는 아직 쓰지 않는다. 배지가 제목 위에 있고 CTA 가 헤더 오른쪽에 붙는 등 모양이
- * 달라서, 화면을 재구성하는 PR 에서 함께 옮긴다.
+ * 숏츠는 아직 쓰지 않는다. CTA 가 헤더 오른쪽에 붙는 등 모양이 달라서, 화면을
+ * 재구성하는 PR 에서 함께 옮긴다. 배지 위치(제목 위)는 숏츠와 맞춰뒀다 — 배지가
+ * 설명 아래 있던 1차 버전은 숏츠만 배지가 위에 있어 화면마다 배지 자리가
+ * 달랐다(실측 지적).
  */
 
 const WIDTH = {
@@ -42,7 +44,7 @@ export function PageShell({
   description?: React.ReactNode;
   /** 설명 아래 한 줄 더. 지금은 스케치 상담의 "목표 기능" 안내만 쓴다 */
   footnote?: React.ReactNode;
-  /** 설명 아래 배지. 여백은 여기서 잡으므로 호출부는 `mt-*` 를 붙이지 않는다 */
+  /** 제목 위 배지(들). 숏츠와 같은 자리 — 여백은 여기서 잡으므로 호출부는 `mb-*` 를 붙이지 않는다 */
   badge?: React.ReactNode;
   /** 헤더 아래 항상 보이는 안내. 공개 미리보기 고지처럼 접히면 안 되는 것 */
   notice?: React.ReactNode;
@@ -57,6 +59,10 @@ export function PageShell({
 
   return (
     <div className={cn("mx-auto px-6 py-10", WIDTH[width], className)}>
+      {badge && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">{badge}</div>
+      )}
+
       {Icon ? (
         <div className="flex items-center gap-2">
           <Icon className="h-5 w-5 text-primary" />
@@ -72,7 +78,6 @@ export function PageShell({
       {footnote && (
         <p className="mt-1 text-sm text-muted-foreground">{footnote}</p>
       )}
-      {badge && <div className="mt-3">{badge}</div>}
       {notice && <div className="mt-4">{notice}</div>}
 
       {children}
