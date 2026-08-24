@@ -5,6 +5,8 @@
 FACE_OVAL 폐곡선을 따라 만든다.
 """
 
+import logging
+
 import cv2
 import mediapipe as mp
 import numpy as np
@@ -12,6 +14,8 @@ from mediapipe.tasks.python import vision
 from PIL import Image
 
 from src.ai_engine.image_gen import loader, settings
+
+logger = logging.getLogger(__name__)
 
 # selfie_multiclass 클래스 번호
 # 0 배경 / 1 머리카락 / 2 body-skin / 3 face-skin / 4 의류 / 5 기타
@@ -48,15 +52,35 @@ def build_face_mask(img: Image.Image) -> Image.Image | None:
     return Image.fromarray(mask)
 
 
+def _face_width(img: Image.Image) -> float | None:
+    """InsightFace bbox 폭. 팽창 비율의 기준이 되는 값이다."""
+    faces = loader.get_face_app().get(
+        cv2.cvtColor(np.array(img.convert("RGB")), cv2.COLOR_RGB2BGR)
+    )
+    if not faces:
+        return None
+    face = max(faces, key=lambda f: f.bbox[2] - f.bbox[0])
+    return float(face.bbox[2] - face.bbox[0])
+
+
 def build_hair_mask(img: Image.Image, dilate: int | None = None) -> Image.Image:
     """머리카락 영역을 팽창시켜 돌려준다.
 
     잔머리 사이가 톱니 모양으로 파이면 그 틈에 남은 이마 픽셀이
     인페인팅 대상에 들어가고, 모델이 주변을 참조해 머리카락으로 채워
     앞머리가 두꺼워진다. 팽창은 그 틈을 메우기 위한 것이다.
+
+    팽창량은 얼굴 폭에 비례한다. 절대 픽셀로 두면 조합 3 은 1024 축소본에서,
+    조합 5 는 2048 저장본에서 마스크를 만들어 실효값이 배로 달라진다.
+    비율이면 어느 좌표계에서 재도 같은 결과가 나온다.
     """
     if dilate is None:
-        dilate = settings.HAIR_DILATE_PX
+        fw = _face_width(img)
+        if fw is None:
+            logger.warning("얼굴 검출 실패로 헤어 팽창을 생략한다")
+            dilate = 0
+        else:
+            dilate = max(1, int(fw * settings.HAIR_DILATE_RATIO))
 
     hair = (_category_mask(img) == HAIR_CLASS).astype(np.uint8) * 255
 
