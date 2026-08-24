@@ -13,7 +13,7 @@ import {
 } from "@/lib/api-client/types";
 import { Copy, Loader2, Sparkles } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   BlogFields,
@@ -25,8 +25,64 @@ import {
 } from "./blog-fields";
 import { errorMessage } from "@/lib/api-client/error-message";
 import { PageShell } from "@/components/flow/page-shell";
+import {
+  StepNav,
+  StepProgress,
+  scrollIntoViewOnNarrow,
+  stepVisibility,
+} from "@/components/flow/step-flow";
 
 const EXPECTED_SECONDS = 16;
+
+/**
+ * 결과 예시(Discussion #149 제안 2) — 팀 골든셋 1번(기본 세트)의 실제 검증된 생성
+ * 결과다. 랜딩 문구를 요약해 붙였던 1차 시안이 "트위터 같다"는 지적을 받아
+ * 교체했다 — 실제 결과 형태(제목·도입·4섹션·마무리·해시태그) 그대로 전체 길이를
+ * 보여줘야 "이게 블로그 글이다"라는 인지가 된다. 출처: 팀 테스트 파라미터
+ * golden set, 시나리오 "중단발 복구 C컬(기본 세트)".
+ */
+const EXAMPLE_BLOG_RESULT: BlogWireResult = {
+  title: "강남역 미용실 삼각김밥 머리 탈출 볼륨매직 C컬펌 후기",
+  intro: "매일 아침 부스스하게 부풀어 오르는 반곱슬 때문에 삼각김밥처럼 퍼지는 머리가 고민이셨나요?\n\n얇은 반곱슬 모발의 답답함을 덜어내고, 손질 없이도 털어 말리기만 하면 완성되는 레이어드 볼륨매직 C컬펌 솔루션을 소개합니다.",
+  sections: {
+    before: {
+      heading: "어깨 라인에서 부풀어 오르는 삼각김밥 머리 고민",
+      body: "어깨 아래 5cm 기장의 고객님께서 매장을 찾아주셨습니다. 모질을 확인해보니 얇은 편인데 반곱슬 기운이 있어서, 아침에 머리를 말리고 나면 밑단이 삼각김밥처럼 뚱뚱하게 퍼지고 겉면이 부스스하게 부풀어 오르는 게 가장 큰 스트레스라고 하셨어요.\n\n특히 얇은 모발 특성상 자칫 시술을 잘못 들어가면 푹 꺼지거나 손상될까 봐 선뜻 시술을 못 정하고 계셨습니다. 부스스함은 깔끔하게 잡되, 광대 라인을 부드럽게 감싸는 윤곽 보완이 절실한 상황이었습니다.",
+    },
+    process: {
+      heading: "민우 실장의 맞춤 텍스처 레이어드와 볼륨매직 C컬 테크닉",
+      body: "우선 무겁게 뭉치는 밑단의 무게감을 덜어내기 위해 레이어드컷을 진행했습니다. 얇은 모발은 레이어를 너무 과하게 내면 끝이 날려서 부스스해 보이기 때문에, 겉단 위주로 가볍게 층을 내고 사이드뱅으로 옆광대 흐름을 자연스럽게 연결했습니다.\n\n이어서 진행한 볼륨매직 C컬펌은 반곱슬과 부스스한 결을 매끄럽게 정돈하면서 끝부분에 자연스러운 C컬을 넣어주는 시술입니다. 얇은 모발에 맞춰 적정 온도로 세심하게 결을 정돈하고 사이드뱅 흐름까지 맞춰 총 150분 동안 텍스처 하나하나에 집중해 작업했습니다.",
+    },
+    after: {
+      heading: "부스스함은 사라지고 손질 3분 완성 C컬 라인 완성",
+      body: "시술 후 말리기만 한 상태입니다. 지저분하게 퍼지던 반곱슬 결이 깔끔하게 정돈되면서 밑단이 자연스럽게 안으로 감기는 라인이 잡혔습니다.\n\n거울을 보신 고객님께서 '진짜 드라이나 아이론 안 하고 말리기만 한 게 맞냐'며 몇 번이나 확인하시더라고요. 아침마다 삼각김밥 모양 잡느라 고데기와 씨름하던 시간이 덜어져서 이제 털어 말리기만 해도 완성되는 가벼운 일상을 얻으셨습니다.",
+    },
+    home_care: {
+      heading: "얇은 반곱슬 모발을 위한 수분 케어 팁",
+      body: "볼륨매직 C컬펌은 말리는 방법이 핵심입니다. 샴푸 후 젖은 상태에서 사이드뱅만 앞쪽으로 넘어오도록 손가락으로 가볍게 말아둔 뒤, 전체 모발은 고개를 숙여 뒤에서 앞으로 털어 말려주세요.\n\n모발이 얇고 결을 매끄럽게 잡아둔 상태라 유분기가 많은 오일보다는 가벼운 에센스를 끝부분 위주로 소량 털어 발라주시는 것이 부스스함을 방지하고 윤기를 오래 유지하는 꿀팁입니다.",
+    }
+  },
+  closing: "강남역 미용실에서 본인 모질과 얼굴형에 딱 맞는 1:1 디테일 디자인을 찾아드립니다.\n\n아침 손질 시간을 단축하고 싶으시다면 언제든 민우 실장에게 편하게 상담 문의해 주세요.\n\n",
+  hashtags: [
+    "강남역미용실",
+    "강남역볼륨매직C컬펌",
+    "강남역레이어드컷",
+    "반곱슬볼륨매직",
+    "중단발C컬펌"
+  ],
+};
+
+/** 결과까지 포함한 단계 수. 진행 표시는 입력 3단계만 센다. */
+const PHONE_STEPS = ["매장 정보", "이번 시술", "모발 상태"] as const;
+const PHONE_INPUT_STEP_COUNT = 3;
+
+/**
+ * 목적지 색(Discussion #149 3번) — 네이버 블로그. 원색 #03C75A 는 흰 글자 대비
+ * 2.25:1 로 버튼에 못 써서, 짙은 변형만 쓴다. 흰 글자 5.19:1, wash 위 4.68:1 —
+ * 둘 다 WCAG AA 통과. 앱의 완료색 #00c471 과는 충분히 떨어져 있다(색 거리 88).
+ */
+const IDENTITY_INK = "#017E3B";
+const IDENTITY_WASH = "#e4f8ed";
 
 function progressMessage(elapsedSeconds: number): string {
   if (elapsedSeconds < 5) return "요청 내용을 확인하고 있어요";
@@ -49,6 +105,10 @@ export function BlogGenerator() {
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [requestError, setRequestError] = useState<string | null>(null);
+  // 폰 단계식(A안, Discussion #149 — 얼굴 교체와 같은 흐름)에서 지금 보여줄 단계.
+  // 1~3 은 입력, 4 는 결과. lg 이상에서는 쓰이지 않는다 — 카드가 전부 렌더된다.
+  const [phoneStep, setPhoneStep] = useState(1);
+  const resultRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!requesting || startedAt === null) return;
@@ -79,6 +139,8 @@ export function BlogGenerator() {
 
       console.log("created:", created);
       setGenerationResult(created);
+      setPhoneStep(PHONE_INPUT_STEP_COUNT + 1);
+      scrollIntoViewOnNarrow(resultRef.current);
     } catch (error) {
       setRequestError(
         errorMessage(error, "글을 만들지 못했습니다. 잠시 후 다시 시도해주세요."),
@@ -100,9 +162,43 @@ export function BlogGenerator() {
     }
   }
 
+  /**
+   * 만들기 버튼 하나를 두 자리에서 그린다 — 데스크톱은 입력 칼럼 끝, 폰은 하단 고정 바.
+   * 얼굴 교체 화면과 같은 이유다: 폰에서 버튼이 화면 밖에 있는 것이 가장 답답한
+   * 지점이었다(#149 — 실측 3.1화면 분량, 버튼이 2.7화면 아래).
+   */
+  const generateCta = (
+    <Button
+      className="w-full"
+      size="lg"
+      style={{ backgroundColor: IDENTITY_INK }}
+      onClick={handleGenerate}
+      disabled={requesting || !isBlogFieldsReady(fields)}
+    >
+      {requesting ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <Sparkles className="h-4 w-4" />
+      )}
+      {requesting ? progressMessage(elapsedSeconds) : "블로그 글 만들기"}
+    </Button>
+  );
+
+  const stepReady: Record<number, boolean> = {
+    1: true,
+    2: isBlogFieldsReady(fields),
+    3: true,
+  };
+  const stepHint: Record<number, string> = {
+    1: "",
+    2: "메인 시술 · 베이스 컷 · 디자인 포인트 · 고객이 겪던 불편을 채워주세요.",
+    3: "",
+  };
+
   // 대제목은 새 네이밍, 메뉴는 AI 블로그 글쓰기 — 역할 분리(8/17 원장님)
   return (
     <PageShell
+      className="pb-28 lg:pb-10"
       width="5xl"
       title="📝 간단 블로그 글쓰기"
       description={
@@ -111,44 +207,60 @@ export function BlogGenerator() {
           정보는 저장돼 다음부터는 더 빨라져요.
         </>
       }
-      badge={label && <Badge variant="secondary">연결된 컨텍스트 · {label}</Badge>}
+      badge={
+        <>
+          <Badge
+            variant="secondary"
+            className="border-0"
+            style={{ backgroundColor: IDENTITY_WASH, color: IDENTITY_INK }}
+          >
+            네이버 블로그
+          </Badge>
+          {label && <Badge variant="secondary">연결된 컨텍스트 · {label}</Badge>}
+        </>
+      }
     >
+      <StepProgress step={phoneStep} steps={PHONE_STEPS} activeColor={IDENTITY_INK} />
+
+      {/*
+        요청 오류는 단계 게이트 밖에서 보여준다. 결과 칼럼(4단계) 안에 두면
+        폰에서 입력 단계 도중 실패했을 때 오류가 숨겨진 칼럼에 찍혀 아무것도 안 보인다
+        — 얼굴 교체 화면에서 같은 이유로 이미 고친 문제다.
+      */}
+      {requestError && (
+        <Alert variant="destructive" className="mt-4">
+          <AlertDescription>{requestError}</AlertDescription>
+        </Alert>
+      )}
+
       <div className="mt-8 grid gap-8 lg:grid-cols-2">
         <div className="space-y-6">
           <BlogFields
             values={fields}
             onChange={setFields}
             disabled={requesting}
+            phoneStep={phoneStep}
           />
 
-          <Button
-            className="w-full"
-            size="lg"
-            onClick={handleGenerate}
-            disabled={requesting || !isBlogFieldsReady(fields)}
-          >
-            {requesting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4" />
+          <div className={stepVisibility(PHONE_INPUT_STEP_COUNT, phoneStep)}>
+            {generateCta}
+            {!isBlogFieldsReady(fields) && (
+              <p className="mt-3 text-sm text-muted-foreground">
+                메인 시술 · 베이스 컷 · 디자인 포인트 · 고객이 겪던 불편을 채우면
+                만들 수 있어요.
+              </p>
             )}
-            {requesting ? progressMessage(elapsedSeconds) : "블로그 글 만들기"}
-          </Button>
-          {!isBlogFieldsReady(fields) && (
-            <p className="text-sm text-muted-foreground">
-              메인 시술 · 베이스 컷 · 디자인 포인트 · 고객이 겪던 불편을 채우면
-              만들 수 있어요.
-            </p>
-          )}
+          </div>
         </div>
 
-        <div className="space-y-4">
+        <div
+          className={`space-y-4 ${stepVisibility(
+            generationResult ? PHONE_INPUT_STEP_COUNT + 1 : PHONE_INPUT_STEP_COUNT,
+            phoneStep,
+          )}`}
+          ref={resultRef}
+        >
           <h2 className="text-base font-semibold">결과</h2>
-          {requestError && (
-            <Alert variant="destructive">
-              <AlertDescription>{requestError}</AlertDescription>
-            </Alert>
-          )}
           {requesting && (
             <Alert>
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -156,6 +268,56 @@ export function BlogGenerator() {
                 {progressMessage(elapsedSeconds)}
               </AlertDescription>
             </Alert>
+          )}
+          {/*
+            결과 예시(Discussion #149 제안 2) — EXAMPLE_BLOG_RESULT(골든셋 1번)를
+            실제 결과와 완전히 같은 마크업으로 그린다. 1차 시안은 랜딩 문구를
+            요약해 2~3줄만 보여줬는데 "블로그 글이라고 인지가 안 된다, 트위터도
+            아니고"라는 지적을 받았다 — 실제 길이·구조(제목·도입·4섹션·마무리·
+            해시태그) 그대로 보여줘야 인지가 된다.
+          */}
+          {!requesting && !generationResult && (
+            <div className="relative space-y-4 rounded-lg border px-4 pt-7 pb-4">
+              {/* 제목이 2줄로 꺾이면 배지가 글자를 가린다(실측) — 카드 자체에
+                  여백을 더 줘서 배지 자리를 비워둔다. */}
+              <span className="absolute top-2.5 right-3 z-10 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                예시
+              </span>
+              <div>
+                <p className="pr-11 text-lg font-semibold">
+                  {EXAMPLE_BLOG_RESULT.title}
+                </p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {EXAMPLE_BLOG_RESULT.intro}
+                </p>
+              </div>
+              {BLOG_SECTION_ORDER.map((key) => {
+                const section = EXAMPLE_BLOG_RESULT.sections[key];
+                if (!section) return null;
+
+                return (
+                  <div key={key}>
+                    <p className="text-sm font-medium">{section.heading}</p>
+                    <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
+                      {section.body}
+                    </p>
+                  </div>
+                );
+              })}
+              <p className="text-sm text-muted-foreground">
+                {EXAMPLE_BLOG_RESULT.closing}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {EXAMPLE_BLOG_RESULT.hashtags.map((hashtag) => (
+                  <Badge key={hashtag} variant="secondary">
+                    #{hashtag.replace(/^#+/, "")}
+                  </Badge>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                필수 항목을 채우고 만들기를 누르면 직접 만든 글이 이 자리에 표시됩니다.
+              </p>
+            </div>
           )}
           {generationResult && (
             <div className="space-y-4 rounded-lg border p-4">
@@ -202,6 +364,19 @@ export function BlogGenerator() {
           )}
         </div>
       </div>
+
+      {phoneStep <= PHONE_INPUT_STEP_COUNT && (
+        <StepNav
+          step={phoneStep}
+          totalSteps={PHONE_INPUT_STEP_COUNT}
+          canGoNext={stepReady[phoneStep]}
+          nextHint={stepHint[phoneStep]}
+          onPrev={() => setPhoneStep((n) => Math.max(1, n - 1))}
+          onNext={() => setPhoneStep((n) => Math.min(PHONE_INPUT_STEP_COUNT, n + 1))}
+          cta={generateCta}
+          width="max-w-5xl"
+        />
+      )}
 
       <DevNote
         guideExample="MOCK-002 · 블로그 독립 job 종단 흐름"
