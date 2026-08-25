@@ -715,6 +715,22 @@ export default function FaceSwapPage() {
                         까지 보관돼요. 쓰실 규격은 지금 저장해두세요.
                       </p>
                     )}
+                    {/* 같은 사진·같은 모델이라도 돌릴 때마다 눈매와 입이 조금씩 다르게
+                        나온다(seed 를 안 보내 서버가 매번 새로 뽑는다). 원장님이 여러 장
+                        중에 마음에 드는 것을 고를 수 있어야 한다.
+                        새 job 으로 만든다 — 서버 retry 는 실패한 job 에만 열려 있다.
+                        앞 결과는 아래 최근 작업에 남아 있어 되돌아가 볼 수 있다.
+                        새로고침으로 복구한 화면에는 원본 파일이 없어 버튼을 숨긴다. */}
+                    {photo && (
+                      <Button
+                        variant="outline"
+                        className="mt-4 w-full sm:w-auto"
+                        disabled={busy}
+                        onClick={handleGenerate}
+                      >
+                        <RotateCcw className="h-4 w-4" />다시 생성
+                      </Button>
+                    )}
                     </>
                   ) : job?.status === "failed" ? (
                     <div className="space-y-3">
