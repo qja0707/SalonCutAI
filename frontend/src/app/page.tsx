@@ -152,12 +152,17 @@ export default function Home() {
           "글 완성",
           "복사해서 블로그에 붙여넣기",
         ]} />
-        <Link href="/generate/blog" className={buttonVariants({ variant: "outline", className: "mt-6" })}>
-          블로그 글 체험하기
-          <ArrowRight className="h-4 w-4" />
-        </Link>
 
+        {/* 체험 버튼은 예시를 본 다음(아래)에 둔다 — "이런 글이 나오는구나, 나도
+            해볼까" 하는 순간에 바로 누르게. 01번 히어로의 버튼 위치와 같은
+            원칙이다(실측 지적: 색도 히어로 버튼처럼 채워져야 함). */}
         <BlogExampleCard />
+        <div className="mt-6 flex justify-center">
+          <Link href="/generate/blog" className={buttonVariants({ size: "lg" })}>
+            블로그 글 체험하기
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
       </section>
 
       {/* 03 숏츠 */}
@@ -177,14 +182,11 @@ export default function Home() {
             "장면·자막 고르기",
             "숏츠로 내보내기",
           ]} />
-          <Link href="/generate/shorts" className={buttonVariants({ variant: "outline", className: "mt-6" })}>
-            숏츠 체험하기
-            <ArrowRight className="h-4 w-4" />
-          </Link>
         </div>
 
         {/* 영상 위 · 타임라인 아래 세로 배치 — 폭이 좁은 폰에서 영상 2/5 폭 + 자막
-            목록을 좌우로 나누면 둘 다 눌려서 읽기 어려웠다(실측 지적) */}
+            목록을 좌우로 나누면 둘 다 눌려서 읽기 어려웠다(실측 지적). 체험 버튼도
+            여기(예시 아래)로 옮겼다 — 02번 블로그와 같은 원칙(실측 지적). */}
         <div className="flex flex-col items-center gap-4">
           <div className="relative aspect-[9/16] w-40 shrink-0 overflow-hidden rounded-2xl border shadow-lg">
             <ShortsPreviewVideo src="/sample-assets/landing-shorts-sample.mp4" />
@@ -204,6 +206,10 @@ export default function Home() {
               </li>
             ))}
           </ol>
+          <Link href="/generate/shorts" className={buttonVariants({ size: "lg" })}>
+            숏츠 체험하기
+            <ArrowRight className="h-4 w-4" />
+          </Link>
         </div>
       </section>
 
