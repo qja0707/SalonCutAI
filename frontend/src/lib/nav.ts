@@ -16,6 +16,14 @@ import {
 export type NavItem = {
   href: string;
   label: string;
+  /**
+   * 폰 상단 메뉴에서만 쓰는 짧은 이름. 없으면 label 을 그대로 쓴다.
+   *
+   * 폰에서는 메뉴가 가로 한 줄이라 네 개가 다 안 들어가 잘려 보였다(390px 실측:
+   * 보이는 폭 306px, 내용 529px). label 은 8/17 원장님이 정한 이름이라 그대로 두고,
+   * 좁은 화면에서만 줄인다.
+   */
+  shortLabel?: string;
   icon: LucideIcon;
 };
 
@@ -24,9 +32,9 @@ export type NavItem = {
 // 랜딩 챕터는 새 네이밍(헤어 모델 만들기 · 간단 블로그 글쓰기 · 간편 숏츠 만들기).
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "홈", icon: Home },
-  { href: "/face-swap", label: "AI 모델로 얼굴 변경", icon: Scissors },
-  { href: "/generate/blog", label: "AI 블로그 글쓰기", icon: NotebookPen },
-  { href: "/generate/shorts", label: "AI 숏츠 만들기", icon: Clapperboard },
+  { href: "/face-swap", label: "AI 모델로 얼굴 변경", shortLabel: "얼굴 변경", icon: Scissors },
+  { href: "/generate/blog", label: "AI 블로그 글쓰기", shortLabel: "블로그", icon: NotebookPen },
+  { href: "/generate/shorts", label: "AI 숏츠 만들기", shortLabel: "숏츠", icon: Clapperboard },
 ];
 
 // MVP 범위 밖이라 메뉴에서 내린 화면들이다. 라우트와 화면 코드는 그대로 살아 있어

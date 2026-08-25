@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { Scissors } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/nav";
 import { cn } from "@/lib/utils";
@@ -10,6 +11,49 @@ import LoginButton from "./login-button";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const mobileNavRef = useRef<HTMLElement>(null);
+  const activeChipRef = useRef<HTMLAnchorElement>(null);
+  // 오른쪽에 더 볼 메뉴가 남아 있는지. 남아 있을 때만 페이드를 그린다.
+  const [hasMoreRight, setHasMoreRight] = useState(false);
+
+  /*
+    지금 보고 있는 화면의 메뉴가 스크롤 밖에 있으면 어디에 있는지 알 수 없다
+    (390px 실측: "AI 숏츠 만들기" 가 429~541px 로 통째로 화면 밖이었다).
+    화면이 바뀔 때마다 그 칩을 가운데로 데려오고, 오른쪽에 남은 메뉴가 있으면
+    페이드로 알린다 — 가로로 밀 수 있다는 사실 자체가 보이지 않았다.
+
+    scrollIntoView 대신 스크롤 양을 직접 계산한다. 헤더가 sticky 라 세로까지
+    건드리면 안 되고, 마운트 직후에는 폭이 아직 0 이라 한 프레임 뒤에 맞춘다
+    (실측: 그냥 부르면 scrollLeft 가 8.5 에서 멈춰 칩이 그대로 잘렸다).
+  */
+  useEffect(() => {
+    const nav = mobileNavRef.current;
+    if (!nav) return;
+
+    const syncFade = () =>
+      setHasMoreRight(nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 1);
+
+    const frame = requestAnimationFrame(() => {
+      const chip = activeChipRef.current;
+      if (chip) {
+        const chipRect = chip.getBoundingClientRect();
+        const navRect = nav.getBoundingClientRect();
+        nav.scrollLeft +=
+          chipRect.left - navRect.left - (navRect.width - chipRect.width) / 2;
+      }
+      syncFade();
+    });
+
+    nav.addEventListener("scroll", syncFade, { passive: true });
+    // 폰트가 늦게 오거나 화면을 돌리면 칩 폭이 바뀐다.
+    const observer = new ResizeObserver(syncFade);
+    observer.observe(nav);
+    return () => {
+      cancelAnimationFrame(frame);
+      nav.removeEventListener("scroll", syncFade);
+      observer.disconnect();
+    };
+  }, [pathname]);
 
   return (
     <div className="flex min-h-screen w-full">
@@ -68,20 +112,38 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         */}
         <header className="sticky top-0 z-40 border-b border-border bg-background md:hidden">
           <div className="flex items-center gap-2 border-t border-border px-3 py-2">
-            <nav
-              aria-label="모바일 메뉴"
-              className="flex min-w-0 flex-1 gap-2 overflow-x-auto"
-            >
-              <LoginButton mode="mobile" />
+            {/*
+              로그인은 메뉴 밖에 둔다 — 메뉴 안에 있으면 활성 칩이 오른쪽에 있을 때
+              같이 스크롤돼 화면 밖으로 밀린다. 로그인하지 않으면 어느 기능도 쓸 수
+              없으므로 진입점은 항상 보여야 한다. 테마 토글도 같은 이유로 밖에 있다.
+            */}
+            <LoginButton mode="mobile" />
 
-              {NAV_ITEMS.map((item) => (
-                <MobileNavLink
-                  key={item.href}
-                  item={item}
-                  active={pathname === item.href}
+            <div className="relative flex min-w-0 flex-1">
+              <nav
+                aria-label="모바일 메뉴"
+                className="flex min-w-0 flex-1 gap-2 overflow-x-auto"
+                ref={mobileNavRef}
+              >
+                {NAV_ITEMS.map((item) => {
+                  const active = pathname === item.href;
+                  return (
+                    <MobileNavLink
+                      key={item.href}
+                      item={item}
+                      active={active}
+                      ref={active ? activeChipRef : undefined}
+                    />
+                  );
+                })}
+              </nav>
+              {hasMoreRight && (
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background to-transparent"
                 />
-              ))}
-            </nav>
+              )}
+            </div>
 
             {/* 메뉴는 가로로 스크롤되므로 토글은 밖에 둬야 밀려나지 않는다. */}
             <ThemePicker />
@@ -96,13 +158,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 function MobileNavLink({
   item,
   active,
+  ref,
 }: {
   item: (typeof NAV_ITEMS)[number];
   active: boolean;
+  ref?: React.Ref<HTMLAnchorElement>;
 }) {
   const Icon = item.icon;
   return (
     <Link
+      ref={ref}
       href={item.href}
       className={cn(
         "flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-colors",
@@ -112,7 +177,7 @@ function MobileNavLink({
       )}
     >
       <Icon className="h-3.5 w-3.5" />
-      {item.label}
+      {item.shortLabel ?? item.label}
     </Link>
   );
 }
