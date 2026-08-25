@@ -220,7 +220,7 @@ export function ShortsGenerator() {
       accepted.push(file);
       totalBytes += file.size;
     }
-    setClips((current) => {
+    if (accepted.length) setClips((current) => {
       const total = current.length + accepted.length;
       return [
         ...current,
