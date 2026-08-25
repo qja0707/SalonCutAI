@@ -41,7 +41,7 @@ FACE_LANDMARKER_PATH = MODELS_DIR / "face_landmarker.task"
 FACE_DETECTOR_PATH = MODELS_DIR / "blaze_face_short_range.tflite"
 SELFIE_SEGMENTER_PATH = MODELS_DIR / "selfie_multiclass.tflite"
 CODEFORMER_PATH = MODELS_DIR / "codeformer.pth"
-# facexlib 가 검출·파싱 가중치를 이 폴더 아래 weights/ 에서 찾는다
+# facexlib 가 검출·파싱 가중치를 이 폴더 바로 아래에서 찾는다
 FACEXLIB_ROOT = MODELS_DIR / "facexlib"
 
 # --- 다운로드 주소 ---
@@ -67,11 +67,11 @@ CODEFORMER_URLS = {
         "https://github.com/sczhou/CodeFormer/releases/download"
         "/v0.1.0/codeformer.pth"
     ),
-    FACEXLIB_ROOT / "weights" / "detection_Resnet50_Final.pth": (
+    FACEXLIB_ROOT / "detection_Resnet50_Final.pth": (
         "https://github.com/xinntao/facexlib/releases/download"
         "/v0.1.0/detection_Resnet50_Final.pth"
     ),
-    FACEXLIB_ROOT / "weights" / "parsing_parsenet.pth": (
+    FACEXLIB_ROOT / "parsing_parsenet.pth": (
         "https://github.com/xinntao/facexlib/releases/download"
         "/v0.2.2/parsing_parsenet.pth"
     ),
