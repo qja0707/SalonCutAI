@@ -433,11 +433,7 @@ export function ShortsGenerator() {
       style={{ backgroundColor: IDENTITY_INK }}
     >
       {busy ? <LoaderCircle className="animate-spin" /> : <Film />}
-      {busy
-        ? "영상 만드는 중"
-        : job || autoDraftedRef.current
-          ? "변경사항으로 다시 만들기"
-          : "숏츠 만들기"}
+      {job || autoDraftedRef.current ? "변경사항으로 다시 만들기" : "숏츠 만들기"}
     </Button>
   );
 
@@ -462,15 +458,12 @@ export function ShortsGenerator() {
             >
               인스타 릴스 · 스토리
             </Badge>
-            {/* "MVP"는 내부 용어라 사용자 화면에 노출하지 않는다(8/17 문구 정합). */}
-            <Badge variant="secondary">시술 영상 자동 편집</Badge>
           </div>
           {/* 대제목은 릴스로 통일(Discussion #149) — 배지("인스타 릴스 · 스토리")와
               맞춘다. 메뉴는 AI 숏츠 만들기 그대로 — 역할 분리(8/17 원장님) */}
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">🎬 간편 릴스 만들기</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
-            찍어둔 시술 클립만 고르면 9:16 숏츠로 자동 편집됩니다. 편집 프로그램 없이 폰
-            영상 그대로 — 얼굴 블러까지 자동입니다.
+            찍어둔 클립만 고르면 9:16 릴스로 자동 편집돼요.
           </p>
         </div>
         <div className="hidden lg:block lg:shrink-0 lg:pt-1">{generateCta}</div>
@@ -478,10 +471,9 @@ export function ShortsGenerator() {
 
       <Alert className="mb-6 border-primary/20 bg-primary/5 px-4 py-3">
         <ShieldCheck className="text-primary" />
-        <AlertTitle>얼굴 블러는 기본 적용됩니다</AlertTitle>
+        <AlertTitle>얼굴 블러는 한 명만 자동으로 적용돼요</AlertTitle>
         <AlertDescription>
-          주요 얼굴 한 명만 처리하며 자동 검출이 놓치는 얼굴이 있을 수 있습니다. 완성 영상을
-          반드시 확인한 뒤 게시해주세요. 원본과 결과는 24시간 후 삭제됩니다.
+          나머지 얼굴은 그대로 나옵니다. 올리기 전에 완성 영상을 확인해주세요.
         </AlertDescription>
       </Alert>
 
@@ -503,9 +495,9 @@ export function ShortsGenerator() {
       <div className="mt-6 grid gap-6 lg:mt-0 lg:grid-cols-[minmax(0,1fr)_360px]">
         <section className="min-w-0 space-y-6">
           <Card className={stepVisibility(1, phoneStep)}>
-            <CardHeader>
-              <CardTitle>1. 영상 업로드</CardTitle>
-              <CardDescription>MP4·MOV·WEBM·MKV 파일을 2~8개 올려주세요. 파일당 160MB, 전체 320MB까지 지원합니다.</CardDescription>
+            {/* 폰에서는 위 단계 표시가 같은 말을 하고 있다 — lg 에서만 제목을 둔다. */}
+            <CardHeader className="hidden lg:grid">
+              <CardTitle>영상 업로드</CardTitle>
             </CardHeader>
             <CardContent>
               <button
@@ -515,8 +507,8 @@ export function ShortsGenerator() {
                 className="flex w-full flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-muted/30 px-5 py-10 text-center transition-colors hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Upload className="mb-3 h-8 w-8 text-primary" />
-                <span className="font-medium">영상을 선택하거나 추가하세요</span>
-                <span className="mt-1 text-xs text-muted-foreground">선택한 순서는 아래에서 역할별로 다시 정리됩니다</span>
+                <span className="font-medium">영상 선택하기</span>
+                <span className="mt-1 text-xs text-muted-foreground">2~8개 · 파일당 160MB</span>
               </button>
               <Input
                 ref={inputRef}
@@ -559,9 +551,9 @@ export function ShortsGenerator() {
             <Card>
               <CardHeader className="gap-4 sm:flex sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <CardTitle>2. 세부 조정(선택)</CardTitle>
+                  <CardTitle>세부 조정</CardTitle>
                   <CardDescription className="mt-2">
-                    기본값으로 바로 만들 수 있으며, 필요할 때만 구간·순서·음성·자막을 바꿔주세요.
+                    그대로 만들어도 되고, 필요할 때만 바꾸면 돼요.
                   </CardDescription>
                 </div>
                 <Button
@@ -885,7 +877,7 @@ export function ShortsGenerator() {
         >
           <Card className="sticky top-6">
             <CardHeader>
-              <CardTitle>3. 결과 확인</CardTitle>
+              <CardTitle>결과</CardTitle>
               <CardDescription>
                 세로형 {audioMode === "original" ? "원음 포함" : "무음"} MP4로 생성됩니다.
               </CardDescription>
@@ -907,6 +899,7 @@ export function ShortsGenerator() {
                     <p className="mt-1">
                       {job.meta?.audio_included ? "원본 음성 포함" : "무음 영상"}
                     </p>
+                    <p className="mt-1">원본과 결과는 24시간 후 삭제돼요.</p>
                   </div>
                   <a
                     href={videoJobUrl(job.job_id)}
@@ -956,8 +949,7 @@ export function ShortsGenerator() {
                     ))}
                   </ul>
                   <p className="text-xs leading-5 text-muted-foreground">
-                    영상 2개 이상을 올리면 기본값으로 자동 편집을 시작하고, 직접 만든 영상이
-                    이 자리에 표시됩니다.
+                    영상을 2개 이상 올리면 바로 만들기 시작해요.
                   </p>
                 </div>
               )}
