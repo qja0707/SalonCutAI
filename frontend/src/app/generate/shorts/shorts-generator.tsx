@@ -426,7 +426,12 @@ export function ShortsGenerator() {
               <Input
                 ref={inputRef}
                 type="file"
-                accept="video/mp4,video/quicktime,video/webm,video/x-matroska"
+                // 특정 MIME 나열(video/mp4,video/quicktime,...)이 아이폰 사파리에서
+                // 사진 앱의 영상 필터를 깨뜨려 업로드 자체가 안 되는 문제가 있었다
+                // (실측: 아이폰 사파리에서 재현). 실제 허용 여부는 accept 가 아니라
+                // isAcceptedVideoFile()이 이미 video/* 전부 + 확장자로 넉넉하게
+                // 검증하므로, accept 는 OS 선택창 필터 힌트만 넓게 줘도 안전하다.
+                accept="video/*"
                 multiple
                 className="hidden"
                 onChange={(event) => addFiles(event.target.files)}
