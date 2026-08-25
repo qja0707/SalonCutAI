@@ -82,7 +82,9 @@ COMBO3_STRENGTH = 0.4  # 0.7 부터 헤어·배경이 변형된다
 COMBO3_STEPS = 30
 COMBO3_GUIDANCE = 5.0
 COMBO3_CONTROLNET_SCALE = 0.8
-COMBO3_IP_ADAPTER_SCALE = 0.8
+# InstantID 기본값. 그동안 인자가 안 먹어 실제로는 계속 이 값으로 돌았고,
+# 조합 3 선정부터의 모든 실험이 0.5 기준이다. 0.8 은 검증된 적이 없다.
+COMBO3_IP_ADAPTER_SCALE = 0.5
 COMBO3_PROMPT = "a person in a hair salon, natural lighting, photorealistic"
 COMBO3_NEGATIVE = "blurry, low quality, deformed, watermark, text"
 

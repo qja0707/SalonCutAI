@@ -82,6 +82,8 @@ def get_combo3():
             torch_dtype=torch.float16,
         ).to("cuda")
         _combo3.load_ip_adapter_instantid(str(settings.IP_ADAPTER_PATH))
+        # __call__ 인자로는 안 먹는다. 파이프라인에 직접 설정해야 한다.
+        _combo3.set_ip_adapter_scale(settings.COMBO3_IP_ADAPTER_SCALE)
         logger.info("조합 3 로딩 완료")
     return _combo3
 
