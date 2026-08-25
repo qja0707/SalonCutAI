@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 const THUMBNAIL_COUNT = 6;
 const MIN_RANGE_SECONDS = 0.5;
@@ -249,6 +250,49 @@ export function ClipFilmstrip({
               }
             />
           </div>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="space-y-1 text-xs text-muted-foreground">
+              <span>시작 시간(초)</span>
+              <Input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                max={rangeEnd - minGap}
+                step={0.1}
+                value={rangeStart}
+                disabled={disabled}
+                className="h-11"
+                onChange={(event) => {
+                  const value = event.target.valueAsNumber;
+                  if (Number.isFinite(value)) {
+                    onRangeChange(Math.max(0, Math.min(value, rangeEnd - minGap)), rangeEnd);
+                  }
+                }}
+              />
+            </label>
+            <label className="space-y-1 text-xs text-muted-foreground">
+              <span>끝 시간(초)</span>
+              <Input
+                type="number"
+                inputMode="decimal"
+                min={rangeStart + minGap}
+                max={duration}
+                step={0.1}
+                value={rangeEnd}
+                disabled={disabled}
+                className="h-11"
+                onChange={(event) => {
+                  const value = event.target.valueAsNumber;
+                  if (Number.isFinite(value)) {
+                    onRangeChange(rangeStart, Math.min(duration, Math.max(value, rangeStart + minGap)));
+                  }
+                }}
+              />
+            </label>
+          </div>
+          <p className="text-xs leading-5 text-muted-foreground">
+            손잡이가 겹치면 시작·끝 시간을 직접 입력해 조정할 수 있어요.
+          </p>
           <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
             <span>
               {rangeStart.toFixed(1)}초 ~ {rangeEnd.toFixed(1)}초

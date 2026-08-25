@@ -434,11 +434,11 @@ export function ShortsGenerator() {
   );
 
   const stepReady: Record<number, boolean> = {
-    1: clips.length > 0,
+    1: clips.length >= 2,
     2: clips.length >= 2,
   };
   const stepHint: Record<number, string> = {
-    1: "영상을 1개 이상 올려주세요.",
+    1: "영상을 2개 이상 올려주세요.",
     2: "",
   };
 
