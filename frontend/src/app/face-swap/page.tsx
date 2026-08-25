@@ -45,7 +45,7 @@ import {
   type MockScenario,
   type Ratio,
 } from "@/lib/api-client/types";
-import { IS_PUBLIC_PREVIEW, PUBLIC_PREVIEW_NOTICE } from "@/lib/public-preview";
+import { IS_PUBLIC_PREVIEW, PUBLIC_PREVIEW_NOTICE, SHOW_DEV_TOOLS } from "@/lib/public-preview";
 import { sampleAvatarFile } from "@/lib/sample-assets";
 import { CONSENT_CONTENT, CONSENT_VERSION } from "@/lib/consent";
 import { errorMessage, jobErrorMessage } from "@/lib/api-client/error-message";
@@ -575,7 +575,7 @@ export default function FaceSwapPage() {
             </Card>
           </div>
 
-          {!IS_PUBLIC_PREVIEW && (
+          {SHOW_DEV_TOOLS && (
             <div className={phoneOnlyStep(4)}>
               <Card>
                 <CardHeader><CardTitle className="text-base">개발용 mock 시나리오</CardTitle></CardHeader>
