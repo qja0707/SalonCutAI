@@ -729,7 +729,12 @@ export default function FaceSwapPage() {
                       {job.error?.retryable && <Button variant="outline" onClick={handleRetry}><RotateCcw className="h-4 w-4" />다시 만들기</Button>}
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground">홍보 이미지를 만들고 있습니다.</p>
+                    /* 진행 안내는 위 대기 카드 한 곳만 쓴다 — 여기까지 "만들고 있습니다"를
+                       두면 한 화면에 같은 말이 두 번 뜬다(8/25 원장님). 이 자리는 결과가
+                       어디에 뜨는지만 알려준다. */
+                    <p className="text-sm text-muted-foreground">
+                      피드 · 스토리 3규격이 여기에 표시됩니다.
+                    </p>
                   )}
                 </CardContent>
               </Card>
