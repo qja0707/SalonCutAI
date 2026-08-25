@@ -113,7 +113,8 @@ def get_codeformer():
         )
         state = torch.load(settings.CODEFORMER_PATH, map_location="cpu")
         net.load_state_dict(state["params_ema"])
-        _codeformer = net.eval().to("cuda")
+        # GPU 는 두 파이프라인으로 꽉 차 CPU 로 돌린다. 512 한 장에 5초 안팎(Colab 2코어)
+        _codeformer = net.eval()
         logger.info("CodeFormer 로딩 완료")
     return _codeformer
 
@@ -143,7 +144,7 @@ def get_face_helper():
             det_model="retinaface_resnet50",
             save_ext="png",
             use_parse=True,
-            device="cuda",
+            device="cpu",
             model_rootpath=str(settings.FACEXLIB_ROOT),
         )
         logger.info("FaceRestoreHelper 로딩 완료")
