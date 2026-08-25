@@ -83,11 +83,19 @@ const PHONE_INPUT_STEP_COUNT = 2;
 const IDENTITY_INK = "#C2410C";
 const IDENTITY_WASH = "#fdefe4";
 
+/**
+ * 서버가 받는 기준과 같게 판정한다 — backend `video_jobs.py` 의
+ * `ALLOWED_SUFFIXES` 도 MIME 이 아니라 확장자를 본다.
+ *
+ * 전에는 `file.type.startsWith("video/")` 를 OR 로 함께 봤는데, accept 를
+ * `video/*` 로 넓히자 AVI 처럼 서버가 안 받는 형식까지 화면에서는 통과해
+ * 업로드 단계에서야 415 로 떨어졌다. 고르는 자리에서 바로 알려주는 편이 낫다.
+ */
 function isAcceptedVideoFile(file: File): boolean {
   const extension = file.name.includes(".")
     ? `.${file.name.split(".").pop()?.toLowerCase()}`
     : "";
-  return file.type.startsWith("video/") || ACCEPTED_VIDEO_EXTENSIONS.has(extension);
+  return ACCEPTED_VIDEO_EXTENSIONS.has(extension);
 }
 
 function fileSizeLabel(bytes: number): string {
