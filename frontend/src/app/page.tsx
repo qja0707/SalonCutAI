@@ -208,7 +208,11 @@ export default function Home() {
 
       {/* 마무리 */}
       <section className="rounded-3xl border bg-card/60 px-6 py-12 text-center">
-        <h2 className={`${HEADING} text-2xl font-semibold text-balance`}>오늘 시술한 그 머리, 오늘 올리세요</h2>
+        <h2 className={`${HEADING} text-2xl font-semibold text-balance`}>
+          휴대폰 속에 잠든 시술 사진,
+          <br />
+          오늘 올려보세요!
+        </h2>
         <p className="mt-2 text-sm text-muted-foreground">사진 한 장이면 됩니다.</p>
         <Link href="/face-swap" className={buttonVariants({ size: "lg", className: "mt-5" })}>
           바로 체험하기
