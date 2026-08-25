@@ -720,8 +720,13 @@ export default function FaceSwapPage() {
                         중에 마음에 드는 것을 고를 수 있어야 한다.
                         새 job 으로 만든다 — 서버 retry 는 실패한 job 에만 열려 있다.
                         앞 결과는 아래 최근 작업에 남아 있어 되돌아가 볼 수 있다.
-                        새로고침으로 복구한 화면에는 원본 파일이 없어 버튼을 숨긴다. */}
-                    {photo && (
+
+                        지금 들고 있는 사진으로 만든 결과일 때만 보인다. 최근 작업에서
+                        지난 결과를 열거나 사진을 새로 올리면 화면의 결과와 photo 가
+                        짝이 아니게 되는데, 그때 눌리면 보이는 것과 다른 사진으로 새
+                        job 이 시작된다. 위 비교 화면이 쓰는 판정과 같은 것을 쓴다.
+                        복구한 화면은 원본 파일이 없어 photo 에서 걸린다. */}
+                    {photo && photoUrl === jobPhotoUrl && (
                       <Button
                         variant="outline"
                         className="mt-4 w-full sm:w-auto"
