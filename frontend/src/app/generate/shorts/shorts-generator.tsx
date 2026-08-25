@@ -282,6 +282,7 @@ export function ShortsGenerator() {
       setActiveClipId(nextClips[Math.min(removedIndex, nextClips.length - 1)]?.id ?? null);
     }
     if (nextClips.length === 0) {
+      autoDraftedRef.current = false;
       setBlurFaces(true);
       setAudioMode("mute");
       setOrderEdited(false);
@@ -340,6 +341,7 @@ export function ShortsGenerator() {
       setJob(await getVideoJob(created.job_id));
     } catch (submitError) {
       setError(errorMessage(submitError, "영상 작업을 접수하지 못했습니다."));
+      openDetails();
     } finally {
       setSubmitting(false);
     }
@@ -423,7 +425,11 @@ export function ShortsGenerator() {
       style={{ backgroundColor: IDENTITY_INK }}
     >
       {busy ? <LoaderCircle className="animate-spin" /> : <Film />}
-      {busy ? "영상 만드는 중" : job ? "변경사항으로 다시 만들기" : "숏츠 만들기"}
+      {busy
+        ? "영상 만드는 중"
+        : job || autoDraftedRef.current
+          ? "변경사항으로 다시 만들기"
+          : "숏츠 만들기"}
     </Button>
   );
 
