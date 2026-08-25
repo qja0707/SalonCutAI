@@ -4,13 +4,13 @@ import {
   Captions,
   Clapperboard,
   NotebookPen,
-  Play,
   Scissors,
   ShieldCheck,
 } from "lucide-react";
 import { BeforeAfterSlider } from "@/components/before-after";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { ShortsPreviewVideo } from "@/components/shorts-preview-video";
 import { BLOG_SECTION_ORDER } from "@/lib/api-client/types";
 import { EXAMPLE_BLOG_RESULT } from "@/lib/example-blog-result";
 
@@ -215,10 +215,8 @@ export default function Home() {
         {/* 영상 위 · 타임라인 아래 세로 배치 — 폭이 좁은 폰에서 영상 2/5 폭 + 자막
             목록을 좌우로 나누면 둘 다 눌려서 읽기 어려웠다(실측 지적) */}
         <div className="flex flex-col items-center gap-4">
-          <div className="relative aspect-[9/16] w-40 shrink-0 overflow-hidden rounded-2xl border bg-gradient-to-b from-muted to-muted-foreground/25 shadow-lg">
-            <span className="absolute inset-0 m-auto flex h-12 w-12 items-center justify-center rounded-full bg-background/90 shadow">
-              <Play className="ml-0.5 h-5 w-5" />
-            </span>
+          <div className="relative aspect-[9/16] w-40 shrink-0 overflow-hidden rounded-2xl border shadow-lg">
+            <ShortsPreviewVideo src="/sample-assets/landing-shorts-sample.mp4" />
             <span className="absolute bottom-3 left-3 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white">9:16 · 무음</span>
           </div>
           <ul className="w-full max-w-sm space-y-2.5">
