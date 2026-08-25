@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { FaceCheck } from "@/components/face-check";
 import { BeforeAfterSlider } from "@/components/before-after";
-import { EXPECTED_SECONDS, FaceSwapWaiting } from "@/components/face-swap-waiting";
+import { FaceSwapWaiting } from "@/components/face-swap-waiting";
 import {
   StepNav,
   StepProgress,
@@ -90,15 +90,6 @@ const PHONE_INPUT_STEP_COUNT = 4;
  */
 const IDENTITY_INK = "#A32D74";
 const IDENTITY_WASH = "#fdeaf5";
-
-function progressMessage(job: FaceSwapJobResponse | null, elapsedSeconds: number): string {
-  if (job?.status === "queued" && job.queue_position) {
-    return `대기 순번 ${job.queue_position}번 · 사진을 확인하고 있어요`;
-  }
-  if (elapsedSeconds < 5) return "사진을 확인하고 있어요";
-  if (elapsedSeconds <= EXPECTED_SECONDS) return `얼굴을 바꾸고 있어요 · ${elapsedSeconds}초`;
-  return "평소보다 오래 걸리고 있어요";
-}
 
 export default function FaceSwapPage() {
   const [photo, setPhoto] = useState<File | null>(null);
@@ -402,7 +393,7 @@ export default function FaceSwapPage() {
       }
     >
       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-      {active ? progressMessage(job, elapsedSeconds) : "홍보 이미지 만들기"}
+      홍보 이미지 만들기
     </Button>
   );
 
@@ -731,7 +722,12 @@ export default function FaceSwapPage() {
                       {job.error?.retryable && <Button variant="outline" onClick={handleRetry}><RotateCcw className="h-4 w-4" />다시 만들기</Button>}
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground">홍보 이미지를 만들고 있습니다.</p>
+                    /* 진행 안내는 위 대기 카드 한 곳만 쓴다 — 여기까지 "만들고 있습니다"를
+                       두면 한 화면에 같은 말이 두 번 뜬다(8/25 원장님). 이 자리는 결과가
+                       어디에 뜨는지만 알려준다. */
+                    <p className="text-sm text-muted-foreground">
+                      피드 · 스토리 3규격이 여기에 표시됩니다.
+                    </p>
                   )}
                 </CardContent>
               </Card>
@@ -764,7 +760,10 @@ export default function FaceSwapPage() {
           totalSteps={PHONE_INPUT_STEP_COUNT}
           canGoNext={stepReady[phoneStep]}
           nextHint={stepHint[phoneStep]}
-          onPrev={() => setPhoneStep((n) => Math.max(1, n - 1))}
+          onPrev={() => {
+            if (busy) return;
+            setPhoneStep((n) => Math.max(1, n - 1));
+          }}
           onNext={() => setPhoneStep((n) => Math.min(PHONE_INPUT_STEP_COUNT, n + 1))}
           cta={generateCta}
         />
