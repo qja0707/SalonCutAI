@@ -57,11 +57,8 @@ def generate(
     ref_path,
     seed: int,
 ) -> tuple[Image.Image, Image.Image, np.ndarray]:
-    """생성 결과와 리사이즈된 원본, 원본 키포인트를 돌려준다.
+    """생성 결과와 리사이즈된 원본, 원본 키포인트를 돌려준다."""
 
-    키포인트는 후처리의 어파인 정렬에 쓴다. 조합 3 은 이미지 전체를
-    다시 그려서 얼굴 위치가 미세하게 어긋나므로 맞춰줘야 한다.
-    """
     embedding, kps_img = prepare(ref_path, img)
     img_r, kps_r = _resize(img, kps_img)
 
@@ -73,7 +70,6 @@ def generate(
         control_image=kps_r,
         strength=settings.COMBO3_STRENGTH,
         controlnet_conditioning_scale=settings.COMBO3_CONTROLNET_SCALE,
-        ip_adapter_scale=settings.COMBO3_IP_ADAPTER_SCALE,
         num_inference_steps=settings.COMBO3_STEPS,
         guidance_scale=settings.COMBO3_GUIDANCE,
         generator=torch.Generator("cuda").manual_seed(seed),
