@@ -5,7 +5,7 @@ import { ChevronRight, Wrench } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { PreserveChangeChips } from "@/components/preserve-change";
 import { Badge } from "@/components/ui/badge";
-import { IS_PUBLIC_PREVIEW } from "@/lib/public-preview";
+import { SHOW_DEV_TOOLS } from "@/lib/public-preview";
 import { cn } from "@/lib/utils";
 
 export function DevNote({
@@ -30,7 +30,7 @@ export function DevNote({
 }) {
   const [open, setOpen] = useState(false);
 
-  if (IS_PUBLIC_PREVIEW) {
+  if (!SHOW_DEV_TOOLS) {
     return null;
   }
 

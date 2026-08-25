@@ -1,7 +1,7 @@
 """생성부터 저장까지 전체 흐름.
 
 service 는 job 상태만 알고, 여기서 실제 이미지를 만든다.
-모드에 따라 조합 3·5 로 갈리고 후처리 순서도 하나 다르다.
+모드에 따라 조합 3·5 로 갈리고 후처리는 둘이 같다.
 """
 
 import logging
@@ -28,11 +28,11 @@ def _run_prompt_mode(img: Image.Image, options, seed: int) -> Image.Image:
 
     out = compose.color_transfer(out, img_r, gen_mask)
     comp = compose.recompose_with_hair(img_r, out, face_r, hair_r)
-    return compose.transfer_high_freq(comp, img_r, gen_mask)
+    return compose.keep_brows(img_r, comp)
 
 
 def _run_reference_mode(img: Image.Image, options, seed: int) -> Image.Image:
-    """조합 3. img2img 라 얼굴이 미세하게 어긋나 정렬을 먼저 한다."""
+    """조합 3. 후처리는 조합 5 와 같다."""
     ref_id = options.face.reference.reference_face_id
     out, img_r, _ = combo3.generate(img, storage.ref_face_path(ref_id), seed)
 
@@ -43,8 +43,8 @@ def _run_reference_mode(img: Image.Image, options, seed: int) -> Image.Image:
     gen_mask = masks.build_gen_mask(face_mask, hair_mask)
 
     out = compose.color_transfer(out, img_r, gen_mask)
-    comp = compose.align_then_recompose(img_r, out, face_mask, hair_mask)
-    return compose.transfer_high_freq(comp, img_r, gen_mask)
+    comp = compose.recompose_with_hair(img_r, out, face_mask, hair_mask)
+    return compose.keep_brows(img_r, comp)
 
 
 def run(job_id: str, options, seed: int) -> dict[str, dict]:

@@ -12,3 +12,15 @@ export const PUBLIC_PREVIEW_NOTICE =
 
 export const PUBLIC_PREVIEW_BLOCKED_MESSAGE =
   "UI 검토용 공개 배포에서는 외부 모델 호출이 비활성화되어 있습니다. 화면 흐름만 확인해주세요.";
+
+/**
+ * "개발자 정보" 패널·mock 시나리오 선택 같은 팀 전용 UI를 보여줄지.
+ *
+ * 예전엔 `!IS_PUBLIC_PREVIEW` 로만 가렸는데, 그건 임시 공개 미리보기 배포에만
+ * 켜는 플래그다(실측 지적) — 인증 붙은 정식 배포는 이 플래그 없이 그냥
+ * `next build` 로 띄우므로, 그 환경의 실사용자에게도 개발자 도구가 그대로
+ * 보인다. `next build`(어떤 배포든)는 항상 NODE_ENV 를 production 으로 두므로,
+ * 여기 기준으로 가리면 로컬 개발(`next dev`)에서만 보이고 배포 종류와
+ * 무관하게 실사용자에게는 항상 숨는다.
+ */
+export const SHOW_DEV_TOOLS = process.env.NODE_ENV !== "production";
