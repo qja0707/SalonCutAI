@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  ArrowDown,
+  ArrowUp,
   Captions,
   CheckCircle2,
   Download,
@@ -15,6 +17,7 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
+import { ClipFilmstrip } from "@/components/shorts/clip-filmstrip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -44,6 +47,7 @@ import {
   videoJobUrl,
 } from "@/lib/api-client/client";
 import type {
+  VideoAudioMode,
   VideoClipOptions,
   VideoJobResponse,
   VideoRole,
@@ -72,7 +76,7 @@ const ACCEPTED_VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".webm", ".mkv"]);
 
 /** 결과까지 포함한 단계 수. 진행 표시는 입력 2단계만 센다 — 클립별 카드는 쪼개지 않는다,
  * 클립이 8개면 8단계가 되어 버린다(Discussion #149). */
-const PHONE_STEPS = ["영상 업로드", "컷 역할·구간·자막"] as const;
+const PHONE_STEPS = ["영상 업로드", "세부 조정(선택)"] as const;
 const PHONE_INPUT_STEP_COUNT = 2;
 
 /**
@@ -155,10 +159,16 @@ export function ShortsGenerator() {
   const [submitting, setSubmitting] = useState(false);
   const [generatingCaptions, setGeneratingCaptions] = useState(false);
   const [blurFaces, setBlurFaces] = useState(true);
+  const [audioMode, setAudioMode] = useState<VideoAudioMode>("mute");
+  const [activeClipId, setActiveClipId] = useState<string | null>(null);
+  const [orderEdited, setOrderEdited] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [topic, setTopic] = useState("");
   const [error, setError] = useState("");
   const [uploadIssue, setUploadIssue] = useState<UploadIssue | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const autoDraftedRef = useRef(false);
+  const editorRef = useRef<HTMLDivElement>(null);
   const resultRef = useRef<HTMLElement>(null);
   // 폰 단계식(A안, Discussion #149 — 얼굴 교체·블로그와 같은 흐름)에서 지금 보여줄 단계.
   // 1~2 는 입력, 3 은 결과. lg 이상에서는 쓰이지 않는다 — 카드가 전부 렌더된다.
@@ -220,27 +230,35 @@ export function ShortsGenerator() {
       accepted.push(file);
       totalBytes += file.size;
     }
-    if (accepted.length) setClips((current) => {
-      const total = current.length + accepted.length;
-      return [
-        ...current,
-        ...accepted.map((file, offset) => {
-          // 첫 배치만 전→과정→…→마무리 흐름으로 배정한다. 클립이 이미 있을 때 이 규칙을
-          // 다시 적용하면 '마무리'가 둘이 된다 — 기존 배정(수동 지정 포함)은 건드리지 않고,
-          // 나중에 온 클립은 중간 성격인 '디테일'로 둔다.
-          const role: VideoRole = current.length === 0 ? defaultRole(offset, total) : "detail";
-          return {
-            id: createClipId(),
-            file,
-            role,
-            selection: "center" as const,
-            description: "",
-            descriptionMode: "preset" as const,
-            caption: ROLE_OPTIONS.find((option) => option.value === role)?.caption || "",
-          };
-        }),
-      ];
-    });
+    if (accepted.length) {
+      const total = clips.length + accepted.length;
+      const addedClips = accepted.map((file, offset) => {
+        // 첫 배치만 전→과정→…→마무리 흐름으로 배정한다. 클립이 이미 있을 때 이 규칙을
+        // 다시 적용하면 '마무리'가 둘이 된다 — 기존 배정(수동 지정 포함)은 건드리지 않고,
+        // 나중에 온 클립은 중간 성격인 '디테일'로 둔다.
+        const role: VideoRole = clips.length === 0 ? defaultRole(offset, total) : "detail";
+        return {
+          id: createClipId(),
+          file,
+          role,
+          selection: "center" as const,
+          description: "",
+          descriptionMode: "preset" as const,
+          caption: ROLE_OPTIONS.find((option) => option.value === role)?.caption || "",
+        };
+      });
+      const nextClips = [...clips, ...addedClips];
+      setClips(nextClips);
+      setActiveClipId((current) => current ?? nextClips[0].id);
+      if (
+        clips.length < 2 &&
+        nextClips.length >= 2 &&
+        !autoDraftedRef.current
+      ) {
+        autoDraftedRef.current = true;
+        void submitDraft(nextClips);
+      }
+    }
     setUploadIssue(
       messages.length
         ? {
@@ -256,27 +274,74 @@ export function ShortsGenerator() {
     setClips((current) => current.map((clip) => (clip.id === id ? { ...clip, ...changes } : clip)));
   }
 
-  async function generate() {
-    if (clips.length < 2) {
+  function removeClip(id: string) {
+    const removedIndex = clips.findIndex((clip) => clip.id === id);
+    const nextClips = clips.filter((clip) => clip.id !== id);
+    setClips(nextClips);
+    if (activeClipId === id) {
+      setActiveClipId(nextClips[Math.min(removedIndex, nextClips.length - 1)]?.id ?? null);
+    }
+    if (nextClips.length === 0) {
+      autoDraftedRef.current = false;
+      setBlurFaces(true);
+      setAudioMode("mute");
+      setOrderEdited(false);
+      setDetailsOpen(false);
+      setUploadIssue(null);
+    }
+  }
+
+  function moveClip(index: number, direction: -1 | 1) {
+    const target = index + direction;
+    if (target < 0 || target >= clips.length) return;
+    const nextClips = [...clips];
+    [nextClips[index], nextClips[target]] = [nextClips[target], nextClips[index]];
+    setClips(nextClips);
+    setOrderEdited(true);
+  }
+
+  function openDetails() {
+    setDetailsOpen(true);
+    setPhoneStep(PHONE_INPUT_STEP_COUNT);
+    window.requestAnimationFrame(() => scrollIntoViewOnNarrow(editorRef.current));
+  }
+
+  async function submitDraft(clipsToSubmit: ClipDraft[] = clips) {
+    if (clipsToSubmit.length < 2) {
       setError("시술 전후 흐름을 위해 영상을 2개 이상 올려주세요.");
       return;
     }
     setSubmitting(true);
+    setJob(null);
     setError("");
+    setPhoneStep(PHONE_INPUT_STEP_COUNT + 1);
+    window.requestAnimationFrame(() => scrollIntoViewOnNarrow(resultRef.current));
     try {
       const created = await createVideoJob(
-        clips.map(({ file, role, selection, caption }) => ({
-          file,
-          options: { role, selection, caption },
-        })),
+        clipsToSubmit.map(
+          ({ file, role, selection, caption, start_sec, end_sec, keep_audio }, index) => ({
+            file,
+            options: {
+              role,
+              selection,
+              caption,
+              ...(start_sec !== undefined && end_sec !== undefined
+                ? { start_sec, end_sec }
+                : {}),
+              ...(orderEdited ? { clip_order: index } : {}),
+              ...(audioMode === "original"
+                ? { keep_audio: keep_audio !== false }
+                : {}),
+            },
+          }),
+        ),
         blurFaces,
+        audioMode,
       );
       setJob(await getVideoJob(created.job_id));
-      setPhoneStep(PHONE_INPUT_STEP_COUNT + 1);
-      // 폰에서는 진행률·결과가 화면 밖(맨 아래)에 있다 — 만들기를 눌렀으면 그리로 데려간다.
-      scrollIntoViewOnNarrow(resultRef.current);
     } catch (submitError) {
       setError(errorMessage(submitError, "영상 작업을 접수하지 못했습니다."));
+      openDetails();
     } finally {
       setSubmitting(false);
     }
@@ -321,6 +386,11 @@ export function ShortsGenerator() {
     setClips([]);
     setTopic("");
     setBlurFaces(true);
+    setAudioMode("mute");
+    setActiveClipId(null);
+    setOrderEdited(false);
+    setDetailsOpen(false);
+    autoDraftedRef.current = false;
     setError("");
     setUploadIssue(null);
     setPhoneStep(1);
@@ -332,27 +402,43 @@ export function ShortsGenerator() {
     job?.status === "queued" ||
     job?.status === "processing";
 
+  const activeClip = clips.find((clip) => clip.id === activeClipId) ?? clips[0] ?? null;
+  const activeClipIndex = activeClip
+    ? clips.findIndex((clip) => clip.id === activeClip.id)
+    : -1;
+  const expectedSeconds = clips.reduce(
+    (sum, clip) =>
+      sum +
+      (clip.start_sec !== undefined && clip.end_sec !== undefined
+        ? clip.end_sec - clip.start_sec
+        : 2),
+    0,
+  );
+  const expectedSecondsLabel = expectedSeconds.toFixed(1).replace(/\.0$/, "");
+
   // 만들기 버튼 하나를 두 자리에서 그린다 — 데스크톱은 제목 옆, 폰은 하단 고정 바.
-  // 구간이 클립당 2초 고정이므로 예상 길이는 클립 수 × 2초로 미리 알려줄 수 있다.
-  const expectedSeconds = clips.length * 2;
   const generateCta = (
     <Button
-      onClick={generate}
+      onClick={() => submitDraft()}
       disabled={busy || clips.length < 2}
       className="w-full transition-[filter] hover:brightness-90 active:brightness-95"
       style={{ backgroundColor: IDENTITY_INK }}
     >
       {busy ? <LoaderCircle className="animate-spin" /> : <Film />}
-      {busy ? "영상 만드는 중" : "숏츠 만들기"}
+      {busy
+        ? "영상 만드는 중"
+        : job || autoDraftedRef.current
+          ? "변경사항으로 다시 만들기"
+          : "숏츠 만들기"}
     </Button>
   );
 
   const stepReady: Record<number, boolean> = {
-    1: clips.length > 0,
+    1: clips.length >= 2,
     2: clips.length >= 2,
   };
   const stepHint: Record<number, string> = {
-    1: "영상을 1개 이상 올려주세요.",
+    1: "영상을 2개 이상 올려주세요.",
     2: "",
   };
 
@@ -386,7 +472,8 @@ export function ShortsGenerator() {
         <ShieldCheck className="text-primary" />
         <AlertTitle>얼굴 블러는 기본 적용됩니다</AlertTitle>
         <AlertDescription>
-          자동 검출이 놓치는 얼굴이 있을 수 있으므로 완성 영상을 반드시 확인한 뒤 게시해주세요. 원본과 결과는 24시간 후 삭제됩니다.
+          주요 얼굴 한 명만 처리하며 자동 검출이 놓치는 얼굴이 있을 수 있습니다. 완성 영상을
+          반드시 확인한 뒤 게시해주세요. 원본과 결과는 24시간 후 삭제됩니다.
         </AlertDescription>
       </Alert>
 
@@ -406,7 +493,7 @@ export function ShortsGenerator() {
       )}
 
       <div className="mt-6 grid gap-6 lg:mt-0 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <section className="space-y-6">
+        <section className="min-w-0 space-y-6">
           <Card className={stepVisibility(1, phoneStep)}>
             <CardHeader>
               <CardTitle>1. 영상 업로드</CardTitle>
@@ -448,111 +535,186 @@ export function ShortsGenerator() {
               )}
               {clips.length > 0 && (
                 <p className="mt-3 text-xs text-muted-foreground">
-                  클립 {clips.length}개 · 예상 {expectedSeconds}초
+                  클립 {clips.length}개 · 예상 {expectedSecondsLabel}초
                 </p>
               )}
             </CardContent>
           </Card>
 
           {clips.length > 0 && (
-            <Card className={stepVisibility(2, phoneStep)}>
-              <CardHeader>
-                <CardTitle>2. 컷 역할·구간·자막</CardTitle>
-                <CardDescription>
-                  역할 순서대로 자동 연결하며, 기본 문구를 수정하거나 AI 초안을 받아볼 수 있습니다.
-                </CardDescription>
+            <div ref={editorRef} className={stepVisibility(2, phoneStep)}>
+            <Card>
+              <CardHeader className="gap-4 sm:flex sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <CardTitle>2. 세부 조정(선택)</CardTitle>
+                  <CardDescription className="mt-2">
+                    기본값으로 바로 만들 수 있으며, 필요할 때만 구간·순서·음성·자막을 바꿔주세요.
+                  </CardDescription>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  aria-expanded={detailsOpen}
+                  onClick={() => setDetailsOpen((open) => !open)}
+                >
+                  {detailsOpen ? "세부 조정 닫기" : "세부 조정 열기"}
+                </Button>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="rounded-xl border bg-muted/20 p-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <Label htmlFor="blur-faces">얼굴 블러 적용</Label>
-                    <Switch
-                      id="blur-faces"
-                      checked={blurFaces}
-                      disabled={busy}
-                      onCheckedChange={setBlurFaces}
-                    />
-                  </div>
-                  {!blurFaces && (
-                    <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                      본인만 등장하거나 모든 출연자에게 촬영·게시 동의를 받은 영상에서만 꺼주세요. 완성 영상을 확인한 뒤 게시해주세요.
-                    </p>
-                  )}
-                </div>
-                <div className="rounded-xl border bg-muted/20 p-4">
-                  <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                    <div className="space-y-2">
-                      <Label htmlFor="caption-topic">시술명 또는 홍보 주제 (선택)</Label>
-                      <Input
-                        id="caption-topic"
-                        value={topic}
-                        maxLength={MAX_CAPTION_CONTEXT_LENGTH}
-                        disabled={busy}
-                        placeholder="예: 레이어드컷, 여름 스타일 변신"
-                        onChange={(event) => setTopic(event.target.value)}
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={generateCaptions}
-                      disabled={busy || clips.length < 2}
-                    >
-                      {generatingCaptions ? (
-                        <LoaderCircle className="animate-spin" />
-                      ) : (
-                        <Sparkles />
+              {detailsOpen && activeClip && (
+                <CardContent className="space-y-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-xl border bg-muted/20 p-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <Label htmlFor="blur-faces">얼굴 블러 적용</Label>
+                        <Switch
+                          id="blur-faces"
+                          checked={blurFaces}
+                          disabled={busy}
+                          onCheckedChange={setBlurFaces}
+                        />
+                      </div>
+                      {!blurFaces && (
+                        <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                          본인만 등장하거나 모든 출연자에게 촬영·게시 동의를 받은 영상에서만
+                          꺼주세요.
+                        </p>
                       )}
-                      {generatingCaptions ? "AI 자막 만드는 중" : "AI로 자막 만들기"}
-                    </Button>
+                    </div>
+                    <div className="rounded-xl border bg-muted/20 p-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <Label htmlFor="original-audio">원본 음성 사용</Label>
+                        <Switch
+                          id="original-audio"
+                          checked={audioMode === "original"}
+                          disabled={busy}
+                          onCheckedChange={(checked) =>
+                            setAudioMode(checked ? "original" : "mute")
+                          }
+                        />
+                      </div>
+                      <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                        끄면 모든 클립을 무음으로 만듭니다.
+                      </p>
+                    </div>
                   </div>
-                  <ul className="mt-3 list-disc space-y-1 pl-5 text-xs leading-5 text-muted-foreground">
-                    <li>AI는 입력한 장면 설명과 주제만 사용해 자막 초안을 만듭니다.</li>
-                    <li>영상·대표 프레임·사용 구간은 AI 자막 요청에 전송되지 않습니다.</li>
-                    <li>AI 자막을 원하지 않으면 버튼을 누르지 않고 기본 문구를 직접 수정해도 됩니다.</li>
-                    <li>생성에 실패해도 기존 문구는 유지되며 영상 제작을 계속할 수 있습니다.</li>
-                  </ul>
-                </div>
-                {clips.map((clip, index) => (
-                  <div key={clip.id} className="rounded-xl border bg-card p-4">
-                    <div className="mb-4 flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">{index + 1}. {clip.file.name}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{(clip.file.size / 1024 / 1024).toFixed(1)}MB</p>
+                  <div className="rounded-xl border bg-muted/20 p-4">
+                    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                      <div className="space-y-2">
+                        <Label htmlFor="caption-topic">시술명 또는 홍보 주제 (선택)</Label>
+                        <Input
+                          id="caption-topic"
+                          value={topic}
+                          maxLength={MAX_CAPTION_CONTEXT_LENGTH}
+                          disabled={busy}
+                          placeholder="예: 레이어드컷, 여름 스타일 변신"
+                          onChange={(event) => setTopic(event.target.value)}
+                        />
                       </div>
                       <Button
                         type="button"
-                        variant="ghost"
-                        size="icon"
-                        disabled={busy}
-                        onClick={() => {
-                          if (clips.length === 1) {
-                            setBlurFaces(true);
-                            setUploadIssue(null);
-                          }
-                          setClips((current) => current.filter((item) => item.id !== clip.id));
-                        }}
-                        aria-label={`${clip.file.name} 제거`}
+                        variant="secondary"
+                        onClick={generateCaptions}
+                        disabled={busy || clips.length < 2}
                       >
-                        <Trash2 />
+                        {generatingCaptions ? (
+                          <LoaderCircle className="animate-spin" />
+                        ) : (
+                          <Sparkles />
+                        )}
+                        {generatingCaptions ? "AI 자막 만드는 중" : "AI로 자막 만들기"}
                       </Button>
+                    </div>
+                    <ul className="mt-3 list-disc space-y-1 pl-5 text-xs leading-5 text-muted-foreground">
+                      <li>AI는 입력한 장면 설명과 주제만 사용해 자막 초안을 만듭니다.</li>
+                      <li>영상·대표 프레임·사용 구간은 AI 자막 요청에 전송되지 않습니다.</li>
+                      <li>버튼을 누르지 않으면 기본 문구를 직접 수정해 사용할 수 있습니다.</li>
+                    </ul>
+                  </div>
+
+                  <div
+                    className="flex gap-2 overflow-x-auto pb-1"
+                    role="tablist"
+                    aria-label="조정할 클립"
+                  >
+                    {clips.map((clip, index) => (
+                      <Button
+                        key={clip.id}
+                        type="button"
+                        role="tab"
+                        size="sm"
+                        variant={clip.id === activeClip.id ? "secondary" : "outline"}
+                        aria-selected={clip.id === activeClip.id}
+                        className="max-w-44 shrink-0"
+                        onClick={() => setActiveClipId(clip.id)}
+                      >
+                        <span className="truncate">{index + 1}. {clip.file.name}</span>
+                      </Button>
+                    ))}
+                  </div>
+
+                  <div className="rounded-xl border bg-card p-4">
+                    <div className="mb-4 flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">
+                          {activeClipIndex + 1}. {activeClip.file.name}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {(activeClip.file.size / MIB).toFixed(1)}MB
+                          {orderEdited ? " · 순서 직접 조정됨" : ""}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          disabled={busy || activeClipIndex <= 0}
+                          onClick={() => moveClip(activeClipIndex, -1)}
+                          aria-label={`${activeClip.file.name} 앞으로 이동`}
+                        >
+                          <ArrowUp />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          disabled={busy || activeClipIndex >= clips.length - 1}
+                          onClick={() => moveClip(activeClipIndex, 1)}
+                          aria-label={`${activeClip.file.name} 뒤로 이동`}
+                        >
+                          <ArrowDown />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          disabled={busy}
+                          onClick={() => removeClip(activeClip.id)}
+                          aria-label={`${activeClip.file.name} 제거`}
+                        >
+                          <Trash2 />
+                        </Button>
+                      </div>
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <Label htmlFor={`role-${clip.id}`}>컷 역할</Label>
+                        <Label htmlFor={`role-${activeClip.id}`}>컷 역할</Label>
                         <Select
-                          value={clip.role}
+                          value={activeClip.role}
                           disabled={busy}
                           onValueChange={(value) => {
                             if (!value) return;
                             const role = value as VideoRole;
-                            updateClip(clip.id, {
+                            updateClip(activeClip.id, {
                               role,
-                              caption: ROLE_OPTIONS.find((option) => option.value === role)?.caption || clip.caption,
+                              caption:
+                                ROLE_OPTIONS.find((option) => option.value === role)?.caption ||
+                                activeClip.caption,
                             });
                           }}
                         >
-                          <SelectTrigger id={`role-${clip.id}`} className="w-full">
+                          <SelectTrigger id={`role-${activeClip.id}`} className="w-full">
                             <SelectValue>
                               {(value: VideoRole) => ROLE_OPTIONS.find((option) => option.value === value)?.label ?? value}
                             </SelectValue>
@@ -565,13 +727,18 @@ export function ShortsGenerator() {
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor={`selection-${clip.id}`}>사용 구간</Label>
+                        <Label htmlFor={`selection-${activeClip.id}`}>기본 사용 구간</Label>
                         <Select
-                          value={clip.selection}
+                          value={activeClip.selection}
                           disabled={busy}
-                          onValueChange={(value) => value && updateClip(clip.id, { selection: value as VideoSelection })}
+                          onValueChange={(value) =>
+                            value &&
+                            updateClip(activeClip.id, {
+                              selection: value as VideoSelection,
+                            })
+                          }
                         >
-                          <SelectTrigger id={`selection-${clip.id}`} className="w-full">
+                          <SelectTrigger id={`selection-${activeClip.id}`} className="w-full">
                             <SelectValue>
                               {(value: VideoSelection) => SELECTION_OPTIONS.find((option) => option.value === value)?.label ?? value}
                             </SelectValue>
@@ -585,24 +752,65 @@ export function ShortsGenerator() {
                       </div>
                     </div>
                     <div className="mt-4 space-y-2">
-                      <Label htmlFor={`description-choice-${clip.id}`}>장면 설명 (선택)</Label>
+                      <Label>정밀 구간</Label>
+                      <ClipFilmstrip
+                        key={activeClip.id}
+                        file={activeClip.file}
+                        startSec={activeClip.start_sec}
+                        endSec={activeClip.end_sec}
+                        disabled={busy}
+                        onRangeChange={(start_sec, end_sec) =>
+                          updateClip(activeClip.id, {
+                            start_sec: Number(start_sec.toFixed(1)),
+                            end_sec: Number(end_sec.toFixed(1)),
+                          })
+                        }
+                        onResetRange={() =>
+                          updateClip(activeClip.id, {
+                            start_sec: undefined,
+                            end_sec: undefined,
+                          })
+                        }
+                      />
+                    </div>
+                    {audioMode === "original" && (
+                      <div className="mt-4 flex items-center justify-between gap-4 rounded-lg border px-3 py-3">
+                        <Label htmlFor={`keep-audio-${activeClip.id}`}>이 클립 원음 유지</Label>
+                        <Switch
+                          id={`keep-audio-${activeClip.id}`}
+                          checked={activeClip.keep_audio !== false}
+                          disabled={busy}
+                          onCheckedChange={(keep_audio) =>
+                            updateClip(activeClip.id, { keep_audio })
+                          }
+                        />
+                      </div>
+                    )}
+                    <div className="mt-4 space-y-2">
+                      <Label htmlFor={`description-choice-${activeClip.id}`}>장면 설명 (선택)</Label>
                       <Select
                         value={
-                          clip.descriptionMode === "custom"
+                          activeClip.descriptionMode === "custom"
                             ? CUSTOM_DESCRIPTION_VALUE
-                            : clip.description || null
+                            : activeClip.description || null
                         }
                         disabled={busy}
                         onValueChange={(value) => {
                           if (!value) return;
                           if (value === CUSTOM_DESCRIPTION_VALUE) {
-                            updateClip(clip.id, { description: "", descriptionMode: "custom" });
+                            updateClip(activeClip.id, {
+                              description: "",
+                              descriptionMode: "custom",
+                            });
                             return;
                           }
-                          updateClip(clip.id, { description: value, descriptionMode: "preset" });
+                          updateClip(activeClip.id, {
+                            description: value,
+                            descriptionMode: "preset",
+                          });
                         }}
                       >
-                        <SelectTrigger id={`description-choice-${clip.id}`} className="w-full">
+                        <SelectTrigger id={`description-choice-${activeClip.id}`} className="w-full">
                           <SelectValue placeholder="장면 설명을 선택하세요" />
                         </SelectTrigger>
                         <SelectContent align="start">
@@ -613,15 +821,17 @@ export function ShortsGenerator() {
                           <SelectItem value={CUSTOM_DESCRIPTION_VALUE}>직접 입력</SelectItem>
                         </SelectContent>
                       </Select>
-                      {clip.descriptionMode === "custom" && (
+                      {activeClip.descriptionMode === "custom" && (
                         <Input
-                          id={`description-${clip.id}`}
-                          value={clip.description}
+                          id={`description-${activeClip.id}`}
+                          value={activeClip.description}
                           maxLength={MAX_CAPTION_CONTEXT_LENGTH}
                           disabled={busy}
-                          aria-label={`${index + 1}번 장면 설명 직접 입력`}
+                          aria-label={`${activeClipIndex + 1}번 장면 설명 직접 입력`}
                           placeholder="장면 설명을 직접 입력하세요"
-                          onChange={(event) => updateClip(clip.id, { description: event.target.value })}
+                          onChange={(event) =>
+                            updateClip(activeClip.id, { description: event.target.value })
+                          }
                         />
                       )}
                       <p className="text-xs text-muted-foreground">
@@ -629,35 +839,43 @@ export function ShortsGenerator() {
                       </p>
                     </div>
                     <div className="mt-4 space-y-2">
-                      <Label htmlFor={`caption-${clip.id}`} className="flex items-center gap-2"><Captions className="h-4 w-4" />자막</Label>
+                      <Label htmlFor={`caption-${activeClip.id}`} className="flex items-center gap-2"><Captions className="h-4 w-4" />자막</Label>
                       <Input
-                        id={`caption-${clip.id}`}
-                        value={clip.caption}
+                        id={`caption-${activeClip.id}`}
+                        value={activeClip.caption}
                         maxLength={80}
                         disabled={busy}
-                        onChange={(event) => updateClip(clip.id, { caption: event.target.value })}
+                        onChange={(event) =>
+                          updateClip(activeClip.id, { caption: event.target.value })
+                        }
                       />
                     </div>
                   </div>
-                ))}
-                {clips.length < 8 && (
-                  <Button type="button" variant="outline" onClick={() => inputRef.current?.click()} disabled={busy}>
-                    <Plus />영상 추가
-                  </Button>
-                )}
-              </CardContent>
+                  {clips.length < 8 && (
+                    <Button type="button" variant="outline" onClick={() => inputRef.current?.click()} disabled={busy}>
+                      <Plus />영상 추가
+                    </Button>
+                  )}
+                </CardContent>
+              )}
             </Card>
+            </div>
           )}
         </section>
 
         <aside
           ref={resultRef}
-          className={stepVisibility(job ? PHONE_INPUT_STEP_COUNT + 1 : PHONE_INPUT_STEP_COUNT, phoneStep)}
+          className={stepVisibility(
+            submitting || job ? PHONE_INPUT_STEP_COUNT + 1 : PHONE_INPUT_STEP_COUNT,
+            phoneStep,
+          )}
         >
           <Card className="sticky top-6">
             <CardHeader>
               <CardTitle>3. 결과 확인</CardTitle>
-              <CardDescription>세로형 무음 MP4로 생성됩니다.</CardDescription>
+              <CardDescription>
+                세로형 {audioMode === "original" ? "원음 포함" : "무음"} MP4로 생성됩니다.
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {job?.status === "completed" ? (
@@ -673,6 +891,9 @@ export function ShortsGenerator() {
                         ? "얼굴 블러 꺼짐"
                         : `얼굴 검출·블러 ${job.meta?.faces_blurred ?? 0}회`}
                     </p>
+                    <p className="mt-1">
+                      {job.meta?.audio_included ? "원본 음성 포함" : "무음 영상"}
+                    </p>
                   </div>
                   <a
                     href={videoJobUrl(job.job_id)}
@@ -683,15 +904,18 @@ export function ShortsGenerator() {
                   </a>
                   <Button variant="outline" className="w-full" onClick={reset}>새 영상 만들기</Button>
                 </div>
-              ) : busy && job ? (
+              ) : submitting || (busy && job) ? (
                 <div className="py-10 text-center">
                   <LoaderCircle className="mx-auto mb-4 h-8 w-8 animate-spin text-primary" />
                   <p className="font-medium">영상을 편집하고 있습니다</p>
                   <p className="mt-2 text-xs text-muted-foreground">브라우저를 닫지 말고 잠시 기다려주세요</p>
                   <div className="mt-6 h-2 overflow-hidden rounded-full bg-muted">
-                    <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${Math.max(4, job.progress)}%` }} />
+                    <div
+                      className="h-full rounded-full bg-primary transition-all"
+                      style={{ width: `${Math.max(4, job?.progress ?? 0)}%` }}
+                    />
                   </div>
-                  <p className="mt-2 text-xs text-muted-foreground">{job.progress}%</p>
+                  <p className="mt-2 text-xs text-muted-foreground">{job?.progress ?? 0}%</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -700,7 +924,7 @@ export function ShortsGenerator() {
                       <Play className="ml-0.5 h-5 w-5" />
                     </span>
                     <span className="absolute bottom-3 left-3 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white">
-                      9:16 · 무음
+                      9:16 · {audioMode === "original" ? "원음 포함" : "무음"}
                     </span>
                     <span className="absolute top-3 right-3 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
                       예시
@@ -719,10 +943,15 @@ export function ShortsGenerator() {
                     ))}
                   </ul>
                   <p className="text-xs leading-5 text-muted-foreground">
-                    영상 2개 이상을 올리고 컷 설정을 확인한 뒤 숏츠 만들기를 누르면 직접 만든
-                    영상이 이 자리에 표시됩니다.
+                    영상 2개 이상을 올리면 기본값으로 자동 편집을 시작하고, 직접 만든 영상이
+                    이 자리에 표시됩니다.
                   </p>
                 </div>
+              )}
+              {clips.length >= 2 && (
+                <Button type="button" variant="outline" className="mt-4 w-full" onClick={openDetails}>
+                  세부 조정
+                </Button>
               )}
             </CardContent>
           </Card>

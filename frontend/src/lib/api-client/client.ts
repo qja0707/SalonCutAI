@@ -12,6 +12,7 @@ import {
   type RetryFaceSwapJobResponse,
   type CreateVideoJobResponse,
   type VideoCaptionClip,
+  type VideoAudioMode,
   type VideoClipOptions,
   type VideoCaptionResponse,
   type VideoJobResponse,
@@ -142,12 +143,17 @@ export async function signin(payload: SigninPayload): Promise<SigninResponse> {
 export async function createVideoJob(
   clips: { file: File; options: VideoClipOptions }[],
   blurFaces = true,
+  audioMode: VideoAudioMode = "mute",
 ): Promise<CreateVideoJobResponse> {
   const form = new FormData();
   for (const clip of clips) form.append("clips", clip.file);
   form.append(
     "payload",
-    JSON.stringify({ clips: clips.map((clip) => clip.options), blur_faces: blurFaces }),
+    JSON.stringify({
+      clips: clips.map((clip) => clip.options),
+      blur_faces: blurFaces,
+      audio_mode: audioMode,
+    }),
   );
   return parseResponse<CreateVideoJobResponse>(
     await fetch("/api/v1/video-jobs", { method: "POST", body: form }),
