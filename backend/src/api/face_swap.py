@@ -114,6 +114,8 @@ async def create_job(
     payload: str = Form(...),
     db: Session = Depends(get_db),
 ) -> CreateJobResponse:
+    face_swap_service.cleanup_expired_jobs(db)
+
     if image.content_type not in ALLOWED_TYPES:
         raise ApiError(400, "INVALID_IMAGE_TYPE", "JPG·PNG·WEBP 만 올릴 수 있습니다.")
 

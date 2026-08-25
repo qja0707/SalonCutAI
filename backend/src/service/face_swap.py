@@ -31,6 +31,8 @@ from src.schemas.face_swap import CreateJobPayload, JobResponse
 
 logger = logging.getLogger(__name__)
 
+TERMINAL_STATUSES = (STATUS_COMPLETED, STATUS_FAILED)
+
 
 def _now() -> datetime:
     return datetime.now(UTC)
@@ -53,9 +55,83 @@ def _new_test_code() -> str:
 # --- 조회 ---
 
 
+def _as_utc(value: datetime) -> datetime:
+    """SQLite 의 naive datetime 과 API 의 UTC datetime 을 같은 기준으로 맞춘다."""
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+def _is_expired(job: FaceSwapJobModel, now: datetime) -> bool:
+    """완료·실패 job 이 화면에 안내한 24시간을 지났는지 확인한다."""
+    if job.status not in TERMINAL_STATUSES or job.created_at is None:
+        return False
+    expires_at = _as_utc(job.created_at) + timedelta(hours=settings.RESULT_TTL_HOURS)
+    return expires_at <= _as_utc(now)
+
+
+def _delete_expired_job(db: Session, job: FaceSwapJobModel) -> bool:
+    """파일을 먼저 지운 뒤 DB row 를 지운다. 실패한 job 은 다음 주기에 재시도한다."""
+    try:
+        storage.delete_job_files(job.id)
+        db.delete(job)
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("만료 얼굴 교체 job 정리 실패: %s", job.id)
+        return False
+    return True
+
+
+def cleanup_expired_jobs(db: Session, now: datetime | None = None) -> int:
+    """만료된 completed·failed job 의 파일과 DB row 를 정리한다.
+
+    한 job 의 실패는 나머지 정리와 현재 사용자 요청을 막지 않는다.
+    queued·processing 은 오래됐더라도 워커가 사용 중일 수 있어 제외한다.
+    """
+    current = _as_utc(now or _now())
+    cutoff = current - timedelta(hours=settings.RESULT_TTL_HOURS)
+    # SQLite DateTime 컬럼은 timezone 정보 없이 저장된다.
+    cutoff_db = cutoff.replace(tzinfo=None)
+
+    try:
+        expired = (
+            db.query(FaceSwapJobModel)
+            .filter(
+                FaceSwapJobModel.status.in_(TERMINAL_STATUSES),
+                FaceSwapJobModel.created_at <= cutoff_db,
+            )
+            .all()
+        )
+    except Exception:
+        db.rollback()
+        logger.exception("만료 얼굴 교체 job 조회 실패")
+        return 0
+
+    deleted = 0
+    for job in expired:
+        if _delete_expired_job(db, job):
+            deleted += 1
+    if deleted:
+        logger.info("만료 얼굴 교체 job %d건 정리", deleted)
+    return deleted
+
+
+def cleanup_expired_jobs_once(now: datetime | None = None) -> int:
+    """startup·주기 task 에서 쓸 독립 세션 wrapper."""
+    db = SessionLocal()
+    try:
+        return cleanup_expired_jobs(db, now=now)
+    finally:
+        db.close()
+
+
 def get_job_or_404(db: Session, job_id: str) -> FaceSwapJobModel:
     job = db.get(FaceSwapJobModel, job_id)
     if job is None:
+        raise ApiError(404, "JOB_NOT_FOUND", "작업을 찾을 수 없습니다.")
+    if _is_expired(job, _now()):
+        _delete_expired_job(db, job)
         raise ApiError(404, "JOB_NOT_FOUND", "작업을 찾을 수 없습니다.")
     return job
 
