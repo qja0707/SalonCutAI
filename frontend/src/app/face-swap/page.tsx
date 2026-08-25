@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ChevronDown, Download, Images, Loader2, RotateCcw, Sparkles, Trash2 } from "lucide-react";
+import { Check, Download, Images, Loader2, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { FaceCheck } from "@/components/face-check";
@@ -17,7 +17,6 @@ import {
 import { FaceSwapRecentStrip } from "@/components/face-swap-recent-strip";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DevNote } from "@/components/dev-note";
 import {
   EMPTY_FACE_VALUES,
@@ -108,7 +107,6 @@ export default function FaceSwapPage() {
   const [bgStyle, setBgStyle] = useState(BG_STYLES[0]);
   const [scenario, setScenario] = useState<MockScenario>("normal");
   const [consentAgreed, setConsentAgreed] = useState(false);
-  const [consentOpen, setConsentOpen] = useState(false);
 
   const [requesting, setRequesting] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -487,30 +485,28 @@ export default function FaceSwapPage() {
               <CardHeader><CardTitle className="text-base">2. {CONSENT_CONTENT.title}</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-sm text-muted-foreground">{CONSENT_CONTENT.introduction}</p>
-                <Collapsible open={consentOpen} onOpenChange={setConsentOpen}>
-                  <CollapsibleTrigger className="flex min-h-12 w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm font-medium hover:bg-muted/60 sm:min-h-0">
-                    자세히 보기
-                    <ChevronDown className={`h-4 w-4 transition-transform ${consentOpen ? "rotate-180" : ""}`} />
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="pt-3">
-                    <ul className="space-y-2 rounded-md bg-muted/40 p-4 text-sm text-muted-foreground">
-                      {CONSENT_CONTENT.details.map((detail) => <li key={detail}>· {detail}</li>)}
-                    </ul>
-                  </CollapsibleContent>
-                </Collapsible>
-                <div className="flex items-start gap-3 rounded-md border p-4">
-                  <input
-                    id="consent-agreed"
-                    type="checkbox"
-                    checked={consentAgreed}
-                    disabled={busy}
-                    onChange={(event) => setConsentAgreed(event.target.checked)}
-                    className="mt-0.5 h-4 w-4 shrink-0 accent-primary disabled:cursor-not-allowed disabled:opacity-60"
-                  />
-                  <Label htmlFor="consent-agreed" className="cursor-pointer leading-5">
-                    {CONSENT_CONTENT.confirmation}
-                  </Label>
-                </div>
+                {/* 예전엔 "자세히 보기" 토글을 열고 체크박스를 또 눌러야 했다(2단계 조작).
+                    안내는 항상 보이게 하고, 버튼 하나로 확인을 끝낸다(실측 지적). */}
+                <ul className="space-y-2 rounded-md bg-muted/40 p-4 text-sm text-muted-foreground">
+                  {CONSENT_CONTENT.details.map((detail) => <li key={detail}>· {detail}</li>)}
+                </ul>
+                <p className="text-sm text-muted-foreground">{CONSENT_CONTENT.confirmation}</p>
+                <Button
+                  type="button"
+                  variant={consentAgreed ? "secondary" : "default"}
+                  className="w-full"
+                  disabled={busy}
+                  aria-pressed={consentAgreed}
+                  onClick={() => setConsentAgreed((prev) => !prev)}
+                >
+                  {consentAgreed ? (
+                    <>
+                      <Check className="h-4 w-4" /> 확인 완료
+                    </>
+                  ) : (
+                    "확인했어요"
+                  )}
+                </Button>
                 {!consentAgreed && (
                   <p id="consent-required" role="status" className="text-sm text-amber-700 dark:text-amber-400">
                     동의 확인이 필요합니다.
