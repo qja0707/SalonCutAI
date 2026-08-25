@@ -8,11 +8,9 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { BeforeAfterSlider } from "@/components/before-after";
-import { Badge } from "@/components/ui/badge";
+import { BlogExampleCard } from "@/components/blog-example-card";
 import { buttonVariants } from "@/components/ui/button";
 import { ShortsPreviewVideo } from "@/components/shorts-preview-video";
-import { BLOG_SECTION_ORDER } from "@/lib/api-client/types";
-import { EXAMPLE_BLOG_RESULT } from "@/lib/example-blog-result";
 
 /**
  * 랜딩 홈 (2026-08-15 시안 확정, docs/시안/landing.html).
@@ -154,39 +152,7 @@ export default function Home() {
           <ArrowRight className="h-4 w-4" />
         </Link>
 
-        <div className="relative mx-auto mt-10 max-w-2xl space-y-4 rounded-lg border bg-card px-5 pt-8 pb-5 shadow-lg">
-          <span className="absolute top-3 right-4 z-10 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
-            예시
-          </span>
-          <div>
-            <p className="pr-11 text-lg font-semibold">{EXAMPLE_BLOG_RESULT.title}</p>
-            <p className="mt-2 text-sm whitespace-pre-wrap text-muted-foreground">
-              {EXAMPLE_BLOG_RESULT.intro}
-            </p>
-          </div>
-          {BLOG_SECTION_ORDER.map((key) => {
-            const section = EXAMPLE_BLOG_RESULT.sections[key];
-            if (!section) return null;
-            return (
-              <div key={key}>
-                <p className="text-sm font-medium">{section.heading}</p>
-                <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
-                  {section.body}
-                </p>
-              </div>
-            );
-          })}
-          <p className="whitespace-pre-wrap text-sm text-muted-foreground">
-            {EXAMPLE_BLOG_RESULT.closing}
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {EXAMPLE_BLOG_RESULT.hashtags.map((hashtag) => (
-              <Badge key={hashtag} variant="secondary">
-                #{hashtag.replace(/^#+/, "")}
-              </Badge>
-            ))}
-          </div>
-        </div>
+        <BlogExampleCard />
       </section>
 
       {/* 03 숏츠 */}
