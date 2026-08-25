@@ -17,6 +17,7 @@ export type MockScenario =
 export type BlogMockScenario = "normal" | "blog-fail" | "slow";
 export type VideoRole = "before" | "process" | "detail" | "after";
 export type VideoSelection = "start" | "center" | "end";
+export type VideoAudioMode = "mute" | "original";
 
 export type ApiError = {
   code: string;
@@ -120,6 +121,10 @@ export type VideoClipOptions = {
   role: VideoRole;
   selection: VideoSelection;
   caption: string;
+  start_sec?: number;
+  end_sec?: number;
+  clip_order?: number;
+  keep_audio?: boolean;
 };
 
 export type VideoJobResult = {
