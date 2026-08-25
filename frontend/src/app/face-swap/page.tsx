@@ -45,7 +45,7 @@ import {
   type MockScenario,
   type Ratio,
 } from "@/lib/api-client/types";
-import { IS_PUBLIC_PREVIEW, PUBLIC_PREVIEW_NOTICE, SHOW_DEV_TOOLS } from "@/lib/public-preview";
+import { SHOW_DEV_TOOLS } from "@/lib/public-preview";
 import { sampleAvatarFile } from "@/lib/sample-assets";
 import { CONSENT_CONTENT, CONSENT_VERSION } from "@/lib/consent";
 import { errorMessage, jobErrorMessage } from "@/lib/api-client/error-message";
@@ -445,13 +445,6 @@ export default function FaceSwapPage() {
         >
           인스타 피드 · 스토리
         </Badge>
-      }
-      notice={
-        IS_PUBLIC_PREVIEW && (
-          <Alert>
-            <AlertDescription>{PUBLIC_PREVIEW_NOTICE}</AlertDescription>
-          </Alert>
-        )
       }
     >
       <StepProgress step={phoneStep} steps={PHONE_STEPS} activeColor={IDENTITY_INK} />
