@@ -93,6 +93,36 @@ def build_hair_mask(img: Image.Image, dilate: int | None = None) -> Image.Image:
     return Image.fromarray(hair).resize(img.size)
 
 
+BROW_CONNS = (
+    vision.FaceLandmarksConnections.FACE_LANDMARKS_LEFT_EYEBROW,
+    vision.FaceLandmarksConnections.FACE_LANDMARKS_RIGHT_EYEBROW,
+)
+
+
+def build_brow_mask(img: Image.Image) -> Image.Image | None:
+    """양 눈썹 영역. 얼굴이 없으면 None.
+
+    참조 얼굴에서 가져오는 것은 눈·코·입이고 눈썹은 원본을 유지한다.
+    재합성 뒤 이 영역만 원본으로 되돌리는 데 쓴다.
+
+    눈썹 연결은 위·아래 두 갈래로 끊겨 있어 FACE_OVAL 처럼 fillPoly 로
+    채우면 폴리곤이 꼬인다. 점을 모아 볼록껍질로 채운다.
+    """
+    w, h = img.size
+    result = loader.get_landmarker().detect(_to_mp_image(img))
+    if not result.face_landmarks:
+        return None
+
+    lm = result.face_landmarks[0]
+    mask = np.zeros((h, w), np.uint8)
+    for conns in BROW_CONNS:
+        idx = sorted({c.start for c in conns} | {c.end for c in conns})
+        pts = np.array([[int(lm[i].x * w), int(lm[i].y * h)] for i in idx])
+        cv2.fillConvexPoly(mask, cv2.convexHull(pts), 255)
+
+    return Image.fromarray(mask)
+
+
 def build_body_skin_mask(img: Image.Image) -> Image.Image:
     """목·데콜테 영역. 색 정합에서 기준 톤을 뽑는 데 쓴다."""
     skin = (_category_mask(img) == BODY_SKIN_CLASS).astype(np.uint8) * 255
