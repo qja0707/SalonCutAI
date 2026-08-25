@@ -15,9 +15,12 @@ import type { FaceSwapJobResponse } from "@/lib/api-client/types";
  * status(queued 면 queue_position 포함)와 경과 초뿐이다. 그래서 단계는 경과 초로
  * 추정만 하고 퍼센트 숫자는 약속하지 않는다 — 막대도 예상 시간 대비 감각만 주고
  * 94%에서 멈춰 "다 됐는데 안 끝나는" 거짓말을 피한다.
+ *
+ * 경과 초는 단계·막대를 움직이는 데만 쓰고 숫자로는 보여주지 않는다(8/25 원장님) —
+ * 흐르는 초를 보고 있으면 기다리는 쪽이 초조해진다.
  */
 
-/** 진행 문구·막대의 기준 시간. mock 기준 실측 평균이고 실서버 연결 후 재측정한다. */
+/** 단계 전환·막대의 기준 시간. mock 기준 실측 평균이고 실서버 연결 후 재측정한다. */
 export const EXPECTED_SECONDS = 16;
 
 /** 이 시간을 넘기면 "오래 걸린다"고 인정하고, 새로고침해도 이어진다는 사실을 알린다. */
@@ -84,13 +87,13 @@ export function FaceSwapWaiting({
           <p className="text-xs text-muted-foreground">
             {queued && job?.queue_position
               ? `대기 순번 ${job.queue_position}번 · 차례가 오면 바로 시작해요`
-              : `${elapsedSeconds}초 지남 · 보통 ${EXPECTED_SECONDS}초쯤 걸려요`}
+              : "다 되면 이 화면에 바로 나타나요"}
           </p>
         </div>
 
         {elapsedSeconds > LONG_RUNNING_SECONDS && (
           <p className="text-xs text-muted-foreground">
-            평소보다 오래 걸리고 있어요. 창을 닫거나 새로고침해도 작업은 계속되고, 이
+            조금만 더 기다려 주세요. 창을 닫거나 새로고침해도 작업은 계속되고, 이
             화면에서 이어받을 수 있어요.
           </p>
         )}

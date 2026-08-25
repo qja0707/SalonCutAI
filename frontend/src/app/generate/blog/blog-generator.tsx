@@ -33,7 +33,20 @@ import {
   stepVisibility,
 } from "@/components/flow/step-flow";
 
-const EXPECTED_SECONDS = 16;
+/**
+ * 진행 중 안내 문구 — 초를 세어 보여주면 기다리는 쪽이 초조해진다(8/25 원장님).
+ * 남은 시간 대신 "지금 무엇을 하고 있는지"를 순서대로 보여준다. 마지막 문구는
+ * 응답이 늦어져도 그 자리에 머문다 — 실패로 읽힐 문구는 두지 않는다.
+ */
+const REASSURING_MESSAGES = [
+  "블로그 글을 생성하고 있어요",
+  "검색에 잘 걸리도록 SEO를 다듬고 있어요",
+  "읽기 편한 문장으로 정리하고 있어요",
+  "시술 내용도 전문적으로 담고 있어요",
+  "거의 다 됐어요 · 마지막으로 손보는 중이에요",
+] as const;
+
+const MESSAGE_INTERVAL_MS = 4_000;
 
 /** 결과까지 포함한 단계 수. 진행 표시는 입력 3단계만 센다. */
 const PHONE_STEPS = ["매장 정보", "이번 시술", "모발 상태"] as const;
@@ -47,13 +60,6 @@ const PHONE_INPUT_STEP_COUNT = 3;
 const IDENTITY_INK = "#017E3B";
 const IDENTITY_WASH = "#e4f8ed";
 
-function progressMessage(elapsedSeconds: number): string {
-  if (elapsedSeconds < 5) return "요청 내용을 확인하고 있어요";
-  if (elapsedSeconds <= EXPECTED_SECONDS)
-    return `블로그 초안을 작성하고 있어요 · ${elapsedSeconds}초`;
-  return "평소보다 오래 걸리고 있어요";
-}
-
 export function BlogGenerator() {
   const searchParams = useSearchParams();
   const label = searchParams.get("label");
@@ -65,8 +71,7 @@ export function BlogGenerator() {
 
   const [generationResult, setGenerationResult] =
     useState<BlogWireResult | null>(null);
-  const [startedAt, setStartedAt] = useState<number | null>(null);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [messageIndex, setMessageIndex] = useState(0);
   const [requestError, setRequestError] = useState<string | null>(null);
   // 폰 단계식(A안, Discussion #149 — 얼굴 교체와 같은 흐름)에서 지금 보여줄 단계.
   // 1~3 은 입력, 4 는 결과. lg 이상에서는 쓰이지 않는다 — 카드가 전부 렌더된다.
@@ -74,13 +79,17 @@ export function BlogGenerator() {
   const resultRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!requesting || startedAt === null) return;
-    const update = () =>
-      setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1_000));
-    update();
-    const timer = window.setInterval(update, 1_000);
+    if (!requesting) return;
+    // 예시 카드가 빠지고 진행 안내가 자리를 잡은 뒤에 데려간다 — 클릭 핸들러
+    // 안에서 부르면 아직 예시 카드가 있는 높이를 기준으로 스크롤한다.
+    scrollIntoViewOnNarrow(resultRef.current);
+    const timer = window.setInterval(() => {
+      setMessageIndex((index) =>
+        Math.min(index + 1, REASSURING_MESSAGES.length - 1),
+      );
+    }, MESSAGE_INTERVAL_MS);
     return () => window.clearInterval(timer);
-  }, [requesting, startedAt]);
+  }, [requesting]);
 
   async function handleGenerate() {
     if (!isBlogFieldsReady(fields)) {
@@ -91,9 +100,7 @@ export function BlogGenerator() {
     }
     setRequesting(true);
     setRequestError(null);
-
-    setStartedAt(Date.now());
-    setElapsedSeconds(0);
+    setMessageIndex(0);
     try {
       const created = await createBlogJob(
         buildBlogPayload(fields, profile),
@@ -108,7 +115,6 @@ export function BlogGenerator() {
       setRequestError(
         errorMessage(error, "글을 만들지 못했습니다. 잠시 후 다시 시도해주세요."),
       );
-      setStartedAt(null);
     } finally {
       setRequesting(false);
     }
@@ -143,7 +149,7 @@ export function BlogGenerator() {
       ) : (
         <Sparkles className="h-4 w-4" />
       )}
-      {requesting ? progressMessage(elapsedSeconds) : "블로그 글 만들기"}
+      블로그 글 만들기
     </Button>
   );
 
@@ -205,7 +211,9 @@ export function BlogGenerator() {
             phoneStep={phoneStep}
           />
 
-          <div className={stepVisibility(PHONE_INPUT_STEP_COUNT, phoneStep)}>
+          {/* 폰은 하단 고정 바에만 만들기 버튼을 둔다 — 마지막 입력 단계에서
+              이 자리와 고정 바에 같은 버튼이 동시에 떠 있었다. */}
+          <div className="hidden lg:block">
             {generateCta}
             {!isBlogFieldsReady(fields) && (
               <p className="mt-3 text-sm text-muted-foreground">
@@ -227,8 +235,8 @@ export function BlogGenerator() {
           {requesting && (
             <Alert>
               <Loader2 className="h-4 w-4 animate-spin" />
-              <AlertDescription>
-                {progressMessage(elapsedSeconds)}
+              <AlertDescription aria-live="polite">
+                {REASSURING_MESSAGES[messageIndex]}
               </AlertDescription>
             </Alert>
           )}
@@ -334,7 +342,10 @@ export function BlogGenerator() {
           totalSteps={PHONE_INPUT_STEP_COUNT}
           canGoNext={stepReady[phoneStep]}
           nextHint={stepHint[phoneStep]}
-          onPrev={() => setPhoneStep((n) => Math.max(1, n - 1))}
+          onPrev={() => {
+            if (requesting) return;
+            setPhoneStep((n) => Math.max(1, n - 1));
+          }}
           onNext={() => setPhoneStep((n) => Math.min(PHONE_INPUT_STEP_COUNT, n + 1))}
           cta={generateCta}
           width="max-w-5xl"
