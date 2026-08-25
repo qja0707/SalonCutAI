@@ -37,10 +37,16 @@ const TRUST_ITEMS = [
   ["폰에서 바로", "촬영 · 외주 없이"],
 ] as const;
 
+/**
+ * landing-shorts-sample.mp4(8초) 안에 실제로 들어있는 자막을 그대로 옮겼다
+ * (실측: 0.5/2.5/4.5/6.5초 지점 확인) — 예전 3개 항목은 이 영상과 무관한
+ * 문구였다(실측 지적).
+ */
 const SHORTS_CLIPS = [
-  { role: "시술 과정", caption: "섬세하게 완성해 가는 시술 과정", sec: "0:06" },
-  { role: "디테일", caption: "작은 디테일까지 꼼꼼하게", sec: "0:05" },
-  { role: "마무리", caption: "완성된 스타일을 확인해 보세요", sec: "0:04" },
+  { role: "시술 전", caption: "시술 전 상태를 확인합니다", sec: "0:02" },
+  { role: "탈색", caption: "탈색약을 꼼꼼히 도포합니다", sec: "0:02" },
+  { role: "염색", caption: "염색약을 도포합니다", sec: "0:02" },
+  { role: "완성", caption: "변화된 모습을 확인합니다", sec: "0:02" },
 ] as const;
 
 function ChapterHeading({ num, icon: Icon, children }: {
