@@ -167,6 +167,8 @@ export function ShortsGenerator() {
   const [error, setError] = useState("");
   const [uploadIssue, setUploadIssue] = useState<UploadIssue | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const autoDraftedRef = useRef(false);
+  const editorRef = useRef<HTMLDivElement>(null);
   const resultRef = useRef<HTMLElement>(null);
   // 폰 단계식(A안, Discussion #149 — 얼굴 교체·블로그와 같은 흐름)에서 지금 보여줄 단계.
   // 1~2 는 입력, 3 은 결과. lg 이상에서는 쓰이지 않는다 — 카드가 전부 렌더된다.
@@ -248,6 +250,14 @@ export function ShortsGenerator() {
       const nextClips = [...clips, ...addedClips];
       setClips(nextClips);
       setActiveClipId((current) => current ?? nextClips[0].id);
+      if (
+        clips.length < 2 &&
+        nextClips.length >= 2 &&
+        !autoDraftedRef.current
+      ) {
+        autoDraftedRef.current = true;
+        void submitDraft(nextClips);
+      }
     }
     setUploadIssue(
       messages.length
@@ -289,13 +299,22 @@ export function ShortsGenerator() {
     setOrderEdited(true);
   }
 
-  async function generate(clipsToSubmit: ClipDraft[] = clips) {
+  function openDetails() {
+    setDetailsOpen(true);
+    setPhoneStep(PHONE_INPUT_STEP_COUNT);
+    window.requestAnimationFrame(() => scrollIntoViewOnNarrow(editorRef.current));
+  }
+
+  async function submitDraft(clipsToSubmit: ClipDraft[] = clips) {
     if (clipsToSubmit.length < 2) {
       setError("시술 전후 흐름을 위해 영상을 2개 이상 올려주세요.");
       return;
     }
     setSubmitting(true);
+    setJob(null);
     setError("");
+    setPhoneStep(PHONE_INPUT_STEP_COUNT + 1);
+    window.requestAnimationFrame(() => scrollIntoViewOnNarrow(resultRef.current));
     try {
       const created = await createVideoJob(
         clipsToSubmit.map(
@@ -319,9 +338,6 @@ export function ShortsGenerator() {
         audioMode,
       );
       setJob(await getVideoJob(created.job_id));
-      setPhoneStep(PHONE_INPUT_STEP_COUNT + 1);
-      // 폰에서는 진행률·결과가 화면 밖(맨 아래)에 있다 — 만들기를 눌렀으면 그리로 데려간다.
-      scrollIntoViewOnNarrow(resultRef.current);
     } catch (submitError) {
       setError(errorMessage(submitError, "영상 작업을 접수하지 못했습니다."));
     } finally {
@@ -372,6 +388,7 @@ export function ShortsGenerator() {
     setActiveClipId(null);
     setOrderEdited(false);
     setDetailsOpen(false);
+    autoDraftedRef.current = false;
     setError("");
     setUploadIssue(null);
     setPhoneStep(1);
@@ -400,7 +417,7 @@ export function ShortsGenerator() {
   // 만들기 버튼 하나를 두 자리에서 그린다 — 데스크톱은 제목 옆, 폰은 하단 고정 바.
   const generateCta = (
     <Button
-      onClick={() => generate()}
+      onClick={() => submitDraft()}
       disabled={busy || clips.length < 2}
       className="w-full transition-[filter] hover:brightness-90 active:brightness-95"
       style={{ backgroundColor: IDENTITY_INK }}
@@ -470,7 +487,7 @@ export function ShortsGenerator() {
       )}
 
       <div className="mt-6 grid gap-6 lg:mt-0 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <section className="space-y-6">
+        <section className="min-w-0 space-y-6">
           <Card className={stepVisibility(1, phoneStep)}>
             <CardHeader>
               <CardTitle>1. 영상 업로드</CardTitle>
@@ -519,8 +536,9 @@ export function ShortsGenerator() {
           </Card>
 
           {clips.length > 0 && (
-            <Card className={stepVisibility(2, phoneStep)}>
-              <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div ref={editorRef} className={stepVisibility(2, phoneStep)}>
+            <Card>
+              <CardHeader className="gap-4 sm:flex sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <CardTitle>2. 세부 조정(선택)</CardTitle>
                   <CardDescription className="mt-2">
@@ -835,12 +853,16 @@ export function ShortsGenerator() {
                 </CardContent>
               )}
             </Card>
+            </div>
           )}
         </section>
 
         <aside
           ref={resultRef}
-          className={stepVisibility(job ? PHONE_INPUT_STEP_COUNT + 1 : PHONE_INPUT_STEP_COUNT, phoneStep)}
+          className={stepVisibility(
+            submitting || job ? PHONE_INPUT_STEP_COUNT + 1 : PHONE_INPUT_STEP_COUNT,
+            phoneStep,
+          )}
         >
           <Card className="sticky top-6">
             <CardHeader>
@@ -876,15 +898,18 @@ export function ShortsGenerator() {
                   </a>
                   <Button variant="outline" className="w-full" onClick={reset}>새 영상 만들기</Button>
                 </div>
-              ) : busy && job ? (
+              ) : submitting || (busy && job) ? (
                 <div className="py-10 text-center">
                   <LoaderCircle className="mx-auto mb-4 h-8 w-8 animate-spin text-primary" />
                   <p className="font-medium">영상을 편집하고 있습니다</p>
                   <p className="mt-2 text-xs text-muted-foreground">브라우저를 닫지 말고 잠시 기다려주세요</p>
                   <div className="mt-6 h-2 overflow-hidden rounded-full bg-muted">
-                    <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${Math.max(4, job.progress)}%` }} />
+                    <div
+                      className="h-full rounded-full bg-primary transition-all"
+                      style={{ width: `${Math.max(4, job?.progress ?? 0)}%` }}
+                    />
                   </div>
-                  <p className="mt-2 text-xs text-muted-foreground">{job.progress}%</p>
+                  <p className="mt-2 text-xs text-muted-foreground">{job?.progress ?? 0}%</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -912,10 +937,15 @@ export function ShortsGenerator() {
                     ))}
                   </ul>
                   <p className="text-xs leading-5 text-muted-foreground">
-                    영상 2개 이상을 올리고 컷 설정을 확인한 뒤 숏츠 만들기를 누르면 직접 만든
-                    영상이 이 자리에 표시됩니다.
+                    영상 2개 이상을 올리면 기본값으로 자동 편집을 시작하고, 직접 만든 영상이
+                    이 자리에 표시됩니다.
                   </p>
                 </div>
+              )}
+              {clips.length >= 2 && (
+                <Button type="button" variant="outline" className="mt-4 w-full" onClick={openDetails}>
+                  세부 조정
+                </Button>
               )}
             </CardContent>
           </Card>
