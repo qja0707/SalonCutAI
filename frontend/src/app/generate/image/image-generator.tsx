@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ResultPlaceholder } from "@/components/result-placeholder";
 import { DevNote } from "@/components/dev-note";
-import { IS_PUBLIC_PREVIEW, PUBLIC_PREVIEW_NOTICE } from "@/lib/public-preview";
+import { IS_PUBLIC_PREVIEW } from "@/lib/public-preview";
 import { PageShell } from "@/components/flow/page-shell";
 
 export function ImageGenerator() {
@@ -81,12 +81,10 @@ export function ImageGenerator() {
                   onChange={(e) => setPrompt(e.target.value)}
                 />
               </div>
-              {/* 공개 미리보기에서는 키 입력을 숨긴다. 평문 HTTP 구간 노출 방지. */}
-              {IS_PUBLIC_PREVIEW ? (
-                <Alert>
-                  <AlertDescription>{PUBLIC_PREVIEW_NOTICE}</AlertDescription>
-                </Alert>
-              ) : (
+              {/* 공개 미리보기에서는 키 입력을 숨긴다 — HTTPS 전환 후에도 인증 없는
+                  주소라 익명 사용자의 외부 호출은 계속 막는다. 안내 배너만 뺀다
+                  (실측 지적: 평문 HTTP 경고는 HTTPS 전환으로 더는 해당 없음). */}
+              {IS_PUBLIC_PREVIEW ? null : (
                 <div>
                   <Label className="mb-2 block">HuggingFace API 키</Label>
                   <Input
