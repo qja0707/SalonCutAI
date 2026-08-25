@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   ArrowRight,
-  Captions,
   Clapperboard,
   NotebookPen,
   Scissors,
@@ -191,18 +190,20 @@ export default function Home() {
             <ShortsPreviewVideo src="/sample-assets/landing-shorts-sample.mp4" />
             <span className="absolute bottom-3 left-3 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white">9:16 · 무음</span>
           </div>
-          <ul className="w-full max-w-sm space-y-2.5">
-            {SHORTS_CLIPS.map((clip) => (
-              <li key={clip.role} className="rounded-xl border bg-card px-3 py-2.5 text-xs text-card-foreground shadow-sm">
-                <p className="flex items-center gap-1.5 font-semibold">
-                  <Captions className="h-3.5 w-3.5 text-primary" />
+          {/* 카드 4장을 세로로 나열하니 너무 길었다(실측 지적) — 장면 이름만
+              한 줄짜리 흐름으로 압축했다. 자막 원문은 영상 안에서 직접 보인다. */}
+          <ol className="flex w-full max-w-sm items-center justify-center gap-1.5 text-xs">
+            {SHORTS_CLIPS.map((clip, index) => (
+              <li key={clip.role} className="flex items-center gap-1.5">
+                <span className="rounded-full border bg-card px-2.5 py-1 font-medium whitespace-nowrap text-card-foreground shadow-sm">
                   {clip.role}
-                  <span className="ml-auto font-normal text-muted-foreground">{clip.sec}</span>
-                </p>
-                <p className="mt-1 truncate text-muted-foreground">“{clip.caption}”</p>
+                </span>
+                {index < SHORTS_CLIPS.length - 1 && (
+                  <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+                )}
               </li>
             ))}
-          </ul>
+          </ol>
         </div>
       </section>
 
