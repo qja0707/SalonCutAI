@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -10,8 +9,10 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { BeforeAfterSlider } from "@/components/before-after";
+import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { BLOG_SECTION_ORDER } from "@/lib/api-client/types";
+import { EXAMPLE_BLOG_RESULT } from "@/lib/example-blog-result";
 
 /**
  * 랜딩 홈 (2026-08-15 시안 확정, docs/시안/landing.html).
@@ -78,10 +79,16 @@ function Steps({ items }: { items: string[] }) {
 export default function Home() {
   return (
     <div className="mx-auto max-w-6xl px-6 pb-20">
-      {/* 히어로 */}
+      {/* 01 헤어 모델 만들기 — 히어로와 통합(실측: 정적 사진 히어로 + 아래 01 슬라이더가
+          같은 사진 짝을 두 번 보여주는 중복이었다). 히어로의 카피·체험 버튼은 그대로
+          맨 위로 올리고, 01의 소제목·스텝 리스트·중복 CTA는 걷어냈다. */}
       <section className="grid items-center gap-10 py-12 lg:grid-cols-[1.05fr_.95fr] lg:gap-14 lg:py-20">
         <div>
-          <h1 className={`${HEADING} text-3xl leading-snug font-semibold text-balance md:text-4xl lg:text-[2.6rem]`}>
+          <p className="flex items-center gap-2 text-xs font-medium tracking-widest text-muted-foreground">
+            <Scissors className="h-3.5 w-3.5" />
+            01 · 헤어 모델 만들기
+          </p>
+          <h1 className={`${HEADING} mt-2 text-3xl leading-snug font-semibold text-balance md:text-4xl lg:text-[2.6rem]`}>
             마케팅에 지친 우리,
             <br />
             <span className="text-primary">오늘 시술한 내 작품이 모델이 된다면?</span>
@@ -89,36 +96,30 @@ export default function Home() {
           <p className="mt-4 max-w-xl text-sm leading-7 text-muted-foreground md:text-base">
             시술 사진 한 장이면, 오늘 바로 올릴 피드 이미지가 나옵니다.
           </p>
-          {/* "무료"는 쓰지 않는다(8/17 원장님) — 체험 계열 동사로 통일 */}
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Link href="/face-swap" className={buttonVariants({ size: "lg" })}>바로 체험하기</Link>
-            {/* ?sample=1 — 얼굴 교체 화면이 예시 사진을 실은 채 열린다. 빈 화면에 떨어뜨리지 않는다 */}
-            <Link href="/face-swap?sample=1" className={buttonVariants({ size: "lg", variant: "outline" })}>
-              📷 예시 사진으로 체험하기
-            </Link>
-          </div>
         </div>
 
-        <div className="relative mx-auto w-full max-w-sm">
-          <div className="relative aspect-[4/5] overflow-hidden rounded-3xl border shadow-xl">
-            {/* 이 서비스로 실제 시술 사진을 얼굴 교체해 만든 결과물 — 얼굴은 AI, 머리·배경은 실제 */}
-            <Image
-              src="/sample-assets/landing-hero-swap.jpg"
-              alt="얼굴 교체로 만든 홍보 이미지 — 시술한 머리는 그대로, 얼굴은 AI 모델"
-              fill
-              priority
-              sizes="(min-width: 1024px) 24rem, 90vw"
-              className="object-cover"
+        <div className="mx-auto w-full max-w-sm">
+          <div className="relative shadow-xl">
+            {/* 정적 사진 대신 자동으로 좌우 스윕해서, 스크롤 안 하는 방문자도 "얼굴만
+                바뀌고 머리는 그대로"를 바로 본다. */}
+            <BeforeAfterSlider
+              beforeUrl="/sample-assets/landing-hero-before.jpg"
+              afterUrl="/sample-assets/landing-hero-swap.jpg"
+              beforeLabel="원본"
+              afterLabel="교체 후"
+              autoPlay
             />
-            <span className="absolute top-3 left-3 rounded-full bg-black/55 px-2 py-1 text-[10px] font-medium tracking-wider text-white">
-              AI 생성
-            </span>
+            <div className="absolute -left-2 bottom-6 rounded-xl border bg-card/95 px-3.5 py-2.5 text-xs leading-5 text-card-foreground shadow-lg backdrop-blur">
+              시술한 머리 그대로,
+              <br />
+              <b className="text-primary">자연스러운 홍보 이미지</b>
+            </div>
           </div>
-          <div className="absolute -left-2 bottom-6 rounded-xl border bg-card/95 px-3.5 py-2.5 text-xs leading-5 text-card-foreground shadow-lg backdrop-blur">
-            시술한 머리 그대로,
-            <br />
-            <b className="text-primary">자연스러운 홍보 이미지</b>
-          </div>
+          {/* "무료"는 쓰지 않는다(8/17 원장님) — 체험 계열 동사로 통일. 예시 사진
+              체험 링크는 걷어냄 — 버튼 하나로 정리(실측 지적) */}
+          <Link href="/face-swap" className={buttonVariants({ size: "lg", className: "mt-6 w-full" })}>
+            바로 체험하기
+          </Link>
         </div>
       </section>
 
@@ -131,75 +132,60 @@ export default function Home() {
         ))}
       </section>
 
-      {/* 01 얼굴 교체 */}
-      <section className="grid items-center gap-8 py-14 lg:grid-cols-2 lg:gap-14 lg:py-20">
-        <div>
-          <ChapterHeading num="01 · 헤어 모델 만들기" icon={Scissors}>
-            모델 섭외 없이,
-            <br />
-            시술 사진이 홍보 이미지로
-          </ChapterHeading>
-          <p className="mt-4 text-sm leading-7 text-muted-foreground">
-            얼굴은 AI 모델로 교체, 공들인 머리 모양·색은 그대로 정확하게.
-            32가지 AI 모델 중 골라 몇 초 만에 자연스럽게 완성됩니다.
-          </p>
-          <Steps items={[
-            "시술 사진 올리기",
-            "AI 모델 고르기",
-            "SNS 3규격으로 저장",
-          ]} />
-          <Link href="/face-swap" className={buttonVariants({ variant: "outline", className: "mt-6" })}>
-            헤어 모델 체험하기
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
+      {/* 02 블로그 — 제목 아래 실제 골든셋 예시(실측 지적: 요약 카드로는 "블로그 글"이란
+          인지가 안 됨). blog-generator.tsx 결과 패널과 같은 데이터·마크업을 그대로 쓴다. */}
+      <section className="py-14 lg:py-20">
+        <ChapterHeading num="02 · 간단 블로그 글쓰기" icon={NotebookPen}>
+          시술 기록만 남기면,
+          <br />
+          블로그 글이 완성됩니다
+        </ChapterHeading>
+        <p className="mt-4 max-w-xl text-sm leading-7 text-muted-foreground">
+          빈칸만 채우면 도입부터 마무리까지 완성된 글이 빠르게 나옵니다.
+          내 말투로 고쳐 쓰는 것도 간편하게.
+        </p>
+        <Steps items={[
+          "시술 정보 입력",
+          "글 완성",
+          "복사해서 블로그에 붙여넣기",
+        ]} />
+        <Link href="/generate/blog" className={buttonVariants({ variant: "outline", className: "mt-6" })}>
+          블로그 글 체험하기
+          <ArrowRight className="h-4 w-4" />
+        </Link>
 
-        {/* 진짜로 움직이는 확인 슬라이더 — 얼굴 교체 화면과 같은 컴포넌트, 위 사진 짝 사용 */}
-        <div className="mx-auto w-full max-w-sm shadow-lg">
-          <BeforeAfterSlider
-            beforeUrl="/sample-assets/landing-hero-before.jpg"
-            afterUrl="/sample-assets/landing-hero-swap.jpg"
-            beforeLabel="원본"
-            afterLabel="교체 후"
-          />
-        </div>
-      </section>
-
-      {/* 02 블로그 — 그림을 먼저 (교차 배치) */}
-      <section className="grid items-center gap-8 py-14 lg:grid-cols-2 lg:gap-14 lg:py-20">
-        {/* 폰에서도 카드(그림)가 먼저 — 8/15 교차 배치 확정. DOM 순서 그대로 두면 폰·PC 둘 다 맞는다 */}
-        <Card>
-          <CardContent className="pt-6">
-            <h3 className={`${HEADING} text-lg font-semibold`}>손상모도 부드럽게, 다크 브라운 롱 웨이브</h3>
-            <p className="mt-3 text-[11px] font-bold tracking-widest text-primary">도입</p>
-            <p className="mt-1 text-xs leading-6 text-muted-foreground">
-              탈색 이력이 있는 손상모라 걱정하셨던 손님. 전처리부터 차근차근 진행했습니다…
+        <div className="relative mx-auto mt-10 max-w-2xl space-y-4 rounded-lg border bg-card px-5 pt-8 pb-5 shadow-lg">
+          <span className="absolute top-3 right-4 z-10 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
+            예시
+          </span>
+          <div>
+            <p className="pr-11 text-lg font-semibold">{EXAMPLE_BLOG_RESULT.title}</p>
+            <p className="mt-2 text-sm whitespace-pre-wrap text-muted-foreground">
+              {EXAMPLE_BLOG_RESULT.intro}
             </p>
-            <p className="mt-3 text-[11px] font-bold tracking-widest text-primary">시술 과정</p>
-            <p className="mt-1 text-xs leading-6 text-muted-foreground">
-              1차 클리닉 후 저온 디지털펌으로 컬을 잡고, 다크 브라운 컬러를 올렸습니다…
-            </p>
-          </CardContent>
-        </Card>
-        <div>
-          <ChapterHeading num="02 · 간단 블로그 글쓰기" icon={NotebookPen}>
-            시술 기록만 남기면,
-            <br />
-            블로그 글이 완성됩니다
-          </ChapterHeading>
-          <p className="mt-4 text-sm leading-7 text-muted-foreground">
-            빈칸만 채우면 도입부터 마무리까지 완성된 글이 빠르게 나옵니다.
-            내 말투로 고쳐 쓰는 것도 간편하게.
+          </div>
+          {BLOG_SECTION_ORDER.map((key) => {
+            const section = EXAMPLE_BLOG_RESULT.sections[key];
+            if (!section) return null;
+            return (
+              <div key={key}>
+                <p className="text-sm font-medium">{section.heading}</p>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
+                  {section.body}
+                </p>
+              </div>
+            );
+          })}
+          <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+            {EXAMPLE_BLOG_RESULT.closing}
           </p>
-          <Steps items={[
-            "시술 정보 입력",
-            "글 완성",
-            "복사해서 블로그에 붙여넣기",
-          ]} />
-          <Link href="/generate/blog" className={buttonVariants({ variant: "outline", className: "mt-6" })}>
-            블로그 글 체험하기
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+          <div className="flex flex-wrap gap-1.5">
+            {EXAMPLE_BLOG_RESULT.hashtags.map((hashtag) => (
+              <Badge key={hashtag} variant="secondary">
+                #{hashtag.replace(/^#+/, "")}
+              </Badge>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -226,14 +212,16 @@ export default function Home() {
           </Link>
         </div>
 
-        <div className="flex items-start gap-4">
-          <div className="relative aspect-[9/16] w-2/5 shrink-0 overflow-hidden rounded-2xl border bg-gradient-to-b from-muted to-muted-foreground/25 shadow-lg">
+        {/* 영상 위 · 타임라인 아래 세로 배치 — 폭이 좁은 폰에서 영상 2/5 폭 + 자막
+            목록을 좌우로 나누면 둘 다 눌려서 읽기 어려웠다(실측 지적) */}
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative aspect-[9/16] w-40 shrink-0 overflow-hidden rounded-2xl border bg-gradient-to-b from-muted to-muted-foreground/25 shadow-lg">
             <span className="absolute inset-0 m-auto flex h-12 w-12 items-center justify-center rounded-full bg-background/90 shadow">
               <Play className="ml-0.5 h-5 w-5" />
             </span>
             <span className="absolute bottom-3 left-3 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white">9:16 · 무음</span>
           </div>
-          <ul className="flex-1 space-y-2.5">
+          <ul className="w-full max-w-sm space-y-2.5">
             {SHORTS_CLIPS.map((clip) => (
               <li key={clip.role} className="rounded-xl border bg-card px-3 py-2.5 text-xs text-card-foreground shadow-sm">
                 <p className="flex items-center gap-1.5 font-semibold">

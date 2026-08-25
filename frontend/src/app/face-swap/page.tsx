@@ -6,12 +6,14 @@ import { ChevronDown, Download, Images, Loader2, RotateCcw, Sparkles, Trash2 } f
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { FaceCheck } from "@/components/face-check";
+import { BeforeAfterSlider } from "@/components/before-after";
 import { EXPECTED_SECONDS, FaceSwapWaiting } from "@/components/face-swap-waiting";
 import {
-  FaceSwapStepNav,
-  FaceSwapStepProgress,
-  PHONE_INPUT_STEP_COUNT,
-} from "@/components/face-swap-step-nav";
+  StepNav,
+  StepProgress,
+  scrollIntoViewOnNarrow,
+  stepVisibility,
+} from "@/components/flow/step-flow";
 import { FaceSwapRecentStrip } from "@/components/face-swap-recent-strip";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,6 +50,7 @@ import { IS_PUBLIC_PREVIEW, PUBLIC_PREVIEW_NOTICE } from "@/lib/public-preview";
 import { sampleAvatarFile } from "@/lib/sample-assets";
 import { CONSENT_CONTENT, CONSENT_VERSION } from "@/lib/consent";
 import { errorMessage, jobErrorMessage } from "@/lib/api-client/error-message";
+import { PageShell } from "@/components/flow/page-shell";
 
 /**
  * 배경 교체는 기능 2로 넘어갔다(8/12 수민님 회신). 이번 MVP 백엔드는 preserve 만 지원한다.
@@ -76,20 +79,18 @@ const RATIO_USAGE: Record<Ratio, { label: string; badge?: string }> = {
 };
 const TERMINAL = new Set(["completed", "failed"]);
 
-/**
- * 좁은 화면에서만 그 자리로 데려간다.
- *
- * 1024px 이상에서는 입력과 결과가 좌우로 나란히 있어 이미 눈에 들어온다.
- * 그보다 좁으면 1·2·3·4 단계가 세로로 쌓여서, 만들기를 눌러도 결과가 화면 밖에 있다.
- * 무엇이 일어났는지 안 보이는 것이 지금 폰에서 제일 답답한 지점이다.
- */
-function scrollIntoViewOnNarrow(element: HTMLElement | null): void {
-  if (!element || typeof window === "undefined") return;
-  if (window.matchMedia("(min-width: 1024px)").matches) return;
+/** 결과까지 포함한 단계 수. 진행 표시는 입력 4단계만 센다. */
+const PHONE_STEPS = ["시술 사진", "사진 활용 동의", "AI 모델", "이미지 옵션"] as const;
+const PHONE_INPUT_STEP_COUNT = 4;
 
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  element.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
-}
+/**
+ * 목적지 색(Discussion #149 3번) — 결과물을 올릴 곳에서 색을 가져온다.
+ * 얼굴 교체와 숏폼은 둘 다 인스타로 가서, 인스타 그라디언트의 양 끝을 나눠 쓴다 —
+ * 얼굴 교체는 퍼플·마젠타 끝. 흰 글자 대비 6.59:1(버튼·진행바), 배지는
+ * 옅은 wash 위에 ink 글자로 5.73:1 — 둘 다 WCAG AA(4.5:1) 통과.
+ */
+const IDENTITY_INK = "#A32D74";
+const IDENTITY_WASH = "#fdeaf5";
 
 function progressMessage(job: FaceSwapJobResponse | null, elapsedSeconds: number): string {
   if (job?.status === "queued" && job.queue_position) {
@@ -393,8 +394,9 @@ export default function FaceSwapPage() {
    */
   const generateCta = (
     <Button
-      className="w-full"
+      className="w-full transition-[filter] hover:brightness-90 active:brightness-95"
       size="lg"
+      style={{ backgroundColor: IDENTITY_INK }}
       onClick={handleGenerate}
       disabled={busy || restoring || !consentAgreed || !isFaceReady(face)}
       aria-describedby={
@@ -408,9 +410,10 @@ export default function FaceSwapPage() {
 
   /**
    * 폰에서 이 단계의 카드를 보여줄지. lg 이상에서는 항상 보인다.
-   * 결과 칼럼도 같은 규칙을 쓴다(단계 5).
+   * 결과 칼럼도 같은 규칙을 쓴다(단계 5). 공용 stepVisibility 에 위임한다
+   * (블로그·숏츠와 같은 판정 — Discussion #149 PR 2).
    */
-  const phoneOnlyStep = (n: number) => (phoneStep === n ? "" : "hidden lg:block");
+  const phoneOnlyStep = (n: number) => stepVisibility(n, phoneStep);
 
   // 단계별로 다음으로 넘어갈 조건. 4단계(옵션)는 기본값이 있어 항상 통과한다.
   const stepReady: Record<number, boolean> = {
@@ -427,16 +430,33 @@ export default function FaceSwapPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10 pb-28 lg:pb-10">
-      <h1 className="text-2xl font-semibold tracking-tight">💇 헤어 모델 만들기</h1>
-      <p className="mt-2 max-w-2xl text-muted-foreground">
-        시술 사진 한 장이면 손님 얼굴 걱정 없이 바로 올릴 홍보 이미지가 나옵니다.
-        얼굴만 AI 모델로 바꾸고 공들인 헤어·의상·배경은 그대로 — 동의받은 사진만 올려주세요.
-      </p>
-
-      {IS_PUBLIC_PREVIEW && <Alert className="mt-4"><AlertDescription>{PUBLIC_PREVIEW_NOTICE}</AlertDescription></Alert>}
-
-      <FaceSwapStepProgress step={phoneStep} />
+    <PageShell
+      className="pb-28 lg:pb-10"
+      title="💇 헤어 모델 만들기"
+      description={
+        <>
+          시술 사진 한 장이면 손님 얼굴 걱정 없이 바로 올릴 홍보 이미지가 나옵니다.
+          얼굴만 AI 모델로 바꾸고 공들인 헤어·의상·배경은 그대로 — 동의받은 사진만 올려주세요.
+        </>
+      }
+      badge={
+        <Badge
+          variant="secondary"
+          className="border-0"
+          style={{ backgroundColor: IDENTITY_WASH, color: IDENTITY_INK }}
+        >
+          인스타 피드 · 스토리
+        </Badge>
+      }
+      notice={
+        IS_PUBLIC_PREVIEW && (
+          <Alert>
+            <AlertDescription>{PUBLIC_PREVIEW_NOTICE}</AlertDescription>
+          </Alert>
+        )
+      }
+    >
+      <StepProgress step={phoneStep} steps={PHONE_STEPS} activeColor={IDENTITY_INK} />
 
       {/*
         요청 오류는 단계 게이트 밖에서 보여준다. 결과 칼럼(5단계) 안에 두면
@@ -582,7 +602,10 @@ export default function FaceSwapPage() {
           <div className="hidden lg:block">{generateCta}</div>
         </div>
 
-        <div className={`space-y-5 ${phoneOnlyStep(PHONE_INPUT_STEP_COUNT + 1)}`} ref={resultRef}>
+        <div
+          className={`space-y-5 ${jobId ? phoneOnlyStep(PHONE_INPUT_STEP_COUNT + 1) : phoneOnlyStep(PHONE_INPUT_STEP_COUNT)}`}
+          ref={resultRef}
+        >
           <h2 className="text-base font-semibold">결과</h2>
 
           {restored && (
@@ -594,13 +617,36 @@ export default function FaceSwapPage() {
           )}
 
           {!jobId ? (
-            <Card className="flex aspect-square items-center justify-center border-dashed">
-              <p className="max-w-[260px] text-center text-sm text-muted-foreground">
-                {restoring
-                  ? "이전에 만들던 작업이 있는지 확인하고 있어요."
-                  : "사진과 옵션을 채운 뒤 버튼을 누르면 홍보 이미지 결과가 표시됩니다."}
-              </p>
-            </Card>
+            restoring ? (
+              <Card className="flex aspect-square items-center justify-center border-dashed">
+                <p className="max-w-[260px] text-center text-sm text-muted-foreground">
+                  이전에 만들던 작업이 있는지 확인하고 있어요.
+                </p>
+              </Card>
+            ) : (
+              // 결과 예시(Discussion #149 제안 2) — 랜딩과 같은 컴포넌트·사진 짝을 그대로 쓴다.
+              // "표시됩니다" 라고 글로 설명하는 대신, 이 화면이 실제로 만드는 것을 보여준다.
+              <Card>
+                <CardHeader><CardTitle className="text-base">이런 결과가 나와요</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="relative">
+                    <BeforeAfterSlider
+                      beforeUrl="/sample-assets/landing-hero-before.jpg"
+                      afterUrl="/sample-assets/landing-hero-swap.jpg"
+                      beforeLabel="원본"
+                      afterLabel="교체 후"
+                    />
+                    <span className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                      예시
+                    </span>
+                  </div>
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    머리·의상·배경은 그대로, 얼굴만 AI 모델로. 사진과 옵션을 채운 뒤 버튼을 누르면
+                    직접 만든 결과가 여기에 표시됩니다.
+                  </p>
+                </CardContent>
+              </Card>
+            )
           ) : (
             <>
               {active && <FaceSwapWaiting job={job} elapsedSeconds={elapsedSeconds} />}
@@ -724,8 +770,9 @@ export default function FaceSwapPage() {
       />
 
       {phoneStep <= PHONE_INPUT_STEP_COUNT && (
-        <FaceSwapStepNav
+        <StepNav
           step={phoneStep}
+          totalSteps={PHONE_INPUT_STEP_COUNT}
           canGoNext={stepReady[phoneStep]}
           nextHint={stepHint[phoneStep]}
           onPrev={() => setPhoneStep((n) => Math.max(1, n - 1))}
@@ -745,6 +792,6 @@ export default function FaceSwapPage() {
 // 서버 기본값 mock, 인증·HTTPS 준비 후 proxy 구현
 // 진행 시간은 안내 문구에만 사용하고 실패는 서버 상태로 판정`}
       />
-    </div>
+    </PageShell>
   );
 }

@@ -39,17 +39,24 @@ def ref_face_path(ref_id: str) -> Path:
     return settings.REF_FACES_DIR / f"{ref_id}.png"
 
 
+def to_stored_size(img: Image.Image) -> Image.Image:
+    """저장 시점 크기로 줄인다. 폰 사진은 4000px 이 넘어 긴 변을 제한한다.
+
+    사전 검증도 이 크기를 봐야 한다. 원본을 그대로 재면 폰 사진의 얼굴이
+    실제보다 크게 나와 생성 불가한 사진이 통과한다.
+    """
+    if max(img.size) <= settings.OUTPUT_MAX_SIDE:
+        return img
+    scale = settings.OUTPUT_MAX_SIDE / max(img.size)
+    return img.resize((int(img.width * scale), int(img.height * scale)), Image.LANCZOS)
+
+
 def save_source(job_id: str, data: bytes) -> Path:
-    """업로드 원본을 저장한다. 폰 사진은 4000px 이 넘어 긴 변을 제한한다."""
+    """업로드 원본을 저장한다."""
     path = source_path(job_id)
     path.write_bytes(data)
 
-    img = Image.open(path).convert("RGB")
-    if max(img.size) > settings.OUTPUT_MAX_SIDE:
-        scale = settings.OUTPUT_MAX_SIDE / max(img.size)
-        img = img.resize(
-            (int(img.width * scale), int(img.height * scale)), Image.LANCZOS
-        )
+    img = to_stored_size(Image.open(path).convert("RGB"))
     img.save(path, "JPEG", quality=settings.JPEG_QUALITY)
     return path
 

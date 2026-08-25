@@ -38,6 +38,7 @@ import {
   type BlogProfile,
 } from "@/lib/blog-profile";
 import type { CreateBlogJobPayload } from "@/lib/api-client/types";
+import { stepVisibility } from "@/components/flow/step-flow";
 
 /** 폼이 직접 들고 있는 10개. 나머지 2개는 매장 프로필에서 온다. */
 export type BlogFieldValues = {
@@ -164,16 +165,23 @@ export function BlogFields({
   values,
   onChange,
   disabled = false,
+  phoneStep,
 }: {
   values: BlogFieldValues;
   onChange: (next: BlogFieldValues) => void;
   disabled?: boolean;
+  /**
+   * 폰 단계식(StepFlow)에서 지금 보여줄 카드. 1=매장 정보, 2=이번 시술, 3=모발 상태.
+   * 생략하면(데스크톱 전용 호출 등) 세 카드를 항상 함께 보여준다 — 기존 동작 그대로.
+   */
+  phoneStep?: number;
 }) {
   const profile = useBlogProfile();
   const [productDraft, setProductDraft] = useState("");
   const [category, setCategory] = useState("");
 
   const set = (patch: Partial<BlogFieldValues>) => onChange({ ...values, ...patch });
+  const cardVisible = (n: number) => (phoneStep === undefined ? "" : stepVisibility(n, phoneStep));
   const regionKeyword = buildRegionKeyword(profile.regionArea, profile.regionBusiness);
 
   const detailOptions = useMemo(
@@ -200,221 +208,227 @@ export function BlogFields({
   return (
     <fieldset disabled={disabled} className="space-y-6">
       {/* ── 프로필 2개. 저장해두면 2회차부터 채워진 상태로 시작한다 ── */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">매장 정보</CardTitle>
-          <CardDescription>
-            한 번 입력하면 이 브라우저에 저장돼, 다음부터는 채워진 상태로 시작합니다.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label className="mb-2 block">디자이너 이름</Label>
-            <Input
-              placeholder="예: 김서연"
-              value={profile.designerName}
-              onChange={(event) => writeBlogProfile({ ...profile, designerName: event.target.value })}
-            />
-          </div>
-
-          <div>
-            <Label className="mb-2 block">지역 · 업종</Label>
-            <Input
-              className="mb-2 w-40"
-              placeholder="예: 성수동"
-              value={profile.regionArea}
-              onChange={(event) => writeBlogProfile({ ...profile, regionArea: event.target.value })}
-            />
-            <OptionButtons
-              label="업종·시술"
-              options={REGION_BUSINESSES}
-              value={profile.regionBusiness}
-              onChange={(next) => writeBlogProfile({ ...profile, regionBusiness: next })}
-              placeholder="예: 두피케어"
-            />
-            <p className="mt-2 text-xs text-muted-foreground">
-              두 값을 합쳐 <span className="font-medium">{regionKeyword || "지역 + 업종"}</span> 으로 보냅니다.
-              지역명만 있으면 지역 검색에 잡히지 않습니다.
-            </p>
-          </div>
-
-          <div>
-            <Label className="mb-2 block">취급 제품 (선택)</Label>
-            <div className="flex gap-2">
+      <div className={cardVisible(1)}>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">매장 정보</CardTitle>
+            <CardDescription>
+              한 번 입력하면 이 브라우저에 저장돼, 다음부터는 채워진 상태로 시작합니다.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label className="mb-2 block">디자이너 이름</Label>
               <Input
-                placeholder="예: 모로칸 오일"
-                value={productDraft}
-                onChange={(event) => setProductDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    addProduct();
-                  }
-                }}
+                placeholder="예: 김서연"
+                value={profile.designerName}
+                onChange={(event) => writeBlogProfile({ ...profile, designerName: event.target.value })}
               />
-              <Button type="button" variant="outline" onClick={addProduct}>
-                <Plus className="h-4 w-4" />
-                추가
-              </Button>
             </div>
-            {profile.specialProducts.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {profile.specialProducts.map((product) => (
-                  <span
-                    key={product}
-                    className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-xs"
-                  >
-                    {product}
-                    <button type="button" onClick={() => removeProduct(product)} aria-label={`${product} 삭제`}>
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
+
+            <div>
+              <Label className="mb-2 block">지역 · 업종</Label>
+              <Input
+                className="mb-2 w-40"
+                placeholder="예: 성수동"
+                value={profile.regionArea}
+                onChange={(event) => writeBlogProfile({ ...profile, regionArea: event.target.value })}
+              />
+              <OptionButtons
+                label="업종·시술"
+                options={REGION_BUSINESSES}
+                value={profile.regionBusiness}
+                onChange={(next) => writeBlogProfile({ ...profile, regionBusiness: next })}
+                placeholder="예: 두피케어"
+              />
+              <p className="mt-2 text-xs text-muted-foreground">
+                두 값을 합쳐 <span className="font-medium">{regionKeyword || "지역 + 업종"}</span> 으로 보냅니다.
+                지역명만 있으면 지역 검색에 잡히지 않습니다.
+              </p>
+            </div>
+
+            <div>
+              <Label className="mb-2 block">취급 제품 (선택)</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="예: 모로칸 오일"
+                  value={productDraft}
+                  onChange={(event) => setProductDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      addProduct();
+                    }
+                  }}
+                />
+                <Button type="button" variant="outline" onClick={addProduct}>
+                  <Plus className="h-4 w-4" />
+                  추가
+                </Button>
               </div>
-            )}
-            <p className="mt-2 text-xs text-muted-foreground">
-              목록만 저장합니다. 글을 쓸 때 이번 시술에 실제로 쓴 제품을 아래에서 고릅니다.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+              {profile.specialProducts.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {profile.specialProducts.map((product) => (
+                    <span
+                      key={product}
+                      className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-xs"
+                    >
+                      {product}
+                      <button type="button" onClick={() => removeProduct(product)} aria-label={`${product} 삭제`}>
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <p className="mt-2 text-xs text-muted-foreground">
+                목록만 저장합니다. 글을 쓸 때 이번 시술에 실제로 쓴 제품을 아래에서 고릅니다.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* ── 필수 4개. 없으면 글이 성립하지 않는다 ── */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">이번 시술 (필수)</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            {/* 대분류는 전송하지 않는다. 아래 구체 시술명(main_treatment)만 payload 로 나간다. */}
-            <OptionButtons
-              label="메인 시술"
-              options={TREATMENT_CATEGORIES}
-              value={category}
-              onChange={(next) => {
-                setCategory(next);
-                set({ main_treatment: "" });
-              }}
-              placeholder="예: 두피케어"
-            />
-            {category && (
-              <div className="mt-2">
-                <OptionButtons
-                  label={`${category} — 구체 시술명`}
-                  options={detailOptions}
-                  value={values.main_treatment}
-                  onChange={(next) => set({ main_treatment: next })}
-                  placeholder="예: C컬 펌"
-                />
-              </div>
-            )}
-          </div>
-
-          <div>
-            <Label className="mb-2 block">베이스 컷</Label>
-            <Input
-              placeholder="예: 레이어드 컷"
-              value={values.base_cut}
-              onChange={(event) => set({ base_cut: event.target.value })}
-            />
-          </div>
-
-          <div>
-            <Label className="mb-2 block">디자인 포인트</Label>
-            <Input
-              placeholder="예: 얼굴형을 보완하는 C컬 볼륨"
-              value={values.design_point}
-              onChange={(event) => set({ design_point: event.target.value })}
-            />
-          </div>
-
-          <div>
-            <Label className="mb-2 block">고객이 겪던 불편</Label>
-            <Textarea
-              rows={3}
-              placeholder="예: 모발이 얇고 힘이 없어 아침마다 정수리가 눌리고, 드라이에 20분 넘게 걸렸습니다"
-              value={values.customer_pain_point}
-              onChange={(event) => set({ customer_pain_point: event.target.value })}
-            />
-            {/* 손님은 문제로 검색한다("손상모 복구펌") — 고민이 문장으로 들어가야 그 검색이 걸린다.
-                칩은 시작 문장을 넣어줄 뿐이고, 손님 사례로 고쳐 쓰는 것이 목적이다. */}
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {PAIN_POINT_EXAMPLES.map((example) => (
-                <button
-                  key={example.label}
-                  type="button"
-                  onClick={() => set({ customer_pain_point: example.text })}
-                  className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
-                >
-                  {example.label}
-                </button>
-              ))}
+      <div className={cardVisible(2)}>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">이번 시술 (필수)</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              {/* 대분류는 전송하지 않는다. 아래 구체 시술명(main_treatment)만 payload 로 나간다. */}
+              <OptionButtons
+                label="메인 시술"
+                options={TREATMENT_CATEGORIES}
+                value={category}
+                onChange={(next) => {
+                  setCategory(next);
+                  set({ main_treatment: "" });
+                }}
+                placeholder="예: 두피케어"
+              />
+              {category && (
+                <div className="mt-2">
+                  <OptionButtons
+                    label={`${category} — 구체 시술명`}
+                    options={detailOptions}
+                    value={values.main_treatment}
+                    onChange={(next) => set({ main_treatment: next })}
+                    placeholder="예: C컬 펌"
+                  />
+                </div>
+              )}
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              글의 도입 문단이 이 내용만으로 채워집니다. 비워두면 AI가 지어냅니다.
-              칩을 누른 뒤 손님 사례로 고쳐 쓰면 검색에 더 잘 걸립니다.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+
+            <div>
+              <Label className="mb-2 block">베이스 컷</Label>
+              <Input
+                placeholder="예: 레이어드 컷"
+                value={values.base_cut}
+                onChange={(event) => set({ base_cut: event.target.value })}
+              />
+            </div>
+
+            <div>
+              <Label className="mb-2 block">디자인 포인트</Label>
+              <Input
+                placeholder="예: 얼굴형을 보완하는 C컬 볼륨"
+                value={values.design_point}
+                onChange={(event) => set({ design_point: event.target.value })}
+              />
+            </div>
+
+            <div>
+              <Label className="mb-2 block">고객이 겪던 불편</Label>
+              <Textarea
+                rows={3}
+                placeholder="예: 모발이 얇고 힘이 없어 아침마다 정수리가 눌리고, 드라이에 20분 넘게 걸렸습니다"
+                value={values.customer_pain_point}
+                onChange={(event) => set({ customer_pain_point: event.target.value })}
+              />
+              {/* 손님은 문제로 검색한다("손상모 복구펌") — 고민이 문장으로 들어가야 그 검색이 걸린다.
+                  칩은 시작 문장을 넣어줄 뿐이고, 손님 사례로 고쳐 쓰는 것이 목적이다. */}
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {PAIN_POINT_EXAMPLES.map((example) => (
+                  <button
+                    key={example.label}
+                    type="button"
+                    onClick={() => set({ customer_pain_point: example.text })}
+                    className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+                  >
+                    {example.label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                글의 도입 문단이 이 내용만으로 채워집니다. 비워두면 AI가 지어냅니다.
+                칩을 누른 뒤 손님 사례로 고쳐 쓰면 검색에 더 잘 걸립니다.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* ── 선택 6개. 비워두면 빈 문자열로 전송한다(규범님 8/11) ── */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">모발 상태 · 기타 (선택)</CardTitle>
-          <CardDescription>고르지 않으면 해당 내용 없이 글을 만듭니다.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <OptionButtons
-            label="기장"
-            options={HAIR_LENGTHS}
-            value={values.hair_length}
-            onChange={(next) => set({ hair_length: next })}
-          />
-          <OptionButtons
-            label="모질"
-            options={HAIR_TEXTURES}
-            value={values.hair_texture}
-            onChange={(next) => set({ hair_texture: next })}
-          />
-          <OptionButtons
-            label="굵기"
-            options={HAIR_THICKNESSES}
-            value={values.hair_thickness}
-            onChange={(next) => set({ hair_thickness: next })}
-          />
-          <OptionButtons
-            label="손상도"
-            options={DAMAGE_LEVELS}
-            value={values.damage_level}
-            onChange={(next) => set({ damage_level: next })}
-          />
-          <OptionButtons
-            label="소요 시간"
-            options={DURATION_MINUTES}
-            value={values.duration_minutes}
-            onChange={(next) => set({ duration_minutes: next })}
-            renderLabel={formatDuration}
-            placeholder="숫자만 입력 (예: 150)"
-          />
-
-          {/* 프로필 목록에서 고르되, 목록에 없는 제품도 직접 입력할 수 있어야 한다. */}
-          <div>
+      <div className={cardVisible(3)}>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">모발 상태 · 기타 (선택)</CardTitle>
+            <CardDescription>고르지 않으면 해당 내용 없이 글을 만듭니다.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <OptionButtons
-              label="이번 시술에 사용한 제품"
-              options={profile.specialProducts}
-              value={values.special_product}
-              onChange={(next) => set({ special_product: next })}
-              placeholder="예: 올라플렉스 No.3"
+              label="기장"
+              options={HAIR_LENGTHS}
+              value={values.hair_length}
+              onChange={(next) => set({ hair_length: next })}
             />
-            <p className="mt-2 text-xs text-muted-foreground">
-              {profile.specialProducts.length === 0
-                ? "위 매장 정보에 취급 제품을 등록하면 버튼으로 고를 수 있습니다."
-                : "고르지 않으면 제품을 쓰지 않은 것으로 봅니다."}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+            <OptionButtons
+              label="모질"
+              options={HAIR_TEXTURES}
+              value={values.hair_texture}
+              onChange={(next) => set({ hair_texture: next })}
+            />
+            <OptionButtons
+              label="굵기"
+              options={HAIR_THICKNESSES}
+              value={values.hair_thickness}
+              onChange={(next) => set({ hair_thickness: next })}
+            />
+            <OptionButtons
+              label="손상도"
+              options={DAMAGE_LEVELS}
+              value={values.damage_level}
+              onChange={(next) => set({ damage_level: next })}
+            />
+            <OptionButtons
+              label="소요 시간"
+              options={DURATION_MINUTES}
+              value={values.duration_minutes}
+              onChange={(next) => set({ duration_minutes: next })}
+              renderLabel={formatDuration}
+              placeholder="숫자만 입력 (예: 150)"
+            />
+
+            {/* 프로필 목록에서 고르되, 목록에 없는 제품도 직접 입력할 수 있어야 한다. */}
+            <div>
+              <OptionButtons
+                label="이번 시술에 사용한 제품"
+                options={profile.specialProducts}
+                value={values.special_product}
+                onChange={(next) => set({ special_product: next })}
+                placeholder="예: 올라플렉스 No.3"
+              />
+              <p className="mt-2 text-xs text-muted-foreground">
+                {profile.specialProducts.length === 0
+                  ? "위 매장 정보에 취급 제품을 등록하면 버튼으로 고를 수 있습니다."
+                  : "고르지 않으면 제품을 쓰지 않은 것으로 봅니다."}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </fieldset>
   );
 }

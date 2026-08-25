@@ -14,6 +14,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ResultPlaceholder } from "@/components/result-placeholder";
 import { DevNote } from "@/components/dev-note";
 import { IS_PUBLIC_PREVIEW, PUBLIC_PREVIEW_NOTICE } from "@/lib/public-preview";
+import { PageShell } from "@/components/flow/page-shell";
 
 export function ImageGenerator() {
   const searchParams = useSearchParams();
@@ -55,18 +56,17 @@ export function ImageGenerator() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight">🖼️ AI 이미지 생성</h1>
-      <p className="mt-2 max-w-xl text-muted-foreground">
-        프롬프트 한 줄로 홍보 이미지를 만드는 범용 도구예요. 마케팅 캘린더·스타일 상담 등 다른 기능에서
-        만든 프롬프트를 그대로 가져와 이어서 생성할 수도 있어요.
-      </p>
-      {label && (
-        <Badge variant="secondary" className="mt-3">
-          연결된 컨텍스트 · {label}
-        </Badge>
-      )}
-
+    <PageShell
+      width="5xl"
+      title="🖼️ AI 이미지 생성"
+      description={
+        <>
+          프롬프트 한 줄로 홍보 이미지를 만드는 범용 도구예요. 마케팅 캘린더·스타일 상담 등 다른 기능에서
+          만든 프롬프트를 그대로 가져와 이어서 생성할 수도 있어요.
+        </>
+      }
+      badge={label && <Badge variant="secondary">연결된 컨텍스트 · {label}</Badge>}
+    >
       <div className="mt-8 grid gap-8 lg:grid-cols-2">
         <div className="space-y-6">
           <Card>
@@ -145,6 +145,6 @@ export function ImageGenerator() {
         ]}
         codeHint={`// /api/text-to-image/route.ts — HF InferenceClient.textToImage() 실제 호출\n// 다른 페이지에서 /generate/image?prompt=...&label=... 로 링크하면 프롬프트가 자동 채워짐`}
       />
-    </div>
+    </PageShell>
   );
 }

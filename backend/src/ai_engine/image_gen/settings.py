@@ -89,12 +89,21 @@ COMBO3_NEGATIVE = "blurry, low quality, deformed, watermark, text"
 # --- 공통 ---
 
 FACE_NEGATIVE = "blurry, distorted, deformed face, extra features, cartoon, watermark"
+<<<<<<< HEAD
 MIN_FACE_WIDTH = 350
 # D-1 에서 20px 로 정했으나 절대 픽셀이라 얼굴 크기에 따라 의미가 달라졌다.
 # 얼굴 폭 104px 에서 19.2%, 226px 에서 8.8% 로 작용해 작은 얼굴의 앞머리를
 # 과하게 불렸다. 앞머리가 있는 normal 3장의 20px 비율 중 최대값을 택했다.
 # 팽창을 덜 줄이는 보수적인 쪽이다. 폭은 InsightFace bbox 기준이다.
 HAIR_DILATE_RATIO = 0.077
+=======
+# normal_03 이 365px 로 통과한 실측 기준. OUTPUT_MAX_SIDE 축소본에 적용한다.
+# 절대 픽셀이라 원본 크기에 따라 의미가 달라진다. 긴 변 1930 에서 비율 0.181,
+# 983 에서 0.356 이다. 생성 시점 얼굴 크기는 비율로만 정해지므로 비율 기준으로
+# 바꾸는 것이 맞다. 임계값은 품질이 무너지는 지점을 실측한 뒤 정한다.
+MIN_FACE_WIDTH = 350
+HAIR_DILATE_PX = 20  # 앞머리 SSIM 과 초상권 회피의 균형점 (D-1)
+>>>>>>> origin/dev
 RECOMPOSE_BLUR = 25  # 마스크 경계가 직선으로 드러나지 않는 값
 HAIR_BLUR = 3  # 헤어 경계는 얇아서 크게 잡으면 잔상이 생긴다
 COLOR_ALPHA = 1.0  # 색 정합 강도. 3장 모두 단조 개선, 교차점 없음

@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DevNote } from "@/components/dev-note";
+import { PageShell } from "@/components/flow/page-shell";
 
 const SEASONS = ["2026 S/S", "2026 F/W"];
 const PERSONAL_COLORS = ["봄웜", "여름쿨", "가을웜", "겨울쿨"] as const;
@@ -65,13 +66,16 @@ export default function SeasonBannerPage() {
   const style = COLOR_STYLE[personalColor];
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight">🏷️ 시즌 배너 · 메뉴판</h1>
-      <p className="mt-2 max-w-xl text-muted-foreground">
-        사진 없이 문구만으로 시즌 배너나 메뉴판을 만듭니다. 시즌·퍼스널컬러를 고르면 그 느낌에 맞는
-        문구를 실제 LLM이 만들어드려요.
-      </p>
-
+    <PageShell
+      width="5xl"
+      title="🏷️ 시즌 배너 · 메뉴판"
+      description={
+        <>
+          사진 없이 문구만으로 시즌 배너나 메뉴판을 만듭니다. 시즌·퍼스널컬러를 고르면 그 느낌에 맞는
+          문구를 실제 LLM이 만들어드려요.
+        </>
+      }
+    >
       <div className="mt-8 grid gap-8 lg:grid-cols-2">
         <div className="space-y-6">
           <Card>
@@ -186,6 +190,6 @@ export default function SeasonBannerPage() {
         ]}
         codeHint={`// 실제 연동 완료 — /api/banner-copy/route.ts\n// TODO(R5): 지금은 CSS 미리보기뿐 — 다운로드 가능한 이미지로 합성하려면\n// 결과를 <canvas>에 그려 PNG로 export 하는 단계 추가`}
       />
-    </div>
+    </PageShell>
   );
 }
