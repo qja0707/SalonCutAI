@@ -489,7 +489,7 @@ export default function FaceSwapPage() {
                 <p className="text-sm text-muted-foreground">{CONSENT_CONTENT.introduction}</p>
                 <Collapsible open={consentOpen} onOpenChange={setConsentOpen}>
                   <CollapsibleTrigger className="flex min-h-12 w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm font-medium hover:bg-muted/60 sm:min-h-0">
-                    동의 내용 전체 보기
+                    자세히 보기
                     <ChevronDown className={`h-4 w-4 transition-transform ${consentOpen ? "rotate-180" : ""}`} />
                   </CollapsibleTrigger>
                   <CollapsibleContent className="pt-3">
@@ -513,7 +513,7 @@ export default function FaceSwapPage() {
                 </div>
                 {!consentAgreed && (
                   <p id="consent-required" role="status" className="text-sm text-amber-700 dark:text-amber-400">
-                    고객의 사진 활용 동의를 확인해야 이미지를 만들 수 있습니다.
+                    동의 확인이 필요합니다.
                   </p>
                 )}
               </CardContent>
