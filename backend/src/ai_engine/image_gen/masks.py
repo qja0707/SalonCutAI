@@ -68,6 +68,7 @@ def build_hair_mask(img: Image.Image, dilate: int | None = None) -> Image.Image:
 
     return Image.fromarray(hair).resize(img.size)
 
+
 BROW_CONNS = (
     vision.FaceLandmarksConnections.FACE_LANDMARKS_LEFT_EYEBROW,
     vision.FaceLandmarksConnections.FACE_LANDMARKS_RIGHT_EYEBROW,

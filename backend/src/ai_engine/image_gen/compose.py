@@ -2,17 +2,16 @@
 
 생성 결과를 원본과 자연스럽게 합친다. 순서가 중요하다.
 
-    조합 5   색 정합 → 헤어 복원 재합성 → 고주파 이식
-    조합 3   색 정합 → kps 어파인 정렬 → 헤어 복원 재합성 → 고주파 이식
+    색 정합 → 헤어 복원 재합성 → 눈썹 보존
 
-조합 3 에만 정렬이 있다. img2img 라 생성 결과가 원본과 미세하게 어긋난다.
+조합 3·5 가 같은 경로를 쓴다.
 """
 
 import cv2
 import numpy as np
 from PIL import Image, ImageFilter
 
-from src.ai_engine.image_gen import loader, settings
+from src.ai_engine.image_gen import loader, masks, settings
 
 
 def color_transfer(
@@ -73,6 +72,27 @@ def recompose_with_hair(
         original,
         comp,
         hair_mask.resize(size).filter(ImageFilter.GaussianBlur(settings.HAIR_BLUR)),
+    )
+
+
+def keep_brows(original: Image.Image, comp: Image.Image) -> Image.Image:
+    """생성된 눈썹을 원본 눈썹으로 되돌린다.
+
+    참조 얼굴에서 가져오는 것은 눈·코·입이고 눈썹은 원본을 유지한다.
+    kps 5점에 눈썹 정보가 없어 참조 임베딩이 눈썹 모양을 끌고 오는데,
+    원본과 다른 눈썹이 나오면 인상이 크게 달라진다.
+
+    검출에 실패하면 되돌리지 않고 그대로 둔다. 눈썹 보존은 필수 단계가
+    아니라서 여기서 실패해도 결과는 나온다.
+    """
+    brow = masks.build_brow_mask(original)
+    if brow is None:
+        return comp
+
+    return Image.composite(
+        original,
+        comp,
+        brow.resize(original.size).filter(ImageFilter.GaussianBlur(settings.HAIR_BLUR)),
     )
 
 
