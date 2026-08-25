@@ -62,8 +62,10 @@ type ClipDraftChanges = Partial<VideoClipOptions> & {
   description?: string;
   descriptionMode?: DescriptionMode;
 };
-const MAX_FILE_BYTES = 80 * 1024 * 1024;
-const MAX_TOTAL_BYTES = 320 * 1024 * 1024;
+type UploadIssue = { title: string; messages: string[] };
+const MIB = 1024 * 1024;
+const MAX_FILE_BYTES = 160 * MIB;
+const MAX_TOTAL_BYTES = 320 * MIB;
 const MAX_CAPTION_CONTEXT_LENGTH = 100;
 const CUSTOM_DESCRIPTION_VALUE = "__custom__";
 const ACCEPTED_VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".webm", ".mkv"]);
@@ -86,6 +88,10 @@ function isAcceptedVideoFile(file: File): boolean {
     ? `.${file.name.split(".").pop()?.toLowerCase()}`
     : "";
   return file.type.startsWith("video/") || ACCEPTED_VIDEO_EXTENSIONS.has(extension);
+}
+
+function fileSizeLabel(bytes: number): string {
+  return `${(bytes / MIB).toFixed(1)}MB`;
 }
 
 function createClipId(): string {
@@ -151,6 +157,7 @@ export function ShortsGenerator() {
   const [blurFaces, setBlurFaces] = useState(true);
   const [topic, setTopic] = useState("");
   const [error, setError] = useState("");
+  const [uploadIssue, setUploadIssue] = useState<UploadIssue | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const resultRef = useRef<HTMLElement>(null);
   // 폰 단계식(A안, Discussion #149 — 얼굴 교체·블로그와 같은 흐름)에서 지금 보여줄 단계.
@@ -178,16 +185,42 @@ export function ShortsGenerator() {
   function addFiles(files: FileList | null) {
     if (!files) return;
     const candidates = Array.from(files);
-    const selected = candidates.filter(isAcceptedVideoFile);
     const available = Math.max(0, 8 - clips.length);
     const accepted: File[] = [];
+    const messages: string[] = [];
+    let totalLimitReported = false;
     let totalBytes = clips.reduce((sum, clip) => sum + clip.file.size, 0);
-    for (const file of selected.slice(0, available)) {
-      if (file.size > MAX_FILE_BYTES || totalBytes + file.size > MAX_TOTAL_BYTES) continue;
+
+    for (const [index, file] of candidates.entries()) {
+      if (!isAcceptedVideoFile(file)) {
+        messages.push(`${file.name}: MP4, MOV, WEBM, MKV 형식만 지원합니다.`);
+        continue;
+      }
+      if (accepted.length >= available) {
+        messages.push(
+          `최대 8개까지 추가할 수 있어 나머지 ${candidates.length - index}개는 제외했습니다.`,
+        );
+        break;
+      }
+      if (file.size > MAX_FILE_BYTES) {
+        messages.push(
+          `${file.name}: 160MB를 초과했습니다. 현재 크기 ${fileSizeLabel(file.size)}`,
+        );
+        continue;
+      }
+      if (totalBytes + file.size > MAX_TOTAL_BYTES) {
+        if (!totalLimitReported) {
+          messages.push(
+            `${file.name}: 전체 업로드 한도 320MB를 초과해 제외했습니다. 추가 전 합계 ${fileSizeLabel(totalBytes)}`,
+          );
+          totalLimitReported = true;
+        }
+        continue;
+      }
       accepted.push(file);
       totalBytes += file.size;
     }
-    setClips((current) => {
+    if (accepted.length) setClips((current) => {
       const total = current.length + accepted.length;
       return [
         ...current,
@@ -208,12 +241,14 @@ export function ShortsGenerator() {
         }),
       ];
     });
-    if (candidates.length > accepted.length) {
-      setError("MP4·MOV·WEBM·MKV 영상을 8개, 파일당 80MB, 전체 320MB까지 올릴 수 있습니다.");
-    }
-    else {
-      setError("");
-    }
+    setUploadIssue(
+      messages.length
+        ? {
+            title: accepted.length ? "일부 영상을 추가하지 못했어요" : "영상을 추가하지 못했어요",
+            messages,
+          }
+        : null,
+    );
     if (inputRef.current) inputRef.current.value = "";
   }
 
@@ -287,6 +322,7 @@ export function ShortsGenerator() {
     setTopic("");
     setBlurFaces(true);
     setError("");
+    setUploadIssue(null);
     setPhoneStep(1);
   }
 
@@ -374,7 +410,7 @@ export function ShortsGenerator() {
           <Card className={stepVisibility(1, phoneStep)}>
             <CardHeader>
               <CardTitle>1. 영상 업로드</CardTitle>
-              <CardDescription>MP4·MOV·WEBM·MKV 파일을 2~8개 올려주세요. 파일당 80MB, 전체 320MB까지 지원합니다.</CardDescription>
+              <CardDescription>MP4·MOV·WEBM·MKV 파일을 2~8개 올려주세요. 파일당 160MB, 전체 320MB까지 지원합니다.</CardDescription>
             </CardHeader>
             <CardContent>
               <button
@@ -395,6 +431,21 @@ export function ShortsGenerator() {
                 className="hidden"
                 onChange={(event) => addFiles(event.target.files)}
               />
+              {uploadIssue && (
+                <Alert variant="destructive" className="mt-4 min-w-0">
+                  <Info />
+                  <AlertTitle>{uploadIssue.title}</AlertTitle>
+                  <AlertDescription>
+                    <ul className="space-y-1">
+                      {uploadIssue.messages.map((message, index) => (
+                        <li key={`${index}-${message}`} className="break-words [overflow-wrap:anywhere]">
+                          {message}
+                        </li>
+                      ))}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              )}
               {clips.length > 0 && (
                 <p className="mt-3 text-xs text-muted-foreground">
                   클립 {clips.length}개 · 예상 {expectedSeconds}초
@@ -475,7 +526,10 @@ export function ShortsGenerator() {
                         size="icon"
                         disabled={busy}
                         onClick={() => {
-                          if (clips.length === 1) setBlurFaces(true);
+                          if (clips.length === 1) {
+                            setBlurFaces(true);
+                            setUploadIssue(null);
+                          }
                           setClips((current) => current.filter((item) => item.id !== clip.id));
                         }}
                         aria-label={`${clip.file.name} 제거`}
