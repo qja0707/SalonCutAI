@@ -1,18 +1,15 @@
 import Link from "next/link";
 import {
   ArrowRight,
-  Captions,
   Clapperboard,
   NotebookPen,
-  Play,
   Scissors,
   ShieldCheck,
 } from "lucide-react";
 import { BeforeAfterSlider } from "@/components/before-after";
-import { Badge } from "@/components/ui/badge";
+import { BlogExampleCard } from "@/components/blog-example-card";
 import { buttonVariants } from "@/components/ui/button";
-import { BLOG_SECTION_ORDER } from "@/lib/api-client/types";
-import { EXAMPLE_BLOG_RESULT } from "@/lib/example-blog-result";
+import { ShortsPreviewVideo } from "@/components/shorts-preview-video";
 
 /**
  * 랜딩 홈 (2026-08-15 시안 확정, docs/시안/landing.html).
@@ -39,10 +36,16 @@ const TRUST_ITEMS = [
   ["폰에서 바로", "촬영 · 외주 없이"],
 ] as const;
 
+/**
+ * landing-shorts-sample.mp4(8초) 안에 실제로 들어있는 자막을 그대로 옮겼다
+ * (실측: 0.5/2.5/4.5/6.5초 지점 확인) — 예전 3개 항목은 이 영상과 무관한
+ * 문구였다(실측 지적).
+ */
 const SHORTS_CLIPS = [
-  { role: "시술 과정", caption: "섬세하게 완성해 가는 시술 과정", sec: "0:06" },
-  { role: "디테일", caption: "작은 디테일까지 꼼꼼하게", sec: "0:05" },
-  { role: "마무리", caption: "완성된 스타일을 확인해 보세요", sec: "0:04" },
+  { role: "시술 전", caption: "시술 전 상태를 확인합니다", sec: "0:02" },
+  { role: "탈색", caption: "탈색약을 꼼꼼히 도포합니다", sec: "0:02" },
+  { role: "염색", caption: "염색약을 도포합니다", sec: "0:02" },
+  { role: "완성", caption: "변화된 모습을 확인합니다", sec: "0:02" },
 ] as const;
 
 function ChapterHeading({ num, icon: Icon, children }: {
@@ -149,43 +152,16 @@ export default function Home() {
           "글 완성",
           "복사해서 블로그에 붙여넣기",
         ]} />
-        <Link href="/generate/blog" className={buttonVariants({ variant: "outline", className: "mt-6" })}>
-          블로그 글 체험하기
-          <ArrowRight className="h-4 w-4" />
-        </Link>
 
-        <div className="relative mx-auto mt-10 max-w-2xl space-y-4 rounded-lg border bg-card px-5 pt-8 pb-5 shadow-lg">
-          <span className="absolute top-3 right-4 z-10 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
-            예시
-          </span>
-          <div>
-            <p className="pr-11 text-lg font-semibold">{EXAMPLE_BLOG_RESULT.title}</p>
-            <p className="mt-2 text-sm whitespace-pre-wrap text-muted-foreground">
-              {EXAMPLE_BLOG_RESULT.intro}
-            </p>
-          </div>
-          {BLOG_SECTION_ORDER.map((key) => {
-            const section = EXAMPLE_BLOG_RESULT.sections[key];
-            if (!section) return null;
-            return (
-              <div key={key}>
-                <p className="text-sm font-medium">{section.heading}</p>
-                <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
-                  {section.body}
-                </p>
-              </div>
-            );
-          })}
-          <p className="whitespace-pre-wrap text-sm text-muted-foreground">
-            {EXAMPLE_BLOG_RESULT.closing}
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {EXAMPLE_BLOG_RESULT.hashtags.map((hashtag) => (
-              <Badge key={hashtag} variant="secondary">
-                #{hashtag.replace(/^#+/, "")}
-              </Badge>
-            ))}
-          </div>
+        {/* 체험 버튼은 예시를 본 다음(아래)에 둔다 — "이런 글이 나오는구나, 나도
+            해볼까" 하는 순간에 바로 누르게. 01번 히어로의 버튼 위치와 같은
+            원칙이다(실측 지적: 색도 히어로 버튼처럼 채워져야 함). */}
+        <BlogExampleCard />
+        <div className="mt-6 flex justify-center">
+          <Link href="/generate/blog" className={buttonVariants({ size: "lg" })}>
+            블로그 글 체험하기
+            <ArrowRight className="h-4 w-4" />
+          </Link>
         </div>
       </section>
 
@@ -206,39 +182,44 @@ export default function Home() {
             "장면·자막 고르기",
             "숏츠로 내보내기",
           ]} />
-          <Link href="/generate/shorts" className={buttonVariants({ variant: "outline", className: "mt-6" })}>
-            숏츠 체험하기
-            <ArrowRight className="h-4 w-4" />
-          </Link>
         </div>
 
         {/* 영상 위 · 타임라인 아래 세로 배치 — 폭이 좁은 폰에서 영상 2/5 폭 + 자막
-            목록을 좌우로 나누면 둘 다 눌려서 읽기 어려웠다(실측 지적) */}
+            목록을 좌우로 나누면 둘 다 눌려서 읽기 어려웠다(실측 지적). 체험 버튼도
+            여기(예시 아래)로 옮겼다 — 02번 블로그와 같은 원칙(실측 지적). */}
         <div className="flex flex-col items-center gap-4">
-          <div className="relative aspect-[9/16] w-40 shrink-0 overflow-hidden rounded-2xl border bg-gradient-to-b from-muted to-muted-foreground/25 shadow-lg">
-            <span className="absolute inset-0 m-auto flex h-12 w-12 items-center justify-center rounded-full bg-background/90 shadow">
-              <Play className="ml-0.5 h-5 w-5" />
-            </span>
+          <div className="relative aspect-[9/16] w-40 shrink-0 overflow-hidden rounded-2xl border shadow-lg">
+            <ShortsPreviewVideo src="/sample-assets/landing-shorts-sample.mp4" />
             <span className="absolute bottom-3 left-3 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white">9:16 · 무음</span>
           </div>
-          <ul className="w-full max-w-sm space-y-2.5">
-            {SHORTS_CLIPS.map((clip) => (
-              <li key={clip.role} className="rounded-xl border bg-card px-3 py-2.5 text-xs text-card-foreground shadow-sm">
-                <p className="flex items-center gap-1.5 font-semibold">
-                  <Captions className="h-3.5 w-3.5 text-primary" />
+          {/* 카드 4장을 세로로 나열하니 너무 길었다(실측 지적) — 장면 이름만
+              한 줄짜리 흐름으로 압축했다. 자막 원문은 영상 안에서 직접 보인다. */}
+          <ol className="flex w-full max-w-sm items-center justify-center gap-1.5 text-xs">
+            {SHORTS_CLIPS.map((clip, index) => (
+              <li key={clip.role} className="flex items-center gap-1.5">
+                <span className="rounded-full border bg-card px-2.5 py-1 font-medium whitespace-nowrap text-card-foreground shadow-sm">
                   {clip.role}
-                  <span className="ml-auto font-normal text-muted-foreground">{clip.sec}</span>
-                </p>
-                <p className="mt-1 truncate text-muted-foreground">“{clip.caption}”</p>
+                </span>
+                {index < SHORTS_CLIPS.length - 1 && (
+                  <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+                )}
               </li>
             ))}
-          </ul>
+          </ol>
+          <Link href="/generate/shorts" className={buttonVariants({ size: "lg" })}>
+            숏츠 체험하기
+            <ArrowRight className="h-4 w-4" />
+          </Link>
         </div>
       </section>
 
       {/* 마무리 */}
       <section className="rounded-3xl border bg-card/60 px-6 py-12 text-center">
-        <h2 className={`${HEADING} text-2xl font-semibold text-balance`}>오늘 시술한 그 머리, 오늘 올리세요</h2>
+        <h2 className={`${HEADING} text-2xl font-semibold text-balance`}>
+          휴대폰 속에 잠든 시술 사진,
+          <br />
+          오늘 올려보세요!
+        </h2>
         <p className="mt-2 text-sm text-muted-foreground">사진 한 장이면 됩니다.</p>
         <Link href="/face-swap" className={buttonVariants({ size: "lg", className: "mt-5" })}>
           바로 체험하기
