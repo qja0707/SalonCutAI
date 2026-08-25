@@ -25,6 +25,16 @@ const MESSAGE_BY_CODE: Record<string, string> = {
 };
 
 const NETWORK_MESSAGE = "연결이 끊겼어요. 인터넷 상태를 확인하고 다시 시도해주세요.";
+
+/**
+ * 로그인하지 않고 기능을 누른 경우.
+ *
+ * 백엔드는 토큰이 만료·무효일 때는 한국어로 알려주지만(`토큰이 만료되었습니다`),
+ * 토큰이 아예 없으면 FastAPI 기본 문구인 영문 `Not authenticated` 가 그대로
+ * 내려온다. 로그인 전에는 세 기능 어느 것을 눌러도 이 문구를 보게 된다.
+ */
+const AUTH_MESSAGE = "로그인이 필요해요. 로그인 후 다시 시도해주세요.";
+const FASTAPI_NOT_AUTHENTICATED = "Not authenticated";
 const FALLBACK_MESSAGE = "문제가 생겼어요. 잠시 후 다시 시도해주세요.";
 
 /**
@@ -50,6 +60,16 @@ export function errorMessage(error: unknown, fallback = FALLBACK_MESSAGE): strin
   }
 
   if (error instanceof ApiRequestError) {
+    // 한국어 문구가 실려 온 401·403 은 그대로 쓴다(토큰 만료, 공개 미리보기 차단).
+    // 문구가 없거나 FastAPI 기본 영문일 때만 로그인 안내로 바꾼다.
+    if (
+      (error.status === 401 || error.status === 403) &&
+      (!error.message || error.message === FASTAPI_NOT_AUTHENTICATED)
+    ) {
+      reportClientError({ code: `HTTP_${error.status}`, message: AUTH_MESSAGE });
+      return AUTH_MESSAGE;
+    }
+
     // 상태 코드만으로 판정할 수 있는 것들. 백엔드 문구가 비어 있어도 안내가 나가야 한다.
     const message =
       error.status >= 500 && !error.message
