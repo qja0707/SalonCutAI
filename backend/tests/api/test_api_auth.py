@@ -7,14 +7,15 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
+import jwt
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.api.api import api_router
-from src.service.auth import create_jwt
+from src.service.auth import algoritm, create_jwt
 
 
 def _client() -> TestClient:
@@ -68,3 +69,50 @@ def test_valid_token_passes_auth():
         headers={"Authorization": f"Bearer {_access_token()}"},
     )
     assert response.status_code == 200
+
+
+def test_auth_me_returns_only_current_user_id():
+    response = _client().get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {_access_token()}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"id": "testuser"}
+
+
+def test_auth_me_rejects_expired_token_with_existing_detail():
+    expired = create_jwt(
+        {"sub": "testuser", "token_type": "access"},
+        expires_delta=timedelta(minutes=-1),
+    )
+    response = _client().get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {expired}"},
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "토큰이 만료되었습니다."}
+
+
+def test_auth_me_rejects_invalid_and_missing_tokens_with_existing_contract():
+    invalid = jwt.encode(
+        {
+            "sub": "testuser",
+            "token_type": "access",
+            "exp": datetime.now(UTC) + timedelta(minutes=30),
+        },
+        "different-secret",
+        algorithm=algoritm,
+    )
+
+    invalid_response = _client().get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {invalid}"},
+    )
+    missing_response = _client().get("/api/v1/auth/me")
+
+    assert invalid_response.status_code == 401
+    assert invalid_response.json() == {"detail": "유효하지 않은 토큰입니다."}
+    assert missing_response.status_code == 401
+    assert missing_response.json() == {"detail": "Not authenticated"}
