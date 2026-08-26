@@ -84,12 +84,27 @@ JPEG_QUALITY = 90
 THUMBNAIL_SIDE = 512  # 참조 얼굴 목록용. 원본 1.2MB 를 그대로 보내지 않는다
 
 # --- 조합 5 (프롬프트 모드) ---
-# step1_combo5_inpaint 에서 확정
-
 COMBO5_MODEL = "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
 COMBO5_STRENGTH = 0.8  # 0.6·0.99 와 결과가 같고 0.99 보다 2초 빠르다
 COMBO5_STEPS = 30
 COMBO5_GUIDANCE = 7.5
+
+# --- 조합 5 GPT 편집 경로 ---
+# step3_combo5 (8/25~26) 에서 확정. SDXL 인페인팅은 guidance·얼굴 크롭·어휘
+# 어느 레버로도 동물상을 구분하지 못해 OpenAI 이미지 편집으로 바꿨다.
+# "sdxl" 로 두면 이전 경로로 돌아간다.
+PROMPT_MODE_ENGINE = os.getenv("PROMPT_MODE_ENGINE", "gpt")
+GPT_IMAGE_MODEL = os.getenv("GPT_IMAGE_MODEL", "gpt-image-2")
+GPT_CROP_PAD = 1.6  # 얼굴 bbox 긴 변 대비 정사각 크롭 배율
+GPT_CROP_SIZE = 1024
+# 편집 마스크 = 얼굴 윤곽 +10% − 헤어(팽창 0.077). 윤곽 그대로면 턱 그림자를
+# GPT 가 안 건드려 원본 윤곽이 이중으로 남는다. 6% 는 미세하게 남았다.
+GPT_EDIT_DILATE_RATIO = 0.10
+# 재합성·색 정합 마스크. 편집 영역과 같게 둔다.
+GPT_FACE_DILATE_RATIO = 0.10
+# 1.0 이면 원본 화장(립스틱)이 결과로 넘어온다. 0.3 이 목 톤은 맞추면서
+# 안 넘어오는 값. L 채널만 올려도 얼굴 밝기 차이 1~3 으로 육안 차이 없음.
+GPT_COLOR_ALPHA = 0.3
 
 # --- 조합 3 (참조 얼굴 모드) ---
 # step1_combo2_3_instantid 에서 확정
