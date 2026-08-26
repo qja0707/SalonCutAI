@@ -32,6 +32,14 @@ def _category_mask(img: Image.Image) -> np.ndarray:
     return np.squeeze(result.category_mask.numpy_view())
 
 
+def _morph(mask: Image.Image, op: int, px: int) -> Image.Image:
+    """타원 커널로 모폴로지 연산을 적용한다. px 가 0 이하면 그대로 돌려준다."""
+    if px <= 0:
+        return mask
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (px * 2 + 1, px * 2 + 1))
+    return Image.fromarray(cv2.morphologyEx(np.array(mask.convert("L")), op, kernel))
+
+
 def build_face_mask(img: Image.Image) -> Image.Image | None:
     """FACE_OVAL 내부를 흰색으로 채운다. 얼굴이 없으면 None.
 
@@ -91,6 +99,39 @@ def build_hair_mask(img: Image.Image, dilate: int | None = None) -> Image.Image:
         hair = cv2.dilate(hair, kernel, iterations=1)
 
     return Image.fromarray(hair).resize(img.size)
+
+
+def dilate_mask(mask: Image.Image, face_width: float, ratio: float) -> Image.Image:
+    """마스크를 얼굴 폭 대비 비율만큼 팽창한다."""
+    return _morph(mask, cv2.MORPH_DILATE, int(face_width * ratio))
+
+
+def build_hair_mask_gpt(
+    img: Image.Image, face_width: float | None = None
+) -> Image.Image:
+    """GPT 편집 결과를 되붙일 때 원본으로 되돌릴 머리카락 영역.
+
+    세그멘테이션 → 닫힘 → 침식 → 눈썹 제외 순이다. 각 단계의 근거는
+    settings 의 HAIR_CLOSE_RATIO 주석에 있다. 얼굴 폭을 못 재면 형태 연산
+    없이 세그멘테이션 결과만 돌려준다.
+    """
+    if face_width is None:
+        face_width = _face_width(img)
+    hair = build_hair_mask(img, dilate=0)
+    if face_width is None:
+        logger.warning("얼굴 검출 실패로 헤어 마스크 형태 연산을 생략한다")
+        return hair
+
+    hair = _morph(hair, cv2.MORPH_CLOSE, int(face_width * settings.HAIR_CLOSE_RATIO))
+    hair = _morph(hair, cv2.MORPH_ERODE, int(face_width * settings.HAIR_ERODE_RATIO))
+
+    brow = build_brow_mask(img)
+    if brow is None:
+        return hair
+    brow = dilate_mask(brow, face_width, settings.BROW_EXCLUDE_RATIO)
+    out = np.array(hair).copy()
+    out[np.array(brow) > 127] = 0
+    return Image.fromarray(out)
 
 
 BROW_CONNS = (
