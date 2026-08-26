@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel
 
 
@@ -13,6 +15,11 @@ class RefreshRequest(BaseModel):
 class SigninResponse(BaseModel):
     access_token: str
     refresh_token: str
+
+
+class CurrentUserResponse(BaseModel):
+    id: str
+    expires_at: datetime
 
 
 class TokenInfo(BaseModel):
