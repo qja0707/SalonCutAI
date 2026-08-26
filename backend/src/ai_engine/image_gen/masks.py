@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 # 0 배경 / 1 머리카락 / 2 body-skin / 3 face-skin / 4 의류 / 5 기타
 HAIR_CLASS = 1
 BODY_SKIN_CLASS = 2
+FACE_SKIN_CLASS = 3
 
 
 def _to_mp_image(img: Image.Image) -> mp.Image:
@@ -168,6 +169,17 @@ def build_body_skin_mask(img: Image.Image) -> Image.Image:
     """목·데콜테 영역. 색 정합에서 기준 톤을 뽑는 데 쓴다."""
     skin = (_category_mask(img) == BODY_SKIN_CLASS).astype(np.uint8) * 255
     return Image.fromarray(skin).resize(img.size)
+
+
+def build_skin_mask(img: Image.Image, face_width: float) -> Image.Image:
+    """얼굴 피부 + 몸 피부 영역을 팽창해 돌려준다. GPT 결과 재합성 기준이다.
+
+    근거는 settings.GPT_SKIN_DILATE_RATIO 주석에 있다.
+    """
+    cat = _category_mask(img)
+    skin = ((cat == FACE_SKIN_CLASS) | (cat == BODY_SKIN_CLASS)).astype(np.uint8) * 255
+    skin = Image.fromarray(skin).resize(img.size)
+    return dilate_mask(skin, face_width, settings.GPT_SKIN_DILATE_RATIO)
 
 
 def build_gen_mask(face_mask: Image.Image, hair_mask: Image.Image) -> Image.Image:

@@ -56,15 +56,15 @@ def _postprocess(img, out, face_mask, hair_mask):
     return _finish(img, comp, gen_mask)
 
 
-def _postprocess_gpt(img, full, face_mask, hair_mask):
-    """GPT 편집 결과 후처리. 색 정합(약하게) → 재합성. 복원·눈썹 보존 없음.
+def _postprocess_gpt(img, full, skin_mask, hair_mask):
+    """GPT 편집 결과 후처리. 색 정합(약하게) → 피부 재합성. 복원·눈썹 보존 없음.
 
-    full 은 이미 원본 크기다. 색 정합과 재합성 마스크를 같은 것으로 써야
-    경계 띠가 안 생긴다.
+    full 은 이미 원본 크기다. 색 정합 통계도 재합성과 같은 피부 - 헤어 영역에서
+    낸다.
     """
-    gen_mask = masks.build_gen_mask(face_mask, hair_mask)
+    gen_mask = masks.build_gen_mask(skin_mask, hair_mask)
     out = compose.color_transfer(full, img, gen_mask, alpha=settings.GPT_COLOR_ALPHA)
-    return compose.recompose_with_hair(img, out, face_mask, hair_mask)
+    return compose.recompose_skin(img, out, skin_mask, hair_mask)
 
 
 def _run_prompt_mode(img: Image.Image, options, seed: int) -> Image.Image:
@@ -73,8 +73,8 @@ def _run_prompt_mode(img: Image.Image, options, seed: int) -> Image.Image:
     GPT 경로는 시드를 쓰지 않는다. 같은 입력이라도 호출마다 다른 얼굴이 나온다.
     """
     if settings.PROMPT_MODE_ENGINE == "gpt":
-        full, face_mask, hair_mask = combo5_gpt.generate(img, options.face.prompt)
-        return _postprocess_gpt(img, full, face_mask, hair_mask)
+        full, skin_mask, hair_mask = combo5_gpt.generate(img, options.face.prompt)
+        return _postprocess_gpt(img, full, skin_mask, hair_mask)
 
     out, face_mask, hair_mask = combo5.generate(img, options.face.prompt, seed)
     return _postprocess(img, out, face_mask, hair_mask)

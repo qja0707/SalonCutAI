@@ -97,11 +97,16 @@ PROMPT_MODE_ENGINE = os.getenv("PROMPT_MODE_ENGINE", "gpt")
 GPT_IMAGE_MODEL = os.getenv("GPT_IMAGE_MODEL", "gpt-image-2")
 GPT_CROP_PAD = 1.6  # 얼굴 bbox 긴 변 대비 정사각 크롭 배율
 GPT_CROP_SIZE = 1024
-# 편집 마스크 = 얼굴 윤곽 +10% − 헤어(팽창 0.077). 윤곽 그대로면 턱 그림자를
-# GPT 가 안 건드려 원본 윤곽이 이중으로 남는다. 6% 는 미세하게 남았다.
-GPT_EDIT_DILATE_RATIO = 0.10
-# 재합성·색 정합 마스크. 편집 영역과 같게 둔다.
-GPT_FACE_DILATE_RATIO = 0.10
+# 편집 마스크 = 얼굴 윤곽 +16% − 헤어(팽창 0.077). 윤곽 그대로면 턱 그림자를
+# GPT 가 안 건드려 원본 윤곽이 이중으로 남는다. 노트북 값 0.10 을 얼굴 폭
+# 기준으로 환산한 값이다.
+GPT_EDIT_DILATE_RATIO = 0.16
+# 재합성은 얼굴 윤곽이 아니라 세그멘테이션 피부 클래스(face-skin + body-skin)로
+# 자른다. 윤곽 기준으로 자르면 GPT 가 원본보다 갸름하게 그렸을 때 경계 블러 띠에
+# 원본 턱선이 섞여 선으로 남는다. 피부 클래스 경계는 원본 윤곽 바깥이라 그 안이
+# 전부 GPT 픽셀이 된다. 팽창 0 이면 분류 경계가 피부 안쪽에 잡혀 한 줄 남고,
+# 2% 에서 사라진다(salon 5장 × 3종 + 여우상 재생성 6장 확인).
+GPT_SKIN_DILATE_RATIO = 0.02
 # 1.0 이면 원본 화장(립스틱)이 결과로 넘어온다. 0.3 이 목 톤은 맞추면서
 # 안 넘어오는 값. L 채널만 올려도 얼굴 밝기 차이 1~3 으로 육안 차이 없음.
 GPT_COLOR_ALPHA = 0.3
@@ -140,9 +145,11 @@ HAIR_DILATE_RATIO = 0.077
 # 침식은 세그멘테이션이 물고 오는 볼 쪽 원본 피부 띠(원본 윤곽선)를 걷어낸다.
 # 눈썹 제외는 앞머리가 눈썹에 닿는 사진에서 원본 눈썹 끝이 GPT 눈썹에 겹치는
 # 것을 막는다(step3_combo5, 8/26).
-HAIR_CLOSE_RATIO = 0.077
-HAIR_ERODE_RATIO = 0.02
-BROW_EXCLUDE_RATIO = 0.03
+# 노트북 값(0.077·0.02·0.03)은 pad 1.6 크롭 상자 폭 기준이라 InsightFace
+# 얼굴 폭 기준으로 ×1.6 환산했다.
+HAIR_CLOSE_RATIO = 0.123
+HAIR_ERODE_RATIO = 0.032
+BROW_EXCLUDE_RATIO = 0.048
 RECOMPOSE_BLUR = 25  # 마스크 경계가 직선으로 드러나지 않는 값
 HAIR_BLUR = 3  # 헤어 경계는 얇아서 크게 잡으면 잔상이 생긴다
 COLOR_ALPHA = 1.0  # 색 정합 강도. 3장 모두 단조 개선, 교차점 없음

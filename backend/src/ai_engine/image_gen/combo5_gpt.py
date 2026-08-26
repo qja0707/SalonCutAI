@@ -73,9 +73,10 @@ def _edit(crop: Image.Image, rgba: Image.Image, prompt: str) -> Image.Image:
 def generate(img: Image.Image, options) -> tuple[Image.Image, Image.Image, Image.Image]:
     """편집 결과를 원본 자리에 붙인 이미지와 후처리 마스크를 돌려준다.
 
-    돌려주는 것은 (붙인 결과, 얼굴 마스크, 헤어 마스크) 로 combo5.generate 와
-    같은 형태다. 얼굴 마스크는 윤곽 +10%, 헤어 마스크는 GPT 용(닫힘·침식·
-    눈썹 제외)이다. 결과는 원본 크기라 후처리에서 리사이즈가 필요 없다.
+    돌려주는 것은 (붙인 결과, 피부 마스크, 헤어 마스크) 로 combo5.generate 와
+    같은 형태다. 피부 마스크는 세그멘테이션 피부 클래스 +2%, 헤어 마스크는
+    GPT 용(닫힘·침식·눈썹 제외)이다. 얼굴 윤곽 마스크는 편집 마스크에만 쓴다.
+    결과는 원본 크기라 후처리에서 리사이즈가 필요 없다.
 
     편집 마스크(GPT 에 보내는 것)와 되붙임 마스크는 헤어 팽창이 다르다.
     편집 쪽은 팽창 0.077 로 앞머리 틈을 메워 GPT 가 머리카락을 안 그리게 하고,
@@ -104,6 +105,6 @@ def generate(img: Image.Image, options) -> tuple[Image.Image, Image.Image, Image
     full = img.copy()
     full.paste(raw.resize((x2 - x1, y2 - y1), Image.LANCZOS), (x1, y1))
 
-    face_d = masks.dilate_mask(face_mask, face_width, settings.GPT_FACE_DILATE_RATIO)
+    skin = masks.build_skin_mask(img, face_width)
     hair = masks.build_hair_mask_gpt(img, face_width)
-    return full, face_d, hair
+    return full, skin, hair
