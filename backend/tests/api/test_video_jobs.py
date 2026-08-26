@@ -297,6 +297,20 @@ def test_video_contract_rejects_incomplete_ranges_and_ambiguous_order(clips):
         ),
         (
             [
+                {"role": "before", "start_sec": 3.3, "end_sec": 8.3},
+                {"role": "after"},
+            ],
+            202,
+        ),
+        (
+            [
+                {"role": "process", "start_sec": 0.0, "end_sec": duration}
+                for duration in (0.5, 0.6, 4.7, 4.8, 4.8, 4.8, 4.8, 5.0)
+            ],
+            202,
+        ),
+        (
+            [
                 {"role": "before", "start_sec": 0.0, "end_sec": 5.001},
                 {"role": "after"},
             ],
@@ -304,6 +318,13 @@ def test_video_contract_rejects_incomplete_ranges_and_ambiguous_order(clips):
         ),
         (
             [{"role": "process", "start_sec": 0.0, "end_sec": 4.3} for _ in range(7)],
+            422,
+        ),
+        (
+            [
+                {"role": "process", "start_sec": 0.0, "end_sec": duration}
+                for duration in (4.0, 4.0, 4.0, 4.0, 4.0, 4.0, 3.0, 3.001)
+            ],
             422,
         ),
         ([{"role": "process"} for _ in range(8)], 202),

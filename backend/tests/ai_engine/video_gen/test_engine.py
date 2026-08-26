@@ -118,6 +118,32 @@ def test_engine_clip_duration_guard_accepts_boundaries_and_defaults(tmp_path):
             for index in range(8)
         ]
     )
+    _validate_clip_durations(
+        [
+            ClipInput(
+                tmp_path / "decimal-boundary.mp4",
+                "before",
+                "center",
+                "",
+                start_sec=3.3,
+                end_sec=8.3,
+            ),
+            ClipInput(tmp_path / "decimal-after.mp4", "after", "center", ""),
+        ]
+    )
+    _validate_clip_durations(
+        [
+            ClipInput(
+                tmp_path / f"decimal-total-{index}.mp4",
+                "process",
+                "center",
+                "",
+                start_sec=0.0,
+                end_sec=duration,
+            )
+            for index, duration in enumerate((0.5, 0.6, 4.7, 4.8, 4.8, 4.8, 4.8, 5.0))
+        ]
+    )
 
     with pytest.raises(ValueError, match="clip duration"):
         _validate_clip_durations(
@@ -146,6 +172,22 @@ def test_engine_clip_duration_guard_accepts_boundaries_and_defaults(tmp_path):
                     end_sec=4.3,
                 )
                 for index in range(7)
+            ]
+        )
+    with pytest.raises(ValueError, match="total clip duration"):
+        _validate_clip_durations(
+            [
+                ClipInput(
+                    tmp_path / f"decimal-over-{index}.mp4",
+                    "process",
+                    "center",
+                    "",
+                    start_sec=0.0,
+                    end_sec=duration,
+                )
+                for index, duration in enumerate(
+                    (4.0, 4.0, 4.0, 4.0, 4.0, 4.0, 3.0, 3.001)
+                )
             ]
         )
 

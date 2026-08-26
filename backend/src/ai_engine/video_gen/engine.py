@@ -20,6 +20,7 @@ OUTPUT_FPS = 30
 CLIP_SECONDS = 2.0
 MAX_CLIP_SECONDS = 5.0
 MAX_TOTAL_CLIP_SECONDS = 30.0
+DURATION_EPSILON_SECONDS = 1e-6
 MIN_CLIPS = 2
 MAX_CLIPS = 8
 MAX_DECODE_DIMENSION = 1920
@@ -134,12 +135,12 @@ def _validate_clip_durations(clips: Iterable[ClipInput]) -> None:
             duration = clip.end_sec - clip.start_sec
         else:
             duration = CLIP_SECONDS
-        if duration > MAX_CLIP_SECONDS:
+        if duration - MAX_CLIP_SECONDS > DURATION_EPSILON_SECONDS:
             raise ValueError(
                 f"clip duration must not exceed {MAX_CLIP_SECONDS} seconds"
             )
         total_duration += duration
-    if total_duration > MAX_TOTAL_CLIP_SECONDS:
+    if total_duration - MAX_TOTAL_CLIP_SECONDS > DURATION_EPSILON_SECONDS:
         raise ValueError(
             f"total clip duration must not exceed {MAX_TOTAL_CLIP_SECONDS} seconds"
         )

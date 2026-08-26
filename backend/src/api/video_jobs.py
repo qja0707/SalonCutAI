@@ -31,6 +31,7 @@ from pydantic import (
 
 from src.ai_engine.video_gen.engine import (
     CLIP_SECONDS,
+    DURATION_EPSILON_SECONDS,
     MAX_CLIP_SECONDS,
     MAX_TOTAL_CLIP_SECONDS,
     ClipInput,
@@ -85,7 +86,8 @@ class ClipOptions(BaseModel):
         if (
             self.start_sec is not None
             and self.end_sec is not None
-            and self.end_sec - self.start_sec > MAX_CLIP_SECONDS
+            and self.end_sec - self.start_sec - MAX_CLIP_SECONDS
+            > DURATION_EPSILON_SECONDS
         ):
             raise ValueError(
                 f"clip duration must not exceed {MAX_CLIP_SECONDS} seconds"
@@ -114,7 +116,7 @@ class VideoJobPayload(BaseModel):
             )
             for clip in self.clips
         )
-        if total_duration > MAX_TOTAL_CLIP_SECONDS:
+        if total_duration - MAX_TOTAL_CLIP_SECONDS > DURATION_EPSILON_SECONDS:
             raise ValueError(
                 f"total clip duration must not exceed {MAX_TOTAL_CLIP_SECONDS} seconds"
             )
