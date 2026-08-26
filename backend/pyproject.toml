@@ -28,6 +28,8 @@ dependencies = [
     "transformers==5.14.1",
     "uvicorn>=0.52.1",
     "static-ffmpeg>=3.0",
+    "facexlib>=0.3.0",
+    "torchvision>=0.26.0",
 ]
 
 [tool.uv]

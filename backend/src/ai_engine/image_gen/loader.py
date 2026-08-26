@@ -22,6 +22,8 @@ _face_app = None
 _landmarker = None
 _segmenter = None
 _face_detector = None
+_codeformer = None
+_face_helper = None
 
 
 def _require_enabled() -> None:
@@ -86,6 +88,71 @@ def get_combo3():
         _combo3.set_ip_adapter_scale(settings.COMBO3_IP_ADAPTER_SCALE)
         logger.info("조합 3 로딩 완료")
     return _combo3
+
+
+def get_codeformer():
+    """CodeFormer 얼굴 복원 모델. 재합성 뒤 얼굴을 다시 그린다."""
+    global _codeformer
+    if _codeformer is not None:
+        return _codeformer
+
+    _require_enabled()
+    with _lock:
+        if _codeformer is not None:
+            return _codeformer
+
+        import torch
+
+        from src.ai_engine.image_gen.vendor.codeformer_arch import CodeFormer
+
+        logger.info("CodeFormer 로딩 시작")
+        net = CodeFormer(
+            dim_embd=512,
+            codebook_size=1024,
+            n_head=8,
+            n_layers=9,
+            connect_list=["32", "64", "128", "256"],
+        )
+        state = torch.load(settings.CODEFORMER_PATH, map_location="cpu")
+        net.load_state_dict(state["params_ema"])
+        # GPU 는 두 파이프라인으로 꽉 차 CPU 로 돌린다. 512 한 장에 5초 안팎(Colab 2코어)
+        _codeformer = net.eval()
+        logger.info("CodeFormer 로딩 완료")
+    return _codeformer
+
+
+def get_face_helper():
+    """facexlib 정렬·되붙이기 도우미. 복원용 512 정렬에 쓴다.
+
+    검출기는 RetinaFace 다. 조합 3 의 InsightFace 와 별개인데,
+    복원 실험이 이 조합으로 이뤄져 같은 것을 쓴다.
+    인스턴스 하나를 clean_all → read_image 로 재사용하므로 동시 호출에
+    안전하지 않다. job_queue 가 워커 1개로 직렬 처리하는 것을 전제한다.
+    """
+    global _face_helper
+    if _face_helper is not None:
+        return _face_helper
+
+    _require_enabled()
+    with _lock:
+        if _face_helper is not None:
+            return _face_helper
+
+        from facexlib.utils.face_restoration_helper import FaceRestoreHelper
+
+        logger.info("FaceRestoreHelper 로딩 시작")
+        _face_helper = FaceRestoreHelper(
+            upscale_factor=1,
+            face_size=512,
+            crop_ratio=(1, 1),
+            det_model="retinaface_resnet50",
+            save_ext="png",
+            use_parse=True,
+            device="cpu",
+            model_rootpath=str(settings.FACEXLIB_ROOT),
+        )
+        logger.info("FaceRestoreHelper 로딩 완료")
+    return _face_helper
 
 
 def get_face_app():
@@ -214,6 +281,8 @@ def warmup() -> None:
     get_landmarker()
     get_face_detector()
     get_segmenter()
+    get_codeformer()
+    get_face_helper()
     get_combo5()
     get_combo3()
     logger.info("모델 준비 완료")

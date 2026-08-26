@@ -58,6 +58,14 @@ def _fetch_mediapipe() -> None:
         _download_url(url, dest)
 
 
+def _fetch_codeformer() -> None:
+    for dest, url in settings.CODEFORMER_URLS.items():
+        if dest.exists():
+            continue
+        logger.info("CodeFormer 파일 받는 중: %s", dest.name)
+        _download_url(url, dest)
+
+
 def ensure_antelopev2() -> None:
     """insightface 가 받는 zip 의 중첩 폴더를 편다.
 
@@ -110,6 +118,7 @@ def ensure_models() -> None:
     settings.MODELS_DIR.mkdir(parents=True, exist_ok=True)
     _fetch_instantid()
     _fetch_mediapipe()
+    _fetch_codeformer()
     _flatten_antelopev2()
     logger.info("모델 파일 준비 완료")
 
@@ -123,5 +132,8 @@ def missing_files() -> list[str]:
         settings.FACE_LANDMARKER_PATH,
         settings.FACE_DETECTOR_PATH,
         settings.SELFIE_SEGMENTER_PATH,
+        settings.CODEFORMER_PATH,
+        settings.FACEXLIB_ROOT / "detection_Resnet50_Final.pth",
+        settings.FACEXLIB_ROOT / "parsing_parsenet.pth",
     ]
     return [str(p) for p in required if not p.exists()]

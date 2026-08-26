@@ -40,6 +40,9 @@ INSIGHTFACE_ROOT = MODELS_DIR  # insightface 가 models/ 하위에 antelopev2 �
 FACE_LANDMARKER_PATH = MODELS_DIR / "face_landmarker.task"
 FACE_DETECTOR_PATH = MODELS_DIR / "blaze_face_short_range.tflite"
 SELFIE_SEGMENTER_PATH = MODELS_DIR / "selfie_multiclass.tflite"
+CODEFORMER_PATH = MODELS_DIR / "codeformer.pth"
+# facexlib 가 검출·파싱 가중치를 이 폴더 바로 아래에서 찾는다
+FACEXLIB_ROOT = MODELS_DIR / "facexlib"
 
 # --- 다운로드 주소 ---
 
@@ -55,6 +58,21 @@ MEDIAPIPE_URLS = {
     SELFIE_SEGMENTER_PATH: (
         "https://storage.googleapis.com/mediapipe-models/image_segmenter"
         "/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite"
+    ),
+}
+
+
+CODEFORMER_URLS = {
+    CODEFORMER_PATH: (
+        "https://github.com/sczhou/CodeFormer/releases/download/v0.1.0/codeformer.pth"
+    ),
+    FACEXLIB_ROOT / "detection_Resnet50_Final.pth": (
+        "https://github.com/xinntao/facexlib/releases/download"
+        "/v0.1.0/detection_Resnet50_Final.pth"
+    ),
+    FACEXLIB_ROOT / "parsing_parsenet.pth": (
+        "https://github.com/xinntao/facexlib/releases/download"
+        "/v0.2.2/parsing_parsenet.pth"
     ),
 }
 
@@ -105,7 +123,9 @@ RECOMPOSE_BLUR = 25  # 마스크 경계가 직선으로 드러나지 않는 값
 HAIR_BLUR = 3  # 헤어 경계는 얇아서 크게 잡으면 잔상이 생긴다
 COLOR_ALPHA = 1.0  # 색 정합 강도. 3장 모두 단조 개선, 교차점 없음
 HIGHFREQ_STRENGTH = 0.5  # 목 피부와 얼굴이 같은 재질로 보이는 경계
-HIGHFREQ_RADIUS = 3
+# step2_face_restore 에서 확정. 복원 3종 비교에서 CodeFormer 가 유일하게
+# 회피를 악화시키지 않았다. w 는 정렬 제거 후 0.3·0.7 재비교로 정했다.
+RESTORE_FIDELITY = 0.7
 
 # --- 비율 ---
 # step1_postprocess 에서 확정
