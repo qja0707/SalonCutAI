@@ -134,6 +134,13 @@ export type VideoJobResult = {
   height: number;
 };
 
+/** `/auth/me` 응답. 업로드 직전 세션 확인에 쓴다. */
+export type CurrentUser = {
+  id: string;
+  /** accessToken 만료 시각. ISO 8601(UTC) 이고 백엔드가 항상 채워 보낸다. */
+  expires_at: string;
+};
+
 export type VideoJobResponse = {
   job_id: string;
   status: JobStatus;

@@ -5,7 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 const THUMBNAIL_COUNT = 6;
-const MIN_RANGE_SECONDS = 0.5;
+/**
+ * 클립 하나로 쓸 수 있는 길이. 상한은 서버가 받는 값과 같게 맞춘다(승원님 확정,
+ * 클립당 5초·전체 30초). 전에는 상한이 없어 30초짜리 원본을 넣으면 클립 하나가
+ * 30초가 됐다 — 숏폼인데 한 컷이 영상 전체 길이를 잡아먹는다.
+ */
+export const MIN_RANGE_SECONDS = 0.5;
+export const MAX_RANGE_SECONDS = 5;
 
 type ClipFilmstripProps = {
   file: File;
@@ -191,6 +197,12 @@ export function ClipFilmstrip({
   const rangeStart = customRange ? startSec : 0;
   const rangeEnd = customRange ? endSec : Math.min(duration, 2);
   const minGap = Math.min(MIN_RANGE_SECONDS, duration);
+  const maxGap = Math.min(MAX_RANGE_SECONDS, duration);
+  // 한쪽 손잡이를 끌 때 반대쪽은 그대로 두므로, 길이 상·하한은 양쪽에서 함께 건다.
+  const clampStart = (value: number) =>
+    Math.max(0, Math.max(rangeEnd - maxGap, Math.min(value, rangeEnd - minGap)));
+  const clampEnd = (value: number) =>
+    Math.min(duration, Math.min(rangeStart + maxGap, Math.max(value, rangeStart + minGap)));
   const startPercent = (rangeStart / duration) * 100;
   const endPercent = (rangeEnd / duration) * 100;
 
@@ -227,10 +239,7 @@ export function ClipFilmstrip({
               aria-label="시작 지점"
               className="pointer-events-none absolute inset-0 h-11 w-full appearance-none bg-transparent accent-primary [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-11 [&::-moz-range-thumb]:w-5 [&::-webkit-slider-runnable-track]:bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-11 [&::-webkit-slider-thumb]:w-5"
               onChange={(event) =>
-                onRangeChange(
-                  Math.min(Number(event.target.value), rangeEnd - minGap),
-                  rangeEnd,
-                )
+                onRangeChange(clampStart(Number(event.target.value)), rangeEnd)
               }
             />
             <input
@@ -243,10 +252,7 @@ export function ClipFilmstrip({
               aria-label="끝 지점"
               className="pointer-events-none absolute inset-0 h-11 w-full appearance-none bg-transparent accent-primary [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-11 [&::-moz-range-thumb]:w-5 [&::-webkit-slider-runnable-track]:bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-11 [&::-webkit-slider-thumb]:w-5"
               onChange={(event) =>
-                onRangeChange(
-                  rangeStart,
-                  Math.max(Number(event.target.value), rangeStart + minGap),
-                )
+                onRangeChange(rangeStart, clampEnd(Number(event.target.value)))
               }
             />
           </div>
@@ -256,7 +262,7 @@ export function ClipFilmstrip({
               <Input
                 type="number"
                 inputMode="decimal"
-                min={0}
+                min={Math.max(0, rangeEnd - maxGap)}
                 max={rangeEnd - minGap}
                 step={0.1}
                 value={rangeStart}
@@ -265,7 +271,7 @@ export function ClipFilmstrip({
                 onChange={(event) => {
                   const value = event.target.valueAsNumber;
                   if (Number.isFinite(value)) {
-                    onRangeChange(Math.max(0, Math.min(value, rangeEnd - minGap)), rangeEnd);
+                    onRangeChange(clampStart(value), rangeEnd);
                   }
                 }}
               />
@@ -276,7 +282,7 @@ export function ClipFilmstrip({
                 type="number"
                 inputMode="decimal"
                 min={rangeStart + minGap}
-                max={duration}
+                max={Math.min(duration, rangeStart + maxGap)}
                 step={0.1}
                 value={rangeEnd}
                 disabled={disabled}
@@ -284,18 +290,22 @@ export function ClipFilmstrip({
                 onChange={(event) => {
                   const value = event.target.valueAsNumber;
                   if (Number.isFinite(value)) {
-                    onRangeChange(rangeStart, Math.min(duration, Math.max(value, rangeStart + minGap)));
+                    onRangeChange(rangeStart, clampEnd(value));
                   }
                 }}
               />
             </label>
           </div>
           <p className="text-xs leading-5 text-muted-foreground">
+            한 컷은 {MIN_RANGE_SECONDS}~{MAX_RANGE_SECONDS}초까지 쓸 수 있어요.
             손잡이가 겹치면 시작·끝 시간을 직접 입력해 조정할 수 있어요.
           </p>
           <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
             <span>
               {rangeStart.toFixed(1)}초 ~ {rangeEnd.toFixed(1)}초
+              <span className="ml-1 font-medium text-foreground">
+                ({(rangeEnd - rangeStart).toFixed(1)}초)
+              </span>
             </span>
             <Button
               type="button"

@@ -11,6 +11,7 @@ import {
   type ReferenceFacesResponse,
   type RetryFaceSwapJobResponse,
   type CreateVideoJobResponse,
+  type CurrentUser,
   type VideoCaptionClip,
   type VideoAudioMode,
   type VideoClipOptions,
@@ -140,6 +141,24 @@ export async function signin(payload: SigninPayload): Promise<SigninResponse> {
     }),
   );
 }
+/**
+ * 지금 세션이 살아 있는지 묻는다. 백엔드 `/auth/me`(#192) 를 프록시가 대신 부르는데,
+ * 프록시를 타면서 필요하면 토큰 갱신까지 함께 일어난다.
+ */
+export async function getCurrentUser(): Promise<CurrentUser> {
+  return parseResponse<CurrentUser>(
+    await fetch("/api/v1/auth/me", { cache: "no-store" }),
+  );
+}
+
+/** 만료를 기다리지 않고 지금 세션을 갱신한다. 쿠키는 서버 라우트가 새로 심는다. */
+export async function refreshSession(): Promise<void> {
+  const response = await fetch("/api/v1/auth/token-refresh", {
+    method: "POST",
+  });
+  if (!response.ok) await parseResponse<never>(response);
+}
+
 export async function createVideoJob(
   clips: { file: File; options: VideoClipOptions }[],
   blurFaces = true,

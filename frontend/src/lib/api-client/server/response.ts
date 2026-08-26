@@ -28,6 +28,16 @@ export function errorResponse(
 
 const refreshPromises = new Map<string, Promise<TokenRefresh | null>>();
 
+/**
+ * 로그인하지 않은 상태로도 부르는 경로. 여기서 나온 401 은 "세션이 만료됐다"가 아니라
+ * "방금 시도한 인증이 틀렸다"는 뜻이라 재발급 대상이 아니다 — 비밀번호를 틀렸을 뿐인데
+ * 이전 세션의 refreshToken 을 굴려 토큰을 회전시키게 된다(#193 리뷰).
+ */
+const PUBLIC_AUTH_PATHS = [
+  "/api/v1/auth/signin",
+  "/api/v1/auth/token-refresh",
+];
+
 type ProxyFailure = {
   status: number;
   code: string;
@@ -62,6 +72,52 @@ async function fetchNewAccessToken(
     console.error("Token refresh failed:", error);
     return null;
   }
+}
+
+/**
+ * refreshToken 으로 세션을 갱신하고 쿠키를 새로 심는다. 실패하면 남은 쿠키를 지우고
+ * null 을 돌려준다.
+ *
+ * 프록시의 401 자동 갱신과 명시적 갱신 라우트(`/api/v1/auth/token-refresh`)가 같은
+ * 락(`refreshPromises`)을 공유해야, 같은 refreshToken 으로 두 번 회전시키지 않는다.
+ */
+export async function refreshSessionCookies(): Promise<TokenRefresh | null> {
+  const cookieStore = await cookies();
+  const refreshToken = cookieStore.get("refreshToken")?.value;
+  if (!refreshToken) return null;
+
+  let refreshPromise = refreshPromises.get(refreshToken);
+  if (!refreshPromise) {
+    refreshPromise = fetchNewAccessToken(refreshToken).finally(() => {
+      setTimeout(() => {
+        refreshPromises.delete(refreshToken);
+      }, 500);
+    });
+    refreshPromises.set(refreshToken, refreshPromise);
+  } else {
+    console.log("[대기] 이미 다른 요청이 토큰을 갱신 중입니다. 결과를 기다립니다.");
+  }
+
+  const result = await refreshPromise;
+  if (!result) {
+    // 리프레시 토큰마저 만료되었거나 에러가 난 경우다.
+    cookieStore.delete("accessToken");
+    cookieStore.delete("refreshToken");
+    return null;
+  }
+
+  const isSecure = process.env.NODE_ENV === "production";
+  cookieStore.set("accessToken", result.access_token, {
+    maxAge: ACCESS_TOKEN_EXPIRE_MS / 1000,
+    secure: isSecure,
+    sameSite: isSecure ? "strict" : "lax",
+  });
+  cookieStore.set("refreshToken", result.refresh_token, {
+    maxAge: REFRESH_TOKEN_EXPIRE_MS / 1000,
+    secure: isSecure,
+    sameSite: isSecure ? "strict" : "lax",
+  });
+  return result;
 }
 
 export async function proxyPendingResponse(
@@ -119,8 +175,23 @@ export async function proxyPendingResponse(
       }
     }
 
-    // 백엔드에서 401 Unauthorized (토큰 만료)가 내려온 경우
-    if (detail === "토큰이 만료되었습니다." && refreshToken) {
+    /*
+      401 이고 refreshToken 이 남아 있으면 재발급을 시도한다.
+
+      전에는 백엔드 문구가 정확히 "토큰이 만료되었습니다." 일 때만 갱신했는데,
+      accessToken **쿠키 자체가 만료돼 사라진** 경우에는 Authorization 헤더가 붙지
+      않아 FastAPI 기본 문구인 "Not authenticated" 가 내려온다 — 조건에서 빠져 갱신
+      없이 401 이 그대로 나갔다. accessToken 30분 / refreshToken 7일 설정이라
+      30분만 지나면 늘 이 상태가 되고, 그러면 7일짜리 refreshToken 이 무의미해진다.
+      문구 비교는 백엔드 메시지가 바뀌면 조용히 깨지기도 해서 상태 코드로 판정한다.
+    */
+    const isPublicAuthPath = PUBLIC_AUTH_PATHS.some((path) =>
+      pathname.startsWith(path),
+    );
+    if (response.status === 401 && refreshToken && !isPublicAuthPath) {
+      console.debug(
+        `[프록시] 401(${detail ?? "detail 없음"}) — 토큰 재발급을 시도합니다: ${pathname}`,
+      );
       if (isStream && hasBody) {
         console.warn(
           `[프록시] 대용량 스트림 요청 중 토큰 만료 발생. 내부 재시도가 불가능하므로 401을 그대로 반환합니다: ${pathname}`,
@@ -131,47 +202,11 @@ export async function proxyPendingResponse(
           "인증 세션이 만료되었습니다. 다시 시도해주세요.",
         );
       }
-      // 다른 동시 요청이 이미 재발급을 진행 중인지 확인합니다.
-      let refreshPromise = refreshPromises.get(refreshToken);
-
-      if (!refreshPromise) {
-        // 내가 첫 번째로 에러를 맞닥뜨린 요청이라면, 실제 백엔드에 리프레시 요청을 보냅니다.
-        refreshPromise = fetchNewAccessToken(refreshToken).finally(() => {
-          // 재발급이 끝나면 락(Lock)을 해제하기 위해 Map에서 삭제합니다.
-          setTimeout(() => {
-            refreshPromises.delete(refreshToken);
-          }, 500);
-        });
-
-        // 생성한 프로미스를 Map에 등록하여 다른 동시 요청들이 공유할 수 있게 합니다.
-        refreshPromises.set(refreshToken, refreshPromise);
-      } else {
-        console.log(
-          `[대기] 이미 다른 요청이 토큰을 갱신 중입니다. 결과를 기다립니다: ${pathname}`,
-        );
-      }
-
-      // 첫 번째 요청이든, 대기 중이던 요청이든 모두 '동일한 프로미스 결과'를 await 합니다.
-      const refreshResult = await refreshPromise;
+      const refreshResult = await refreshSessionCookies();
 
       if (refreshResult) {
-        const { access_token, refresh_token } = refreshResult;
-
-        const isSecure = process.env.NODE_ENV === "production";
-
-        cookieStore.set("accessToken", access_token, {
-          maxAge: ACCESS_TOKEN_EXPIRE_MS / 1000,
-          secure: isSecure,
-          sameSite: isSecure ? "strict" : "lax",
-        });
-        cookieStore.set("refreshToken", refresh_token, {
-          maxAge: REFRESH_TOKEN_EXPIRE_MS / 1000,
-          secure: isSecure,
-          sameSite: isSecure ? "strict" : "lax",
-        });
-
         // 성공적으로 갱신된 새로운 토큰으로 헤더를 교체하고 백엔드에 '재요청'을 보냅니다.
-        headers.set("Authorization", `Bearer ${access_token}`);
+        headers.set("Authorization", `Bearer ${refreshResult.access_token}`);
 
         response = await fetch(targetUrl, {
           method: req.method,
@@ -180,9 +215,6 @@ export async function proxyPendingResponse(
           cache: "no-store",
         });
       } else {
-        // 리프레시 토큰마저 만료되었거나 에러가 났다면 로그아웃 응답 처리
-        cookieStore.delete("accessToken");
-        cookieStore.delete("refreshToken");
         return errorResponse(
           401,
           "UNAUTHORIZED",

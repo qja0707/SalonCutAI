@@ -10,6 +10,20 @@ import { useRouter } from "next/navigation";
 import { setCookie } from "@/lib/cookies";
 import { ACCESS_TOKEN_EXPIRE_MS, REFRESH_TOKEN_EXPIRE_MS } from "@/constants";
 
+/**
+ * 로그인 뒤 돌아갈 곳. 기능 화면에서 로그인 안내를 받고 넘어온 경우
+ * (`/user/signin?redirect=/generate/shorts`) 하던 일을 이어갈 수 있어야 한다.
+ *
+ * 외부 주소로 튕기는 것(open redirect)을 막으려고 **내부 절대 경로만** 허용한다 —
+ * `//evil.com` 은 브라우저가 프로토콜 상대 URL 로 읽으므로 함께 막는다.
+ */
+function safeRedirectTarget(): string {
+  if (typeof window === "undefined") return "/";
+  const target = new URLSearchParams(window.location.search).get("redirect");
+  if (!target || !target.startsWith("/") || target.startsWith("//")) return "/";
+  return target;
+}
+
 export default function LoginPage() {
   const [id, setId] = useState("");
   const [password, setPassword] = useState("");
@@ -32,7 +46,7 @@ export default function LoginPage() {
         REFRESH_TOKEN_EXPIRE_MS,
       );
 
-      router.push("/");
+      router.push(safeRedirectTarget());
     } catch (error) {
       console.log("login error:", String(error));
       setIsSigninError(true);
