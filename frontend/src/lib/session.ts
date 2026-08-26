@@ -41,11 +41,7 @@ export async function ensureFreshSession(): Promise<boolean> {
 
   try {
     const user = await getCurrentUser();
-    const expiresAt = user.expires_at ? Date.parse(user.expires_at) : NaN;
-    if (
-      Number.isFinite(expiresAt) &&
-      expiresAt - Date.now() < SESSION_REFRESH_MARGIN_MS
-    ) {
+    if (Date.parse(user.expires_at) - Date.now() < SESSION_REFRESH_MARGIN_MS) {
       await refreshSession();
     }
     return true;
