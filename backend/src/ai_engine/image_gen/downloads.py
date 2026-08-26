@@ -133,5 +133,7 @@ def missing_files() -> list[str]:
         settings.FACE_DETECTOR_PATH,
         settings.SELFIE_SEGMENTER_PATH,
         settings.CODEFORMER_PATH,
+        settings.FACEXLIB_ROOT / "detection_Resnet50_Final.pth",
+        settings.FACEXLIB_ROOT / "parsing_parsenet.pth",
     ]
     return [str(p) for p in required if not p.exists()]

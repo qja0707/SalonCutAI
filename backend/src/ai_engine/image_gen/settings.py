@@ -64,8 +64,7 @@ MEDIAPIPE_URLS = {
 
 CODEFORMER_URLS = {
     CODEFORMER_PATH: (
-        "https://github.com/sczhou/CodeFormer/releases/download"
-        "/v0.1.0/codeformer.pth"
+        "https://github.com/sczhou/CodeFormer/releases/download/v0.1.0/codeformer.pth"
     ),
     FACEXLIB_ROOT / "detection_Resnet50_Final.pth": (
         "https://github.com/xinntao/facexlib/releases/download"

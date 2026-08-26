@@ -47,7 +47,9 @@ def restore(img: Image.Image) -> Image.Image:
 
     helper.clean_all()
     helper.read_image(bgr)
-    helper.get_face_landmarks_5(only_center_face=False, resize=640, eye_dist_threshold=5)
+    helper.get_face_landmarks_5(
+        only_center_face=False, resize=640, eye_dist_threshold=5
+    )
     helper.align_warp_face()
 
     if not helper.cropped_faces:

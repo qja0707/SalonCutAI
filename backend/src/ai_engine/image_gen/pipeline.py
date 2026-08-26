@@ -22,15 +22,20 @@ from src.ai_engine.image_gen import (
 logger = logging.getLogger(__name__)
 
 
-def _restore_and_match(img_r: Image.Image, comp: Image.Image, gen_mask: Image.Image):
-    """재합성 결과의 얼굴을 복원하고 색을 원본에 다시 맞춘다.
+def _finish(img_r: Image.Image, comp: Image.Image, gen_mask: Image.Image):
+    """재합성 결과를 복원하고 색을 맞춘 뒤 눈썹을 되돌린다.
 
-    복원이 조명 톤을 지우므로 색 정합을 한 번 더 한다. 마스크 밖은
-    복원 결과를 그대로 두어 원본과 어긋나지 않게 한다.
+    복원은 512 정렬 영역 전체를 다시 그려 눈썹도 덮으므로, 눈썹 보존은
+    복원 뒤에 와야 한다. 복원 전에도 한 번 되돌리는 것은 CodeFormer 가
+    입력을 보고 그리므로 원본 눈썹이 있는 상태가 형태 유지에 낫기 때문이다.
+    복원이 조명 톤을 지우므로 색 정합을 한 번 더 하되, 마스크 밖은 복원
+    결과를 그대로 두어 원본과 어긋나지 않게 한다.
     """
+    comp = compose.keep_brows(img_r, comp)
     post = restore.restore(comp)
     shifted = compose.color_transfer(post, img_r, gen_mask)
-    return Image.composite(shifted, post, gen_mask.convert("L"))
+    final = Image.composite(shifted, post, gen_mask.convert("L"))
+    return compose.keep_brows(img_r, final)
 
 
 def _run_prompt_mode(img: Image.Image, options, seed: int) -> Image.Image:
@@ -40,8 +45,7 @@ def _run_prompt_mode(img: Image.Image, options, seed: int) -> Image.Image:
 
     out = compose.color_transfer(out, img_r, gen_mask)
     comp = compose.recompose_with_hair(img_r, out, face_r, hair_r)
-    comp = compose.keep_brows(img_r, comp)
-    return _restore_and_match(img_r, comp, gen_mask)
+    return _finish(img_r, comp, gen_mask)
 
 
 def _run_reference_mode(img: Image.Image, options, seed: int) -> Image.Image:
@@ -57,8 +61,7 @@ def _run_reference_mode(img: Image.Image, options, seed: int) -> Image.Image:
 
     out = compose.color_transfer(out, img_r, gen_mask)
     comp = compose.recompose_with_hair(img_r, out, face_mask, hair_mask)
-    comp = compose.keep_brows(img_r, comp)
-    return _restore_and_match(img_r, comp, gen_mask)
+    return _finish(img_r, comp, gen_mask)
 
 
 def run(job_id: str, options, seed: int) -> dict[str, dict]:
