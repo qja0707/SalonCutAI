@@ -18,6 +18,9 @@ OUTPUT_WIDTH = 1080
 OUTPUT_HEIGHT = 1920
 OUTPUT_FPS = 30
 CLIP_SECONDS = 2.0
+MAX_CLIP_SECONDS = 5.0
+MAX_TOTAL_CLIP_SECONDS = 30.0
+DURATION_EPSILON_SECONDS = 1e-6
 MIN_CLIPS = 2
 MAX_CLIPS = 8
 MAX_DECODE_DIMENSION = 1920
@@ -119,6 +122,28 @@ def ordered_clips(clips: Iterable[ClipInput]) -> list[ClipInput]:
             raise ValueError("clip_order values must be unique")
         return sorted(clips, key=lambda clip: clip.clip_order or 0)
     return sorted(clips, key=lambda clip: ROLE_ORDER.get(clip.role, len(ROLE_ORDER)))
+
+
+def _validate_clip_durations(clips: Iterable[ClipInput]) -> None:
+    total_duration = 0.0
+    for clip in clips:
+        if (clip.start_sec is None) != (clip.end_sec is None):
+            raise ValueError("start_sec and end_sec must be provided together")
+        if clip.start_sec is not None and clip.end_sec is not None:
+            if clip.start_sec < 0 or clip.end_sec <= clip.start_sec:
+                raise ValueError("clip range must satisfy 0 <= start_sec < end_sec")
+            duration = clip.end_sec - clip.start_sec
+        else:
+            duration = CLIP_SECONDS
+        if duration - MAX_CLIP_SECONDS > DURATION_EPSILON_SECONDS:
+            raise ValueError(
+                f"clip duration must not exceed {MAX_CLIP_SECONDS} seconds"
+            )
+        total_duration += duration
+    if total_duration - MAX_TOTAL_CLIP_SECONDS > DURATION_EPSILON_SECONDS:
+        raise ValueError(
+            f"total clip duration must not exceed {MAX_TOTAL_CLIP_SECONDS} seconds"
+        )
 
 
 def segment_start(
@@ -1352,6 +1377,7 @@ def process_shorts(
     clips = ordered_clips(clips)
     if not MIN_CLIPS <= len(clips) <= MAX_CLIPS:
         raise ValueError(f"between {MIN_CLIPS} and {MAX_CLIPS} clips are required")
+    _validate_clip_durations(clips)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     detector = YuNetFaceDetector()

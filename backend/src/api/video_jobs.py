@@ -29,7 +29,14 @@ from pydantic import (
     model_validator,
 )
 
-from src.ai_engine.video_gen.engine import ClipInput, process_shorts
+from src.ai_engine.video_gen.engine import (
+    CLIP_SECONDS,
+    DURATION_EPSILON_SECONDS,
+    MAX_CLIP_SECONDS,
+    MAX_TOTAL_CLIP_SECONDS,
+    ClipInput,
+    process_shorts,
+)
 from src.api.dependencies import check_auth_token
 
 router = APIRouter(
@@ -76,6 +83,15 @@ class ClipOptions(BaseModel):
             and self.end_sec <= self.start_sec
         ):
             raise ValueError("end_sec must be greater than start_sec")
+        if (
+            self.start_sec is not None
+            and self.end_sec is not None
+            and self.end_sec - self.start_sec - MAX_CLIP_SECONDS
+            > DURATION_EPSILON_SECONDS
+        ):
+            raise ValueError(
+                f"clip duration must not exceed {MAX_CLIP_SECONDS} seconds"
+            )
         return self
 
 
@@ -92,6 +108,18 @@ class VideoJobPayload(BaseModel):
                 raise ValueError("clip_order must be set for every clip or omitted")
             if len(set(orders)) != len(orders):
                 raise ValueError("clip_order values must be unique")
+        total_duration = sum(
+            (
+                clip.end_sec - clip.start_sec
+                if clip.start_sec is not None and clip.end_sec is not None
+                else CLIP_SECONDS
+            )
+            for clip in self.clips
+        )
+        if total_duration - MAX_TOTAL_CLIP_SECONDS > DURATION_EPSILON_SECONDS:
+            raise ValueError(
+                f"total clip duration must not exceed {MAX_TOTAL_CLIP_SECONDS} seconds"
+            )
         return self
 
 
