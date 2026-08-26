@@ -31,10 +31,16 @@ export function hasSession(): boolean {
  * 오래 걸리는 요청을 보내기 직전에 세션을 확인하고, 만료가 임박했으면 미리 갱신한다.
  *
  * @returns 계속 진행해도 되면 true, 로그인이 필요하면 false.
+ * @throws 서버 오류·통신 실패. 호출부가 제 문구로 알리도록 그대로 올려보낸다.
  *
- * 세션이 확실히 죽었을 때(401)만 false 다. `/auth/me` 가 아직 없는 배포(404)나 통신이
- * 잠깐 끊긴 경우까지 막으면, 정작 멀쩡한 업로드를 못 하게 된다 — 그런 경우는 통과시키고
- * 진짜 실패는 업로드 자신이 알려준다.
+ * 세 갈래로 나눈다(#193 리뷰).
+ *
+ * - **401** 은 세션이 확실히 죽은 경우라 false — 로그인 안내로 보낸다.
+ * - **404** 는 `/auth/me` 가 아직 없는 배포다. 확인을 건너뛰고 업로드로 넘어간다.
+ * - **그 밖(5xx·통신 실패)** 은 로그인 문제가 아니다. 여기서 false 를 주면 멀쩡히
+ *   로그인된 사람에게 "로그인이 필요해요" 를 띄우게 되고, 로그인해도 또 실패한다.
+ *   그렇다고 그대로 업로드를 시작하면 320MB 를 다 올린 뒤에 실패한다 — 올려보내서
+ *   업로드 전에 멈추되, 무엇이 잘못됐는지는 제대로 알리게 한다.
  */
 export async function ensureFreshSession(): Promise<boolean> {
   if (!hasSession()) return false;
@@ -44,9 +50,12 @@ export async function ensureFreshSession(): Promise<boolean> {
     if (Date.parse(user.expires_at) - Date.now() < SESSION_REFRESH_MARGIN_MS) {
       await refreshSession();
     }
-    return true;
   } catch (error) {
-    if (error instanceof ApiRequestError && error.status === 401) return false;
-    return true;
+    if (error instanceof ApiRequestError) {
+      if (error.status === 401) return false;
+      if (error.status === 404) return true;
+    }
+    throw error;
   }
+  return true;
 }

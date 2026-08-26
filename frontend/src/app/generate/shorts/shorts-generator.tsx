@@ -499,18 +499,6 @@ export function ShortsGenerator() {
       return;
     }
     setSubmitting(true);
-    /*
-      보내기 직전에 세션을 확인하고, 만료가 임박했으면 미리 갱신해 둔다.
-
-      업로드는 스트림이라 요청 도중 토큰이 만료되면 프록시가 재시도할 수 없다(#192 논의).
-      쿠키 유무만 보면 "아직 안 죽었지만 곧 죽을" 토큰으로 몇 분짜리 업로드를 시작하게 된다.
-    */
-    if (!(await ensureFreshSession())) {
-      setSubmitting(false);
-      setNeedsLogin(true);
-      window.requestAnimationFrame(() => scrollIntoViewOnNarrow(loginNoticeRef.current));
-      return;
-    }
     setJob(null);
     setError("");
     // 지난 실행의 진행률·경과 시간이 첫 tick 전까지 남아 보이지 않게 여기서 비운다.
@@ -519,6 +507,20 @@ export function ShortsGenerator() {
     setPhoneStep(PHONE_INPUT_STEP_COUNT + 1);
     window.requestAnimationFrame(() => scrollIntoViewOnNarrow(resultRef.current));
     try {
+      /*
+        보내기 직전에 세션을 확인하고, 만료가 임박했으면 미리 갱신해 둔다.
+
+        업로드는 스트림이라 요청 도중 토큰이 만료되면 프록시가 재시도할 수 없다(#192 논의).
+        쿠키 유무만 보면 "아직 안 죽었지만 곧 죽을" 토큰으로 몇 분짜리 업로드를 시작하게 된다.
+        서버 오류·통신 실패는 여기서 예외로 올라와 아래 catch 가 제 문구로 알린다.
+      */
+      if (!(await ensureFreshSession())) {
+        setNeedsLogin(true);
+        window.requestAnimationFrame(() =>
+          scrollIntoViewOnNarrow(loginNoticeRef.current),
+        );
+        return;
+      }
       const created = await createVideoJob(
         clipsToSubmit.map(
           ({ file, role, selection, caption, start_sec, end_sec, keep_audio }, index) => ({
