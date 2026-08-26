@@ -37,6 +37,7 @@ from src.ai_engine.video_gen.engine import (
     _sampled_proxy_frames,
     _scaled_dimensions,
     _track_primary_face,
+    _validate_clip_durations,
     _wrap_caption,
     _write_caption_files,
     center_crop,
@@ -96,6 +97,57 @@ def test_ordered_clips_uses_explicit_order_only_when_all_clips_set_it(tmp_path):
     ]
     with pytest.raises(ValueError, match="every clip"):
         ordered_clips([clips[0], ClipInput(tmp_path / "plain.mp4", "after", "end", "")])
+
+
+def test_engine_clip_duration_guard_accepts_boundaries_and_defaults(tmp_path):
+    five_second_clips = [
+        ClipInput(
+            tmp_path / f"clip-{index}.mp4",
+            "process",
+            "center",
+            "",
+            start_sec=0.0,
+            end_sec=5.0,
+        )
+        for index in range(6)
+    ]
+    _validate_clip_durations(five_second_clips)
+    _validate_clip_durations(
+        [
+            ClipInput(tmp_path / f"default-{index}.mp4", "process", "center", "")
+            for index in range(8)
+        ]
+    )
+
+    with pytest.raises(ValueError, match="clip duration"):
+        _validate_clip_durations(
+            [
+                ClipInput(
+                    tmp_path / "too-long.mp4",
+                    "before",
+                    "center",
+                    "",
+                    start_sec=0.0,
+                    end_sec=5.001,
+                ),
+                ClipInput(tmp_path / "after.mp4", "after", "center", ""),
+            ]
+        )
+
+    with pytest.raises(ValueError, match="total clip duration"):
+        _validate_clip_durations(
+            [
+                ClipInput(
+                    tmp_path / f"total-{index}.mp4",
+                    "process",
+                    "center",
+                    "",
+                    start_sec=0.0,
+                    end_sec=4.3,
+                )
+                for index in range(7)
+            ]
+        )
 
 
 def test_center_crop_returns_vertical_canvas():

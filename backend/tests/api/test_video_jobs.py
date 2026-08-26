@@ -288,6 +288,51 @@ def test_video_contract_rejects_incomplete_ranges_and_ambiguous_order(clips):
     assert response.status_code == 422
 
 
+@pytest.mark.parametrize(
+    ("clip_options", "expected_status"),
+    [
+        (
+            [{"role": "process", "start_sec": 0.0, "end_sec": 5.0} for _ in range(6)],
+            202,
+        ),
+        (
+            [
+                {"role": "before", "start_sec": 0.0, "end_sec": 5.001},
+                {"role": "after"},
+            ],
+            422,
+        ),
+        (
+            [{"role": "process", "start_sec": 0.0, "end_sec": 4.3} for _ in range(7)],
+            422,
+        ),
+        ([{"role": "process"} for _ in range(8)], 202),
+    ],
+)
+def test_video_contract_enforces_clip_and_total_duration_limits(
+    monkeypatch, tmp_path, clip_options, expected_status
+):
+    app = FastAPI()
+    app.include_router(api_router)
+    app.dependency_overrides[check_auth_token] = lambda: None
+    client = TestClient(app)
+
+    video_jobs._jobs.clear()
+    monkeypatch.setattr(video_jobs, "_job_root", lambda: tmp_path)
+    monkeypatch.setattr(video_jobs, "_run_job", lambda _job_id: None)
+    response = client.post(
+        "/api/v1/video-jobs",
+        files=[
+            ("clips", (f"clip-{index}.mp4", b"video", "video/mp4"))
+            for index in range(len(clip_options))
+        ],
+        data={"payload": json.dumps({"clips": clip_options})},
+    )
+
+    assert response.status_code == expected_status
+    video_jobs._jobs.clear()
+
+
 def test_tts_contract_returns_not_implemented_until_provider_is_connected():
     app = FastAPI()
     app.include_router(api_router)
