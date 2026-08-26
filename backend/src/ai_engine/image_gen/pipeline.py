@@ -5,6 +5,10 @@ service 는 job 상태만 알고, 여기서 실제 이미지를 만든다.
 
 생성은 SDXL 에 맞춰 긴 변 1024 에서 하고, 후처리는 저장본(2048) 위에서 한다.
 생성 결과만 키워서 원본에 붙이므로 마스크 밖 헤어·옷·배경은 원본 픽셀 그대로다.
+
+프롬프트 모드는 기본이 GPT 편집 경로다. GPT 결과는 1024 크롭에서 이미 선명해
+복원이 개성을 평준화하고, 새 골격에 맞는 눈썹을 그려 눈썹 보존이 겹치므로
+색 정합(약하게)과 재합성만 한다.
 """
 
 import logging
@@ -15,6 +19,7 @@ from src.ai_engine.image_gen import (
     aspect,
     combo3,
     combo5,
+    combo5_gpt,
     compose,
     masks,
     restore,
@@ -51,8 +56,26 @@ def _postprocess(img, out, face_mask, hair_mask):
     return _finish(img, comp, gen_mask)
 
 
+def _postprocess_gpt(img, full, face_mask, hair_mask):
+    """GPT 편집 결과 후처리. 색 정합(약하게) → 재합성. 복원·눈썹 보존 없음.
+
+    full 은 이미 원본 크기다. 색 정합과 재합성 마스크를 같은 것으로 써야
+    경계 띠가 안 생긴다.
+    """
+    gen_mask = masks.build_gen_mask(face_mask, hair_mask)
+    out = compose.color_transfer(full, img, gen_mask, alpha=settings.GPT_COLOR_ALPHA)
+    return compose.recompose_with_hair(img, out, face_mask, hair_mask)
+
+
 def _run_prompt_mode(img: Image.Image, options, seed: int) -> Image.Image:
-    """조합 5. 마스크 안쪽만 다시 그려 헤어와 배경을 남긴다."""
+    """조합 5. 마스크 안쪽만 다시 그려 헤어와 배경을 남긴다.
+
+    GPT 경로는 시드를 쓰지 않는다. 같은 입력이라도 호출마다 다른 얼굴이 나온다.
+    """
+    if settings.PROMPT_MODE_ENGINE == "gpt":
+        full, face_mask, hair_mask = combo5_gpt.generate(img, options.face.prompt)
+        return _postprocess_gpt(img, full, face_mask, hair_mask)
+
     out, face_mask, hair_mask = combo5.generate(img, options.face.prompt, seed)
     return _postprocess(img, out, face_mask, hair_mask)
 

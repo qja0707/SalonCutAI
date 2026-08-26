@@ -283,6 +283,7 @@ def warmup() -> None:
     get_segmenter()
     get_codeformer()
     get_face_helper()
-    get_combo5()
+    if settings.PROMPT_MODE_ENGINE != "gpt":
+        get_combo5()  # GPT 경로면 SDXL 인페인팅(VRAM 7GB)을 올리지 않는다
     get_combo3()
     logger.info("모델 준비 완료")
