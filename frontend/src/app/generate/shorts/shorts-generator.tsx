@@ -12,6 +12,7 @@ import {
   Info,
   LoaderCircle,
   LogIn,
+  Pencil,
   Play,
   Plus,
   ShieldCheck,
@@ -40,12 +41,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import {
-  StepNav,
-  StepProgress,
-  scrollIntoViewOnNarrow,
-  stepVisibility,
-} from "@/components/flow/step-flow";
+import { scrollIntoViewOnNarrow } from "@/components/flow/step-flow";
+import { ShortsSteps } from "@/app/generate/shorts/step-indicator";
 import {
   createVideoJob,
   createVideoCaptions,
@@ -55,218 +52,42 @@ import {
 } from "@/lib/api-client/client";
 import type {
   VideoAudioMode,
-  VideoClipOptions,
   VideoJobResponse,
   VideoRole,
   VideoSelection,
 } from "@/lib/api-client/types";
 import { errorMessage, jobErrorMessage } from "@/lib/api-client/error-message";
+import {
+  CUSTOM_DESCRIPTION_VALUE,
+  DEFAULT_CLIP_SECONDS,
+  DESCRIPTION_OPTIONS,
+  DURATION_EPSILON_SECONDS,
+  EXAMPLE_SHOTS,
+  IDENTITY_INK,
+  IDENTITY_WASH,
+  LONG_RUNNING_SECONDS,
+  MAX_CAPTION_CONTEXT_LENGTH,
+  MAX_CLIPS,
+  MAX_FILE_BYTES,
+  MAX_TOTAL_BYTES,
+  MAX_TOTAL_SECONDS,
+  MIB,
+  MIN_CLIPS,
+  ROLE_OPTIONS,
+  SELECTION_OPTIONS,
+  createClipId,
+  defaultRole,
+  fileSizeLabel,
+  isAcceptedVideoFile,
+  progressStage,
+} from "@/app/generate/shorts/shared";
+import type {
+  ClipDraft,
+  ClipDraftChanges,
+  UploadIssue,
+} from "@/app/generate/shorts/shared";
 
-type DescriptionMode = "preset" | "custom";
-type ClipDraft = VideoClipOptions & {
-  id: string;
-  file: File;
-  description: string;
-  descriptionMode: DescriptionMode;
-};
-type ClipDraftChanges = Partial<VideoClipOptions> & {
-  description?: string;
-  descriptionMode?: DescriptionMode;
-};
-type UploadIssue = { title: string; messages: string[]; tone: "warning" | "error" };
-const MIB = 1024 * 1024;
-const MAX_FILE_BYTES = 160 * MIB;
-const MAX_TOTAL_BYTES = 320 * MIB;
-const MAX_CAPTION_CONTEXT_LENGTH = 100;
-/** 서버(`video_gen/engine.py` 의 MIN_CLIPS·MAX_CLIPS)와 같은 값. 개수가 화면 곳곳에
- * 흩어져 있었는데, 8 을 하나 고치면 나머지도 같이 고쳐야 해서 상수로 모았다. */
-const MIN_CLIPS = 2;
-const MAX_CLIPS = 8;
-/** 완성 영상 전체 길이 상한. 클립당 5초와 함께 서버가 받는 값이다(승원님 확정). */
-const MAX_TOTAL_SECONDS = 30;
-/**
- * 총합을 견줄 때 허용하는 오차. 서버의 `DURATION_EPSILON_SECONDS` 와 같은 값이다.
- *
- * 0.1 초 단위를 더하면 수학적으로 30 인 조합이 `30.000000000000004` 가 되는데, 서버는
- * 이 허용치로 받아주므로 화면만 막으면 만들 수 있는 영상을 못 만들게 된다(#193 리뷰).
- */
-const DURATION_EPSILON_SECONDS = 1e-6;
-/** 구간을 직접 고르지 않은 클립이 차지하는 길이(서버 `CLIP_SECONDS`). */
-const DEFAULT_CLIP_SECONDS = 2;
 
-const CUSTOM_DESCRIPTION_VALUE = "__custom__";
-const ACCEPTED_VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".webm", ".mkv"]);
-
-/** 결과까지 포함한 단계 수. 진행 표시는 입력 2단계만 센다 — 클립별 카드는 쪼개지 않는다,
- * 클립이 8개면 8단계가 되어 버린다(Discussion #149). */
-const PHONE_STEPS = ["영상 업로드", "세부 조정(선택)"] as const;
-const PHONE_INPUT_STEP_COUNT = 2;
-
-/**
- * 목적지 색(Discussion #149 3번) — 인스타 릴스. 얼굴 교체와 목적지가 같아(둘 다
- * 인스타) 그라디언트 양 끝을 나눠 쓴다 — 숏폼은 주황·노랑 끝. 흰 글자 5.18:1,
- * wash 위 4.60:1 — 둘 다 WCAG AA 통과.
- */
-const IDENTITY_INK = "#C2410C";
-const IDENTITY_WASH = "#fdefe4";
-
-/**
- * 서버가 받는 기준과 같게 판정한다 — backend `video_jobs.py` 의
- * `ALLOWED_SUFFIXES` 도 MIME 이 아니라 확장자를 본다.
- *
- * 전에는 `file.type.startsWith("video/")` 를 OR 로 함께 봤는데, accept 를
- * `video/*` 로 넓히자 AVI 처럼 서버가 안 받는 형식까지 화면에서는 통과해
- * 업로드 단계에서야 415 로 떨어졌다. 고르는 자리에서 바로 알려주는 편이 낫다.
- */
-function isAcceptedVideoFile(file: File): boolean {
-  const extension = file.name.includes(".")
-    ? `.${file.name.split(".").pop()?.toLowerCase()}`
-    : "";
-  return ACCEPTED_VIDEO_EXTENSIONS.has(extension);
-}
-
-function fileSizeLabel(bytes: number): string {
-  return `${(bytes / MIB).toFixed(1)}MB`;
-}
-
-function createClipId(): string {
-  if (typeof globalThis.crypto?.randomUUID === "function") {
-    return globalThis.crypto.randomUUID();
-  }
-  return `clip-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-const ROLE_OPTIONS: { value: VideoRole; label: string; caption: string }[] = [
-  { value: "before", label: "시술 전", caption: "시술 전, 오늘의 변화를 시작합니다" },
-  { value: "process", label: "시술 과정", caption: "섬세하게 완성해 가는 시술 과정" },
-  { value: "detail", label: "디테일", caption: "작은 디테일까지 꼼꼼하게" },
-  { value: "after", label: "마무리", caption: "완성된 스타일을 확인해 보세요" },
-];
-
-const SELECTION_OPTIONS: { value: VideoSelection; label: string }[] = [
-  { value: "start", label: "앞 2초" },
-  { value: "center", label: "가운데 2초" },
-  { value: "end", label: "뒤 2초" },
-];
-
-/**
- * 결과 예시(Discussion #149 제안 2) — 랜딩의 SHORTS_CLIPS 와 같은 문구. 빈 결과
- * 자리에 "9:16 · 무음" 프레임과 클립 목록을 그대로 보여준다 — 만들기 전에는
- * "완성 영상이 여기에 표시됩니다" 라는 글자뿐이었다(#149 실측).
- */
-const EXAMPLE_CLIPS = [
-  { role: "시술 과정", caption: "섬세하게 완성해 가는 시술 과정", sec: "0:06" },
-  { role: "디테일", caption: "작은 디테일까지 꼼꼼하게", sec: "0:05" },
-  { role: "마무리", caption: "완성된 스타일을 확인해 보세요", sec: "0:04" },
-] as const;
-
-const DESCRIPTION_OPTIONS = [
-  "시술 전 상태",
-  "두피·모발 진단",
-  "샴푸",
-  "커트",
-  "섹션 나누기",
-  "염색약 도포",
-  "탈색약 도포",
-  "호일·롤 작업",
-  "펌 와인딩",
-  "방치·처리 중",
-  "중화·헹굼",
-  "드라이",
-  "아이론·열기구",
-  "스타일링 마무리",
-  "완성 확인",
-] as const;
-
-/**
- * 진행 중 안내 문구.
- *
- * 구간은 서버가 흘리는 progress 마일스톤에 맞춘다(backend PR #190) — 클립 분석 0~40,
- * 자막 준비 45, 얼굴 블러 마스크 45~75, 인코딩 직전 80, 인코딩 완료 95, 정리 100.
- * 그전에는 서버가 40 에서 95 로 바로 뛰어 화면이 "40% 에서 멈춘 것"처럼 보였다.
- *
- * `ceiling` 은 아래 useEffect 의 추정 진행률이 넘지 못할 한계다 — 다음 마일스톤을
- * 앞질러 놓고 기다리는 일이 없어야 한다.
- */
-type ProgressStage = {
-  from: number;
-  ceiling: number;
-  title: string;
-  hint: string;
-  /** 얼굴 블러를 끈 경우의 문구. 서버는 블러가 꺼져 있어도 같은 구간을 지나가므로
-   * (PR #190), 하지도 않은 일을 화면이 말하지 않도록 갈라 쓴다. */
-  titleWithoutBlur?: string;
-  hintWithoutBlur?: string;
-};
-
-const PROGRESS_STAGES: ProgressStage[] = [
-  {
-    from: 0,
-    ceiling: 15,
-    title: "영상을 올리고 있어요",
-    hint: "파일이 클수록 조금 더 걸려요.",
-  },
-  {
-    from: 1,
-    ceiling: 39,
-    title: "클립을 하나씩 다듬고 있어요",
-    hint: "고른 구간을 잘라내는 중이에요.",
-  },
-  {
-    from: 40,
-    ceiling: 44,
-    title: "자막을 얹고 있어요",
-    hint: "골라주신 문구를 화면에 앉히는 중이에요.",
-  },
-  {
-    from: 45,
-    ceiling: 79,
-    title: "얼굴을 찾아 흐리게 처리하고 있어요",
-    hint: "사람이 여럿 나오면 조금 더 걸려요.",
-    titleWithoutBlur: "장면을 하나씩 준비하고 있어요",
-    hintWithoutBlur: "얼굴 블러를 꺼두셔서 이 단계는 금방 지나가요.",
-  },
-  {
-    from: 80,
-    ceiling: 94,
-    title: "컷을 이어 붙이고 있어요",
-    hint: "이 단계가 가장 오래 걸려요. 그대로 두셔도 됩니다.",
-  },
-  {
-    from: 95,
-    ceiling: 99,
-    title: "마지막으로 다듬고 있어요",
-    hint: "곧 완성돼요.",
-  },
-];
-
-function progressStage(progress: number, blurFaces = true) {
-  const stage =
-    [...PROGRESS_STAGES].reverse().find((item) => progress >= item.from) ??
-    PROGRESS_STAGES[0];
-  return {
-    ceiling: stage.ceiling,
-    title: (!blurFaces && stage.titleWithoutBlur) || stage.title,
-    hint: !blurFaces && stage.hintWithoutBlur !== undefined
-      ? stage.hintWithoutBlur
-      : stage.hint,
-  };
-}
-
-/**
- * 이 시간을 넘기면 "조금 더 걸린다"고만 알린다.
- *
- * 흐르는 초를 숫자로 보여주지는 않는다 — 기다리는 쪽이 초조해져서 얼굴 교체·블로그
- * 화면에서 이미 걷어낸 표시다(8/25 원장님, `face-swap-waiting.tsx` 참고). 경과 시간은
- * 이 판정에만 쓴다.
- */
-const LONG_RUNNING_SECONDS = 120;
-
-function defaultRole(index: number, total: number): VideoRole {
-  if (index === 0) return "before";
-  if (index === total - 1) return "after";
-  return index % 2 ? "process" : "detail";
-}
 
 export function ShortsGenerator() {
   const [clips, setClips] = useState<ClipDraft[]>([]);
@@ -282,6 +103,7 @@ export function ShortsGenerator() {
   const [error, setError] = useState("");
   const [uploadIssue, setUploadIssue] = useState<UploadIssue | null>(null);
   const [needsLogin, setNeedsLogin] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   // 서버 progress 위에 얹는 추정 진행률과 경과 시간. 바가 멈춰 보이지 않게 하는 용도라
@@ -297,7 +119,6 @@ export function ShortsGenerator() {
   const resultRef = useRef<HTMLElement>(null);
   // 폰 단계식(A안, Discussion #149 — 얼굴 교체·블로그와 같은 흐름)에서 지금 보여줄 단계.
   // 1~2 는 입력, 3 은 결과. lg 이상에서는 쓰이지 않는다 — 카드가 전부 렌더된다.
-  const [phoneStep, setPhoneStep] = useState(1);
   const rendering =
     submitting || job?.status === "queued" || job?.status === "processing";
   const serverProgress = job?.progress ?? 0;
@@ -365,6 +186,22 @@ export function ShortsGenerator() {
 
   function goToSignin() {
     router.push(`/user/signin?redirect=${encodeURIComponent(pathname)}`);
+  }
+
+  /**
+   * 버튼 위로 끌어다 놓기. 시안에 안내 문구가 있었는데 정작 받는 쪽이 없어서 붙였다.
+   * 로그인 확인은 파일 선택과 같은 자리에서 한 번 더 한다 — 드롭은 버튼을 거치지 않는다.
+   */
+  function handleDrop(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault();
+    setDragging(false);
+    if (busy || clips.length >= MAX_CLIPS) return;
+    if (!hasSession()) {
+      setNeedsLogin(true);
+      window.requestAnimationFrame(() => scrollIntoViewOnNarrow(loginNoticeRef.current));
+      return;
+    }
+    addFiles(event.dataTransfer.files);
   }
 
   function addFiles(files: FileList | null) {
@@ -489,7 +326,6 @@ export function ShortsGenerator() {
 
   function openDetails() {
     setDetailsOpen(true);
-    setPhoneStep(PHONE_INPUT_STEP_COUNT);
     window.requestAnimationFrame(() => scrollIntoViewOnNarrow(editorRef.current));
   }
 
@@ -504,7 +340,6 @@ export function ShortsGenerator() {
     // 지난 실행의 진행률·경과 시간이 첫 tick 전까지 남아 보이지 않게 여기서 비운다.
     setSmoothProgress(0);
     setElapsedSec(0);
-    setPhoneStep(PHONE_INPUT_STEP_COUNT + 1);
     window.requestAnimationFrame(() => scrollIntoViewOnNarrow(resultRef.current));
     try {
       /*
@@ -601,7 +436,6 @@ export function ShortsGenerator() {
     setAutoDrafted(false);
     setError("");
     setUploadIssue(null);
-    setPhoneStep(1);
   }
 
   const busy = rendering || generatingCaptions;
@@ -638,17 +472,12 @@ export function ShortsGenerator() {
     </Button>
   );
 
-  const stepReady: Record<number, boolean> = {
-    1: clips.length >= MIN_CLIPS,
-    2: clips.length >= MIN_CLIPS,
-  };
-  const stepHint: Record<number, string> = {
-    1: "영상을 2개 이상 올려주세요.",
-    2: "",
-  };
+  /* 카드가 전부 보이므로 단계는 "지금 어디까지 왔는지" 표시일 뿐이다. */
+  const currentStep: 1 | 2 | 3 =
+    job?.status === "completed" ? 3 : clips.length >= MIN_CLIPS ? 2 : 1;
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-8 pb-28 sm:px-6 lg:py-12 lg:pb-12">
+    <div className="mx-auto w-full max-w-3xl px-4 py-8 pb-28 sm:px-6 lg:py-12 lg:pb-12">
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -678,7 +507,7 @@ export function ShortsGenerator() {
         </AlertDescription>
       </Alert>
 
-      <StepProgress step={phoneStep} steps={PHONE_STEPS} activeColor={IDENTITY_INK} />
+      <ShortsSteps current={currentStep} />
 
       {/*
         요청 오류는 단계 게이트 밖에서 보여준다. 결과 칼럼(3단계) 안에 두면
@@ -695,7 +524,7 @@ export function ShortsGenerator() {
 
       {/*
         전체 길이 초과. 만들기 버튼이 잠기는 이유라서 어느 단계에서나 보이도록
-        게이트 밖에 둔다 — 구간을 줄이는 곳(세부 조정)과 클립을 빼는 곳(업로드)이
+        게이트 밖에 둔다 — 구간을 줄이는 곳(직접 손보기)과 클립을 빼는 곳(업로드)이
         서로 다른 카드에 있어서, 한쪽에만 두면 다른 쪽에서 이유를 알 수 없다.
       */}
       {overLength && (
@@ -703,7 +532,7 @@ export function ShortsGenerator() {
           <Info />
           <AlertTitle>전체 길이가 {MAX_TOTAL_SECONDS}초를 넘었어요</AlertTitle>
           <AlertDescription>
-            지금 예상 {expectedSecondsLabel}초입니다. 세부 조정에서 구간을 줄이거나
+            지금 예상 {expectedSecondsLabel}초입니다. 직접 손보기에서 구간을 줄이거나
             클립을 빼면 만들 수 있어요.
           </AlertDescription>
         </Alert>
@@ -758,32 +587,72 @@ export function ShortsGenerator() {
         </Alert>
       )}
 
-      <div className="mt-6 grid gap-6 lg:mt-0 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <section className="min-w-0 space-y-6">
-          <Card className={stepVisibility(1, phoneStep)}>
+      <div className="mt-6 space-y-6">
+          <Card>
             {/* 폰에서는 위 단계 표시가 같은 말을 하고 있다 — lg 에서만 제목을 둔다. */}
             <CardHeader className="hidden lg:grid">
-              <CardTitle>영상 업로드</CardTitle>
+              <CardTitle>시술 영상 고르기</CardTitle>
             </CardHeader>
             <CardContent>
               <button
                 type="button"
                 onClick={pickFiles}
                 disabled={busy || clips.length >= MAX_CLIPS}
-                className="flex w-full flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-muted/30 px-5 py-10 text-center transition-colors hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-50"
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  if (!busy && clips.length < MAX_CLIPS) setDragging(true);
+                }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={handleDrop}
+                className={`flex w-full flex-col items-center justify-center rounded-2xl border border-dashed px-5 py-10 text-center transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                  dragging
+                    ? "border-primary bg-primary/5"
+                    : "border-border bg-muted/30 hover:bg-muted/60"
+                }`}
               >
                 <Upload className="mb-3 h-8 w-8 text-primary" />
                 <span className="font-medium">영상 선택하기</span>
                 <span className="mt-1 text-xs text-muted-foreground">
                   {clips.length >= MAX_CLIPS
                     ? `${MAX_CLIPS}개를 모두 채웠어요`
-                    : `${MIN_CLIPS}~${MAX_CLIPS}개 · 파일당 160MB`}
+                    : `${MIN_CLIPS}~${MAX_CLIPS}개 · MP4, MOV, WEBM, MKV · 파일당 160MB`}
                 </span>
+                {clips.length < MAX_CLIPS && (
+                  <span className="mt-1 text-xs text-muted-foreground">
+                    {dragging ? "여기에 놓으세요" : "여기로 끌어다 놓아도 돼요"}
+                  </span>
+                )}
               </button>
               {clips.length >= MAX_CLIPS && (
                 <p className="mt-2 text-center text-xs text-muted-foreground">
                   더 넣으려면 아래 목록에서 필요 없는 클립을 지워주세요.
                 </p>
+              )}
+
+              {clips.length === 0 && (
+                <div className="mt-6">
+                  <p className="text-sm font-medium">이런 영상 3개면 충분해요</p>
+                  <ul className="mt-3 grid max-w-[400px] grid-cols-3 gap-2 sm:gap-3">
+                    {EXAMPLE_SHOTS.map((shot) => (
+                      <li key={shot.label} className="min-w-0">
+                        {/* 정적 파일이라 최적화 대상이 아니다 — 랜딩도 같은 방식으로 쓴다. */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={shot.src}
+                          alt=""
+                          loading="lazy"
+                          className="aspect-[9/16] w-full rounded-xl border object-cover"
+                        />
+                        <p className="mt-2 truncate text-center text-xs font-medium">
+                          {shot.label}
+                        </p>
+                        <p className="truncate text-center text-[11px] text-muted-foreground">
+                          {shot.hint}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
               <Input
                 ref={inputRef}
@@ -859,7 +728,7 @@ export function ShortsGenerator() {
                     ))}
                   </ol>
                   <p className="text-xs leading-5 text-muted-foreground">
-                    한 컷은 기본 {DEFAULT_CLIP_SECONDS}초예요. 세부 조정에서
+                    한 컷은 기본 {DEFAULT_CLIP_SECONDS}초예요. 직접 손보기에서
                     {MIN_RANGE_SECONDS}~{MAX_RANGE_SECONDS}초까지 바꿀 수 있고, 전체는
                     최대 {MAX_TOTAL_SECONDS}초까지 만들어져요.
                   </p>
@@ -868,27 +737,78 @@ export function ShortsGenerator() {
             </CardContent>
           </Card>
 
-          {clips.length > 0 && (
-            <div ref={editorRef} className={stepVisibility(2, phoneStep)}>
+          <div ref={editorRef}>
             <Card>
               <CardHeader className="gap-4 sm:flex sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <CardTitle>세부 조정</CardTitle>
-                  <CardDescription className="mt-2">
-                    그대로 만들어도 되고, 필요할 때만 바꾸면 돼요.
+                <div className="min-w-0">
+                  <CardTitle className="flex items-center gap-2">
+                    자동 편집
+                    <Badge
+                      variant="secondary"
+                      className="border-0 text-[10px]"
+                      style={{ backgroundColor: IDENTITY_WASH, color: IDENTITY_INK }}
+                    >
+                      자동
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription className="mt-2 leading-6">
+                    고른 순서대로 이어 붙이고 자막까지 얹어드려요. 영상 길이에 따라
+                    걸리는 시간이 달라져요. 그대로 두셔도 되고, 마음에 안 드는 부분만
+                    고치셔도 돼요.
                   </CardDescription>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  aria-expanded={detailsOpen}
-                  onClick={() => setDetailsOpen((open) => !open)}
-                >
-                  {detailsOpen ? "세부 조정 닫기" : "세부 조정 열기"}
-                </Button>
+                {clips.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                    aria-expanded={detailsOpen}
+                    onClick={() => setDetailsOpen((open) => !open)}
+                  >
+                    {detailsOpen ? "직접 손보기 닫기" : "직접 손보기"}
+                  </Button>
+                )}
               </CardHeader>
-              {detailsOpen && activeClip && (
+              {(submitting || (busy && job)) && (
+                <CardContent>
+                  <div className="py-6 text-center">
+                    <LoaderCircle className="mx-auto mb-4 h-8 w-8 animate-spin text-primary" />
+                    <p className="font-medium">{stage.title}</p>
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                      {stage.hint && (
+                        <>
+                          {stage.hint}
+                          <br />
+                        </>
+                      )}
+                      브라우저를 닫지 말고 잠시 기다려주세요.
+                    </p>
+                    <div
+                      className="mx-auto mt-6 h-2 max-w-[420px] overflow-hidden rounded-full bg-muted"
+                      role="progressbar"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={Math.round(smoothProgress)}
+                      aria-label="영상 만드는 중"
+                    >
+                      <div
+                        className="h-full rounded-full bg-primary transition-[width] duration-300 ease-linear"
+                        style={{ width: `${Math.max(4, smoothProgress)}%` }}
+                      />
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      약 {Math.round(smoothProgress)}%
+                    </p>
+                    {elapsedSec > LONG_RUNNING_SECONDS && (
+                      <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                        조금만 더 기다려 주세요. 영상이 길수록 더 걸려요.
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              )}
+              {detailsOpen && activeClip && clips.length > 0 && (
                 <CardContent className="space-y-4">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="rounded-xl border bg-muted/20 p-4">
@@ -959,32 +879,69 @@ export function ShortsGenerator() {
                     </ul>
                   </div>
 
-                  <div
-                    className="flex gap-2 overflow-x-auto pb-1"
-                    role="tablist"
-                    aria-label="조정할 클립"
-                  >
-                    {clips.map((clip, index) => (
-                      <Button
-                        key={clip.id}
-                        type="button"
-                        role="tab"
-                        size="sm"
-                        variant={clip.id === activeClip.id ? "secondary" : "outline"}
-                        aria-selected={clip.id === activeClip.id}
-                        className="max-w-44 shrink-0"
-                        onClick={() => setActiveClipId(clip.id)}
-                      >
-                        <span className="truncate">{index + 1}. {clip.file.name}</span>
-                      </Button>
-                    ))}
+                  {/*
+                    컷 고르는 자리. 전에는 파일명만 늘어놓은 회색 버튼이라 "지금 어느 컷을
+                    고치는 중인지", "다른 걸 누를 수 있다는 건지" 둘 다 안 보였다(원장님 지적).
+                    컷 역할("시술 전" 등)을 라벨로 쓰려다 되돌렸다 — 그건 화면이 순서를 보고
+                    자동 배정한 추측값(`defaultRole`)이라, 첫 컷에 완성본을 넣은 사람에게는
+                    화면이 틀린 말을 하게 된다. 파일명은 정보가 적어도 틀리지는 않는다.
+                  */}
+                  <div className="rounded-xl border bg-muted/20 p-3">
+                    <p className="text-sm font-medium">어느 컷을 고칠까요?</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      지금은 <strong className="font-semibold text-foreground">{activeClipIndex + 1}번</strong> 을 고치는 중이에요.
+                      다른 컷을 고치려면 아래에서 눌러주세요.
+                    </p>
+                    <div
+                      className="mt-3 flex gap-2 overflow-x-auto pb-1"
+                      role="tablist"
+                      aria-label="고칠 컷 고르기"
+                    >
+                      {clips.map((clip, index) => {
+                        const active = clip.id === activeClip.id;
+                        return (
+                          <button
+                            key={clip.id}
+                            type="button"
+                            role="tab"
+                            aria-selected={active}
+                            title={clip.file.name}
+                            onClick={() => setActiveClipId(clip.id)}
+                            className={`flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-xs transition-colors ${
+                              active
+                                ? "border-transparent font-semibold shadow-sm"
+                                : "border-border bg-background hover:bg-muted"
+                            }`}
+                            style={
+                              active
+                                ? { backgroundColor: IDENTITY_INK, color: "#fff" }
+                                : undefined
+                            }
+                          >
+                            <span
+                              className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold ${
+                                active ? "bg-white/25" : "bg-muted"
+                              }`}
+                            >
+                              {index + 1}
+                            </span>
+                            <span className="max-w-28 truncate">{clip.file.name}</span>
+                            {active && <Pencil className="h-3.5 w-3.5" />}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   <div className="rounded-xl border bg-card p-4">
                     <div className="mb-4 flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">
-                          {activeClipIndex + 1}. {activeClip.file.name}
+                        <p className="flex items-center gap-1.5 text-xs font-medium" style={{ color: IDENTITY_INK }}>
+                          <Pencil className="h-3.5 w-3.5" />
+                          {activeClipIndex + 1}번 컷을 고치는 중
+                        </p>
+                        <p className="mt-1 truncate text-sm font-medium">
+                          {activeClip.file.name}
                         </p>
                         <p className="mt-1 text-xs text-muted-foreground">
                           {(activeClip.file.size / MIB).toFixed(1)}MB
@@ -1186,28 +1143,20 @@ export function ShortsGenerator() {
                 </CardContent>
               )}
             </Card>
-            </div>
-          )}
-        </section>
+          </div>
 
-        <aside
-          ref={resultRef}
-          className={stepVisibility(
-            submitting || job ? PHONE_INPUT_STEP_COUNT + 1 : PHONE_INPUT_STEP_COUNT,
-            phoneStep,
-          )}
-        >
-          <Card className="sticky top-6">
+        <section ref={resultRef}>
+          <Card>
             <CardHeader>
-              <CardTitle>결과</CardTitle>
+              <CardTitle>저장해서 올리기</CardTitle>
               <CardDescription>
                 세로형 {audioMode === "original" ? "원음 포함" : "무음"} MP4로 생성됩니다.
               </CardDescription>
             </CardHeader>
             <CardContent>
               {job?.status === "completed" ? (
-                <div className="space-y-4">
-                  <div className="overflow-hidden rounded-2xl bg-black">
+                <div className="mx-auto w-full max-w-[420px] space-y-4">
+                  <div className="mx-auto w-full max-w-[320px] overflow-hidden rounded-2xl bg-black">
                     {/*
                       `#t=0.1` 로 첫 프레임을 미리 그린다. 그냥 두면 완성된 영상인데도
                       까만 화면에 재생 버튼만 떠서 실패한 것처럼 보였다(원장님 실측 4번).
@@ -1250,93 +1199,36 @@ export function ShortsGenerator() {
                   </a>
                   <Button variant="outline" className="w-full" onClick={reset}>새 영상 만들기</Button>
                 </div>
-              ) : submitting || (busy && job) ? (
-                <div className="py-10 text-center">
-                  <LoaderCircle className="mx-auto mb-4 h-8 w-8 animate-spin text-primary" />
-                  <p className="font-medium">{stage.title}</p>
-                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                    {stage.hint && (
-                      <>
-                        {stage.hint}
-                        <br />
-                      </>
-                    )}
-                    브라우저를 닫지 말고 잠시 기다려주세요.
-                  </p>
-                  <div
-                    className="mt-6 h-2 overflow-hidden rounded-full bg-muted"
-                    role="progressbar"
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={Math.round(smoothProgress)}
-                    aria-label="영상 만드는 중"
-                  >
-                    <div
-                      className="h-full rounded-full bg-primary transition-[width] duration-300 ease-linear"
-                      style={{ width: `${Math.max(4, smoothProgress)}%` }}
-                    />
-                  </div>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    약 {Math.round(smoothProgress)}%
-                  </p>
-                  {elapsedSec > LONG_RUNNING_SECONDS && (
-                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                      조금만 더 기다려 주세요. 영상이 길수록 더 걸려요.
-                    </p>
-                  )}
-                </div>
               ) : (
-                <div className="space-y-3">
-                  <div className="relative aspect-[9/16] overflow-hidden rounded-2xl border bg-gradient-to-b from-muted to-muted-foreground/25">
-                    <span className="absolute inset-0 m-auto flex h-12 w-12 items-center justify-center rounded-full bg-background/90 shadow">
-                      <Play className="ml-0.5 h-5 w-5" />
+                <div className="mx-auto max-w-[420px] space-y-3 py-4 text-center">
+                  <div className="relative mx-auto aspect-[9/16] w-full max-w-[200px] overflow-hidden rounded-2xl border bg-gradient-to-b from-muted to-muted-foreground/25">
+                    <span className="absolute inset-0 m-auto flex h-10 w-10 items-center justify-center rounded-full bg-background/90 shadow">
+                      <Play className="ml-0.5 h-4 w-4" />
                     </span>
-                    <span className="absolute bottom-3 left-3 rounded-full bg-black/55 px-2 py-1 text-[10px] text-white">
+                    <span className="absolute bottom-2 left-2 rounded-full bg-black/55 px-2 py-0.5 text-[10px] text-white">
                       9:16 · {audioMode === "original" ? "원음 포함" : "무음"}
                     </span>
-                    <span className="absolute top-3 right-3 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                      예시
-                    </span>
                   </div>
-                  <ul className="space-y-2">
-                    {EXAMPLE_CLIPS.map((clip) => (
-                      <li key={clip.role} className="rounded-xl border bg-card px-3 py-2 text-xs text-card-foreground">
-                        <p className="flex items-center gap-1.5 font-semibold">
-                          <Captions className="h-3.5 w-3.5 text-primary" />
-                          {clip.role}
-                          <span className="ml-auto font-normal text-muted-foreground">{clip.sec}</span>
-                        </p>
-                        <p className="mt-1 truncate text-muted-foreground">&ldquo;{clip.caption}&rdquo;</p>
-                      </li>
-                    ))}
-                  </ul>
                   <p className="text-xs leading-5 text-muted-foreground">
-                    영상을 {MIN_CLIPS}개 이상 올리면 고른 순서 그대로 초안을 만들어요.
-                    순서·자막을 바꿔 몇 번이든 다시 만들 수 있어요.
+                    완성되면 여기에 나와요. 저장한 뒤 인스타 릴스나 스토리에 그대로
+                    올리시면 됩니다.
                   </p>
                 </div>
-              )}
-              {clips.length >= MIN_CLIPS && (
-                <Button type="button" variant="outline" className="mt-4 w-full" onClick={openDetails}>
-                  세부 조정
-                </Button>
               )}
             </CardContent>
           </Card>
-        </aside>
+        </section>
       </div>
 
-      {phoneStep <= PHONE_INPUT_STEP_COUNT && (
-        <StepNav
-          step={phoneStep}
-          totalSteps={PHONE_INPUT_STEP_COUNT}
-          canGoNext={stepReady[phoneStep]}
-          nextHint={stepHint[phoneStep]}
-          onPrev={() => setPhoneStep((n) => Math.max(1, n - 1))}
-          onNext={() => setPhoneStep((n) => Math.min(PHONE_INPUT_STEP_COUNT, n + 1))}
-          cta={generateCta}
-          width="max-w-7xl"
-        />
+      {/*
+        폰에서는 카드를 세로로 펴 놓아 화면이 길어진다. 만들기 버튼이 화면 밖으로
+        밀려나지 않게 아래에 고정한다 — 얼굴 교체·블로그가 쓰는 StepNav 는 단계를
+        갈아끼우는 장치라 여기서는 걷어냈고, 이 화면에 필요한 건 버튼 하나뿐이다.
+      */}
+      {clips.length > 0 && job?.status !== "completed" && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 px-4 py-3 backdrop-blur lg:hidden">
+          <div className="mx-auto w-full max-w-3xl">{generateCta}</div>
+        </div>
       )}
     </div>
   );
