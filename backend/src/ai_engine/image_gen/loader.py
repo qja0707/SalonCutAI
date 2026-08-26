@@ -124,6 +124,8 @@ def get_face_helper():
 
     검출기는 RetinaFace 다. 조합 3 의 InsightFace 와 별개인데,
     복원 실험이 이 조합으로 이뤄져 같은 것을 쓴다.
+    인스턴스 하나를 clean_all → read_image 로 재사용하므로 동시 호출에
+    안전하지 않다. job_queue 가 워커 1개로 직렬 처리하는 것을 전제한다.
     """
     global _face_helper
     if _face_helper is not None:
