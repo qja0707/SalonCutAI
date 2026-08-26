@@ -1426,15 +1426,18 @@ def process_shorts(
     segmenter: MediaPipeFaceSkinSegmenter | None = None
     try:
         caption_paths = _write_caption_files(plans, output_path)
+        if progress:
+            progress(45)
         mask_paths = [None] * len(plans)
         if blur_faces and any(any(plan.geometry.face_present) for plan in plans):
             segmenter = MediaPipeFaceSkinSegmenter()
-            for index, plan in enumerate(plans):
-                if not any(plan.geometry.face_present):
-                    continue
+        for index, plan in enumerate(plans):
+            if segmenter is not None and any(plan.geometry.face_present):
                 mask_path = output_path.parent / f".{output_path.stem}-mask-{index}.mkv"
                 _write_face_skin_mask_video(ffmpeg, plan, mask_path, segmenter)
                 mask_paths[index] = mask_path
+            if progress:
+                progress(45 + round((index + 1) / len(plans) * 30))
         command = _render_command(
             ffmpeg,
             plans,
@@ -1445,6 +1448,8 @@ def process_shorts(
             audio_mode=audio_mode,
             tts_audio_path=tts_audio_path,
         )
+        if progress:
+            progress(80)
         completed = subprocess.run(command, capture_output=True, text=True, check=False)
         if completed.returncode != 0:
             raise RuntimeError(f"ffmpeg failed: {completed.stderr.strip()}")

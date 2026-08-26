@@ -755,6 +755,87 @@ def test_explicit_range_takes_precedence_over_selection(monkeypatch, tmp_path):
     assert ranged_command[ranged_command.index("-frames:v") + 1] == "36"
 
 
+@pytest.mark.parametrize(
+    ("clip_count", "blur_faces"), [(2, False), (2, True), (8, False), (8, True)]
+)
+def test_process_shorts_reports_stage_progress(
+    monkeypatch, tmp_path, clip_count, blur_faces
+):
+    class FakeCapture:
+        def __init__(self, _path):
+            self.values = {
+                cv2.CAP_PROP_FPS: 30,
+                cv2.CAP_PROP_FRAME_COUNT: 300,
+                cv2.CAP_PROP_FRAME_WIDTH: 720,
+                cv2.CAP_PROP_FRAME_HEIGHT: 1280,
+            }
+
+        def get(self, key):
+            return self.values[key]
+
+        def release(self):
+            return None
+
+    class FakeSegmenter:
+        def close(self):
+            return None
+
+    face = NormalizedFaceBox(0.4, 0.3, 0.1, 0.2)
+
+    def fake_track(
+        _ffmpeg,
+        _path,
+        _start,
+        _duration,
+        frame_count,
+        _width,
+        _height,
+        _detector,
+    ):
+        return FaceTrack((face,) * frame_count, 1, 1)
+
+    written_masks = []
+
+    def fake_write_mask(_ffmpeg, _plan, path, _segmenter):
+        path.write_bytes(b"mask")
+        written_masks.append(path)
+
+    monkeypatch.setattr(video_engine.cv2, "VideoCapture", FakeCapture)
+    monkeypatch.setattr(video_engine, "YuNetFaceDetector", lambda: object())
+    monkeypatch.setattr(video_engine, "_track_primary_face", fake_track)
+    monkeypatch.setattr(
+        video_engine, "_write_caption_files", lambda plans, _output: [None] * len(plans)
+    )
+    monkeypatch.setattr(video_engine, "MediaPipeFaceSkinSegmenter", FakeSegmenter)
+    monkeypatch.setattr(video_engine, "_write_face_skin_mask_video", fake_write_mask)
+    monkeypatch.setattr(
+        video_engine, "_render_command", lambda *_args, **_kwargs: ["ffmpeg"]
+    )
+    monkeypatch.setattr(
+        video_engine.subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(returncode=0, stderr=""),
+    )
+
+    clips = [
+        ClipInput(tmp_path / f"clip-{index}.mp4", "process", "center", "")
+        for index in range(clip_count)
+    ]
+    reported = []
+    process_shorts(
+        clips,
+        tmp_path / "shorts.mp4",
+        blur_faces=blur_faces,
+        progress=reported.append,
+    )
+
+    analysis = [round((index + 1) / clip_count * 40) for index in range(clip_count)]
+    masks = [45 + round((index + 1) / clip_count * 30) for index in range(clip_count)]
+    assert reported == [*analysis, 45, *masks, 80, 95, 100]
+    assert reported == sorted(reported)
+    assert len(written_masks) == (clip_count if blur_faces else 0)
+
+
 def test_rendered_original_and_tts_audio_stay_synced(monkeypatch, tmp_path):
     ffmpeg = shutil.which("ffmpeg")
     ffprobe = shutil.which("ffprobe")
