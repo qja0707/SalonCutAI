@@ -171,6 +171,31 @@ export function ShortsGenerator() {
   }, [job]);
 
   /**
+   * 만드는 중에는 진행 표시가 있는 ② 자동 편집 카드로, 다 되면 결과가 있는 ③ 저장
+   * 카드로 데려간다. 폰에서만 움직인다(`scrollIntoViewOnNarrow`).
+   *
+   * `requestAnimationFrame` 으로 부르던 것을 effect 로 옮겼다 — 영상을 담는 순간 ① 카드
+   * 높이가 크게 바뀌는데(예시 3컷이 빠지고 순서 목록이 들어온다), rAF 가 그 리렌더보다
+   * 먼저 돌면 옛 위치로 스크롤해 아무 데도 가지 않았다(#195 리뷰).
+   */
+  const scrolledToProgressRef = useRef(false);
+  useEffect(() => {
+    if (rendering) {
+      // 한 번 만들 때 한 번만 데려간다. status 가 queued → processing 으로 바뀔 때도
+      // effect 가 다시 도는데, 그때마다 끌어당기면 보고 있던 자리에서 밀려난다.
+      if (!scrolledToProgressRef.current) {
+        scrolledToProgressRef.current = true;
+        scrollIntoViewOnNarrow(editorRef.current);
+      }
+      return;
+    }
+    scrolledToProgressRef.current = false;
+    if (job?.status === "completed") {
+      scrollIntoViewOnNarrow(resultRef.current);
+    }
+  }, [rendering, job?.status]);
+
+  /**
    * 파일 선택창을 열기 전에 로그인부터 확인한다. 전에는 업로드하고 자막까지 다 손본
    * 뒤 서버가 401 을 주고서야 막혀서, 그때까지 한 작업이 통째로 날아갔다(원장님 실측).
    */
@@ -340,7 +365,6 @@ export function ShortsGenerator() {
     // 지난 실행의 진행률·경과 시간이 첫 tick 전까지 남아 보이지 않게 여기서 비운다.
     setSmoothProgress(0);
     setElapsedSec(0);
-    window.requestAnimationFrame(() => scrollIntoViewOnNarrow(resultRef.current));
     try {
       /*
         보내기 직전에 세션을 확인하고, 만료가 임박했으면 미리 갱신해 둔다.
