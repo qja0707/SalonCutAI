@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowDown,
   ArrowUp,
@@ -10,6 +11,7 @@ import {
   Film,
   Info,
   LoaderCircle,
+  LogIn,
   Play,
   Plus,
   ShieldCheck,
@@ -17,7 +19,12 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import { ClipFilmstrip } from "@/components/shorts/clip-filmstrip";
+import {
+  ClipFilmstrip,
+  MAX_RANGE_SECONDS,
+  MIN_RANGE_SECONDS,
+} from "@/components/shorts/clip-filmstrip";
+import { getCookie } from "@/lib/cookies";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -66,11 +73,31 @@ type ClipDraftChanges = Partial<VideoClipOptions> & {
   description?: string;
   descriptionMode?: DescriptionMode;
 };
-type UploadIssue = { title: string; messages: string[] };
+type UploadIssue = { title: string; messages: string[]; tone: "warning" | "error" };
 const MIB = 1024 * 1024;
 const MAX_FILE_BYTES = 160 * MIB;
 const MAX_TOTAL_BYTES = 320 * MIB;
 const MAX_CAPTION_CONTEXT_LENGTH = 100;
+/** 서버(`video_gen/engine.py` 의 MIN_CLIPS·MAX_CLIPS)와 같은 값. 개수가 화면 곳곳에
+ * 흩어져 있었는데, 8 을 하나 고치면 나머지도 같이 고쳐야 해서 상수로 모았다. */
+const MIN_CLIPS = 2;
+const MAX_CLIPS = 8;
+/** 완성 영상 전체 길이 상한. 클립당 5초와 함께 서버가 받는 값이다(승원님 확정). */
+const MAX_TOTAL_SECONDS = 30;
+/** 구간을 직접 고르지 않은 클립이 차지하는 길이(서버 `CLIP_SECONDS`). */
+const DEFAULT_CLIP_SECONDS = 2;
+
+/**
+ * 로그인 상태로 볼지.
+ *
+ * accessToken 은 30분이라 자주 사라지는데, refreshToken 이 남아 있으면 프록시가
+ * 재발급해 주므로(`api-client/server/response.ts`) 둘 중 하나만 있어도 통과시킨다.
+ * accessToken 만 보면 로그인한 지 30분 지난 사람을 막게 된다. 쿠키는 있는데 토큰이
+ * 실제로 죽은 경우까지는 못 거르고, 그건 기존 401 문구로 처리된다.
+ */
+function hasSession(): boolean {
+  return Boolean(getCookie("accessToken") || getCookie("refreshToken"));
+}
 const CUSTOM_DESCRIPTION_VALUE = "__custom__";
 const ACCEPTED_VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".webm", ".mkv"]);
 
@@ -155,6 +182,90 @@ const DESCRIPTION_OPTIONS = [
   "완성 확인",
 ] as const;
 
+/**
+ * 진행 중 안내 문구.
+ *
+ * 구간은 서버가 흘리는 progress 마일스톤에 맞춘다(backend PR #190) — 클립 분석 0~40,
+ * 자막 준비 45, 얼굴 블러 마스크 45~75, 인코딩 직전 80, 인코딩 완료 95, 정리 100.
+ * 그전에는 서버가 40 에서 95 로 바로 뛰어 화면이 "40% 에서 멈춘 것"처럼 보였다.
+ *
+ * `ceiling` 은 아래 useEffect 의 추정 진행률이 넘지 못할 한계다 — 다음 마일스톤을
+ * 앞질러 놓고 기다리는 일이 없어야 한다.
+ */
+type ProgressStage = {
+  from: number;
+  ceiling: number;
+  title: string;
+  hint: string;
+  /** 얼굴 블러를 끈 경우의 문구. 서버는 블러가 꺼져 있어도 같은 구간을 지나가므로
+   * (PR #190), 하지도 않은 일을 화면이 말하지 않도록 갈라 쓴다. */
+  titleWithoutBlur?: string;
+  hintWithoutBlur?: string;
+};
+
+const PROGRESS_STAGES: ProgressStage[] = [
+  {
+    from: 0,
+    ceiling: 15,
+    title: "영상을 올리고 있어요",
+    hint: "파일이 클수록 조금 더 걸려요.",
+  },
+  {
+    from: 1,
+    ceiling: 39,
+    title: "클립을 하나씩 다듬고 있어요",
+    hint: "고른 구간을 잘라내는 중이에요.",
+  },
+  {
+    from: 40,
+    ceiling: 44,
+    title: "자막을 얹고 있어요",
+    hint: "골라주신 문구를 화면에 앉히는 중이에요.",
+  },
+  {
+    from: 45,
+    ceiling: 79,
+    title: "얼굴을 찾아 흐리게 처리하고 있어요",
+    hint: "사람이 여럿 나오면 조금 더 걸려요.",
+    titleWithoutBlur: "장면을 하나씩 준비하고 있어요",
+    hintWithoutBlur: "얼굴 블러를 꺼두셔서 이 단계는 금방 지나가요.",
+  },
+  {
+    from: 80,
+    ceiling: 94,
+    title: "컷을 이어 붙이고 있어요",
+    hint: "이 단계가 가장 오래 걸려요. 그대로 두셔도 됩니다.",
+  },
+  {
+    from: 95,
+    ceiling: 99,
+    title: "마지막으로 다듬고 있어요",
+    hint: "곧 완성돼요.",
+  },
+];
+
+function progressStage(progress: number, blurFaces = true) {
+  const stage =
+    [...PROGRESS_STAGES].reverse().find((item) => progress >= item.from) ??
+    PROGRESS_STAGES[0];
+  return {
+    ceiling: stage.ceiling,
+    title: (!blurFaces && stage.titleWithoutBlur) || stage.title,
+    hint: !blurFaces && stage.hintWithoutBlur !== undefined
+      ? stage.hintWithoutBlur
+      : stage.hint,
+  };
+}
+
+/**
+ * 이 시간을 넘기면 "조금 더 걸린다"고만 알린다.
+ *
+ * 흐르는 초를 숫자로 보여주지는 않는다 — 기다리는 쪽이 초조해져서 얼굴 교체·블로그
+ * 화면에서 이미 걷어낸 표시다(8/25 원장님, `face-swap-waiting.tsx` 참고). 경과 시간은
+ * 이 판정에만 쓴다.
+ */
+const LONG_RUNNING_SECONDS = 120;
+
 function defaultRole(index: number, total: number): VideoRole {
   if (index === 0) return "before";
   if (index === total - 1) return "after";
@@ -174,13 +285,55 @@ export function ShortsGenerator() {
   const [topic, setTopic] = useState("");
   const [error, setError] = useState("");
   const [uploadIssue, setUploadIssue] = useState<UploadIssue | null>(null);
+  const [needsLogin, setNeedsLogin] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+  // 서버 progress 위에 얹는 추정 진행률과 경과 시간. 바가 멈춰 보이지 않게 하는 용도라
+  // 실제 작업량이 아니라 시간으로만 움직인다 — 그래서 화면에도 "약" 을 붙여 적는다.
+  const [smoothProgress, setSmoothProgress] = useState(0);
+  const [elapsedSec, setElapsedSec] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
-  const autoDraftedRef = useRef(false);
+  const loginNoticeRef = useRef<HTMLDivElement>(null);
+  /* 자동 초안을 이미 만들었는지. 버튼 라벨이 이 값을 읽어야 해서 ref 가 아니라
+     state 로 둔다 — 렌더 중 ref 를 읽으면 값이 바뀌어도 다시 그리지 않는다. */
+  const [autoDrafted, setAutoDrafted] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
   const resultRef = useRef<HTMLElement>(null);
   // 폰 단계식(A안, Discussion #149 — 얼굴 교체·블로그와 같은 흐름)에서 지금 보여줄 단계.
   // 1~2 는 입력, 3 은 결과. lg 이상에서는 쓰이지 않는다 — 카드가 전부 렌더된다.
   const [phoneStep, setPhoneStep] = useState(1);
+  const rendering =
+    submitting || job?.status === "queued" || job?.status === "processing";
+  const serverProgress = job?.progress ?? 0;
+  const serverProgressRef = useRef(0);
+
+  useEffect(() => {
+    serverProgressRef.current = serverProgress;
+  }, [serverProgress]);
+
+  /**
+   * 바가 멈춰 보이지 않게 250ms 마다 조금씩 채운다. 서버 값이 갱신되면 그 값으로
+   * 곧장 따라붙고(`Math.max`), 갱신이 없는 동안에는 같은 단계의 상한까지만 기어간다.
+   * 서버 progress 를 의존성에 넣으면 타이머가 다시 만들어져 경과 시간이 0 으로
+   * 돌아가므로, 최신값은 ref 로 읽는다.
+   */
+  useEffect(() => {
+    if (!rendering) return;
+    const startedAt = Date.now();
+    // 이번 실행의 진행률은 지역 변수로 들고 간다 — 실행이 시작될 때마다 0 에서
+    // 출발하므로 따로 초기화할 필요가 없고, setState 도 타이머 안에서만 부른다.
+    let estimate = 0;
+    const timer = window.setInterval(() => {
+      const server = serverProgressRef.current;
+      estimate = Math.min(
+        progressStage(server).ceiling,
+        Math.max(estimate, server) + 0.15,
+      );
+      setSmoothProgress(estimate);
+      setElapsedSec(Math.floor((Date.now() - startedAt) / 1000));
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [rendering]);
 
   useEffect(() => {
     if (!job || !["queued", "processing"].includes(job.status)) return;
@@ -200,25 +353,45 @@ export function ShortsGenerator() {
     return () => window.clearInterval(timer);
   }, [job]);
 
+  /**
+   * 파일 선택창을 열기 전에 로그인부터 확인한다. 전에는 업로드하고 자막까지 다 손본
+   * 뒤 서버가 401 을 주고서야 막혀서, 그때까지 한 작업이 통째로 날아갔다(원장님 실측).
+   */
+  function pickFiles() {
+    if (!hasSession()) {
+      setNeedsLogin(true);
+      window.requestAnimationFrame(() => scrollIntoViewOnNarrow(loginNoticeRef.current));
+      return;
+    }
+    setNeedsLogin(false);
+    inputRef.current?.click();
+  }
+
+  function goToSignin() {
+    router.push(`/user/signin?redirect=${encodeURIComponent(pathname)}`);
+  }
+
   function addFiles(files: FileList | null) {
     if (!files) return;
     const candidates = Array.from(files);
-    const available = Math.max(0, 8 - clips.length);
+    const available = Math.max(0, MAX_CLIPS - clips.length);
     const accepted: File[] = [];
     const messages: string[] = [];
+    const skippedByLimit: string[] = [];
     let totalLimitReported = false;
     let totalBytes = clips.reduce((sum, clip) => sum + clip.file.size, 0);
 
-    for (const [index, file] of candidates.entries()) {
+    for (const file of candidates) {
       if (!isAcceptedVideoFile(file)) {
         messages.push(`${file.name}: MP4, MOV, WEBM, MKV 형식만 지원합니다.`);
         continue;
       }
       if (accepted.length >= available) {
-        messages.push(
-          `최대 8개까지 추가할 수 있어 나머지 ${candidates.length - index}개는 제외했습니다.`,
-        );
-        break;
+        // 앞에서부터 채우고 남는 것은 버린다. 전에는 "나머지 N개 제외" 라고 개수만
+        // 알렸는데, 어느 파일이 빠졌는지 모르니 마지막에 고른 마무리 컷이 통째로
+        // 빠진 것을 완성 영상을 보고서야 알았다(원장님 실측). 이름으로 알린다.
+        skippedByLimit.push(file.name);
+        continue;
       }
       if (file.size > MAX_FILE_BYTES) {
         messages.push(
@@ -259,19 +432,29 @@ export function ShortsGenerator() {
       setClips(nextClips);
       setActiveClipId((current) => current ?? nextClips[0].id);
       if (
-        clips.length < 2 &&
-        nextClips.length >= 2 &&
-        !autoDraftedRef.current
+        clips.length < MIN_CLIPS &&
+        nextClips.length >= MIN_CLIPS &&
+        !autoDrafted
       ) {
-        autoDraftedRef.current = true;
+        setAutoDrafted(true);
         void submitDraft(nextClips);
       }
+    }
+    if (skippedByLimit.length) {
+      messages.push(
+        `영상은 최대 ${MAX_CLIPS}개까지 사용해요. 고른 ${candidates.length}개 중 ${accepted.length}개만 담았습니다.`,
+        `빠진 영상: ${skippedByLimit.join(", ")}`,
+        "마무리 컷이 빠졌다면 필요 없는 클립을 지우고 다시 올려주세요.",
+      );
     }
     setUploadIssue(
       messages.length
         ? {
-            title: accepted.length ? "일부 영상을 추가하지 못했어요" : "영상을 추가하지 못했어요",
+            title: accepted.length
+              ? "일부 영상은 빼고 담았어요"
+              : "영상을 추가하지 못했어요",
             messages,
+            tone: accepted.length ? "warning" : "error",
           }
         : null,
     );
@@ -290,7 +473,7 @@ export function ShortsGenerator() {
       setActiveClipId(nextClips[Math.min(removedIndex, nextClips.length - 1)]?.id ?? null);
     }
     if (nextClips.length === 0) {
-      autoDraftedRef.current = false;
+      setAutoDrafted(false);
       setBlurFaces(true);
       setAudioMode("mute");
       setOrderEdited(false);
@@ -315,13 +498,22 @@ export function ShortsGenerator() {
   }
 
   async function submitDraft(clipsToSubmit: ClipDraft[] = clips) {
-    if (clipsToSubmit.length < 2) {
+    if (clipsToSubmit.length < MIN_CLIPS) {
       setError("시술 전후 흐름을 위해 영상을 2개 이상 올려주세요.");
+      return;
+    }
+    // 고르는 사이에 토큰이 만료됐을 수 있어 보내기 직전에 한 번 더 본다.
+    if (!hasSession()) {
+      setNeedsLogin(true);
+      window.requestAnimationFrame(() => scrollIntoViewOnNarrow(loginNoticeRef.current));
       return;
     }
     setSubmitting(true);
     setJob(null);
     setError("");
+    // 지난 실행의 진행률·경과 시간이 첫 tick 전까지 남아 보이지 않게 여기서 비운다.
+    setSmoothProgress(0);
+    setElapsedSec(0);
     setPhoneStep(PHONE_INPUT_STEP_COUNT + 1);
     window.requestAnimationFrame(() => scrollIntoViewOnNarrow(resultRef.current));
     try {
@@ -356,7 +548,7 @@ export function ShortsGenerator() {
   }
 
   async function generateCaptions() {
-    if (clips.length < 2) {
+    if (clips.length < MIN_CLIPS) {
       setError("AI 자막 생성을 위해 영상을 2개 이상 올려주세요.");
       return;
     }
@@ -398,17 +590,13 @@ export function ShortsGenerator() {
     setActiveClipId(null);
     setOrderEdited(false);
     setDetailsOpen(false);
-    autoDraftedRef.current = false;
+    setAutoDrafted(false);
     setError("");
     setUploadIssue(null);
     setPhoneStep(1);
   }
 
-  const busy =
-    submitting ||
-    generatingCaptions ||
-    job?.status === "queued" ||
-    job?.status === "processing";
+  const busy = rendering || generatingCaptions;
 
   const activeClip = clips.find((clip) => clip.id === activeClipId) ?? clips[0] ?? null;
   const activeClipIndex = activeClip
@@ -419,27 +607,31 @@ export function ShortsGenerator() {
       sum +
       (clip.start_sec !== undefined && clip.end_sec !== undefined
         ? clip.end_sec - clip.start_sec
-        : 2),
+        : DEFAULT_CLIP_SECONDS),
     0,
   );
   const expectedSecondsLabel = expectedSeconds.toFixed(1).replace(/\.0$/, "");
+  // 서버가 전체 30초를 넘기면 422 로 떨군다. 만들기를 누르고 기다린 뒤 실패를 보는
+  // 것보다, 누르기 전에 막고 무엇을 줄이면 되는지 알려주는 편이 낫다.
+  const overLength = expectedSeconds > MAX_TOTAL_SECONDS;
+  const stage = progressStage(serverProgress, blurFaces);
 
   // 만들기 버튼 하나를 두 자리에서 그린다 — 데스크톱은 제목 옆, 폰은 하단 고정 바.
   const generateCta = (
     <Button
       onClick={() => submitDraft()}
-      disabled={busy || clips.length < 2}
+      disabled={busy || clips.length < MIN_CLIPS || overLength}
       className="w-full transition-[filter] hover:brightness-90 active:brightness-95"
       style={{ backgroundColor: IDENTITY_INK }}
     >
       {busy ? <LoaderCircle className="animate-spin" /> : <Film />}
-      {job || autoDraftedRef.current ? "변경사항으로 다시 만들기" : "숏츠 만들기"}
+      {job || autoDrafted ? "변경사항으로 다시 만들기" : "숏츠 만들기"}
     </Button>
   );
 
   const stepReady: Record<number, boolean> = {
-    1: clips.length >= 2,
-    2: clips.length >= 2,
+    1: clips.length >= MIN_CLIPS,
+    2: clips.length >= MIN_CLIPS,
   };
   const stepHint: Record<number, string> = {
     1: "영상을 2개 이상 올려주세요.",
@@ -492,6 +684,71 @@ export function ShortsGenerator() {
         </Alert>
       )}
 
+      {/*
+        전체 길이 초과. 만들기 버튼이 잠기는 이유라서 어느 단계에서나 보이도록
+        게이트 밖에 둔다 — 구간을 줄이는 곳(세부 조정)과 클립을 빼는 곳(업로드)이
+        서로 다른 카드에 있어서, 한쪽에만 두면 다른 쪽에서 이유를 알 수 없다.
+      */}
+      {overLength && (
+        <Alert variant="destructive" className="mt-4">
+          <Info />
+          <AlertTitle>전체 길이가 {MAX_TOTAL_SECONDS}초를 넘었어요</AlertTitle>
+          <AlertDescription>
+            지금 예상 {expectedSecondsLabel}초입니다. 세부 조정에서 구간을 줄이거나
+            클립을 빼면 만들 수 있어요.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/*
+        로그인 안내. 업로드를 누른 자리(1단계)에 두면 폰에서 결과 단계로 넘어갔을 때
+        가려지므로 오류 안내와 같은 자리에 둔다.
+      */}
+      {needsLogin && (
+        <div ref={loginNoticeRef}>
+          <Alert className="mt-4 border-primary/30 bg-primary/5">
+            <LogIn className="text-primary" />
+            <AlertTitle>로그인 후 이용할 수 있어요</AlertTitle>
+            <AlertDescription className="space-y-3">
+              <p>
+                영상을 올리기 전에 로그인해주세요. 다 만들고 나서 막히지 않도록 미리
+                확인합니다. 로그인하면 이 화면으로 돌아와요.
+              </p>
+              <Button type="button" size="sm" onClick={goToSignin}>
+                <LogIn />로그인하러 가기
+              </Button>
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
+
+      {/*
+        업로드에서 뺀 파일 안내도 같은 이유로 단계 게이트 밖에 둔다. 전에는 업로드
+        카드(1단계) 안에 있었는데, 영상 2개가 채워지는 순간 초안 생성이 시작되면서
+        화면이 결과(3단계)로 넘어가 버려 안내가 함께 사라졌다 — 10개를 골랐는데 8개만
+        들어간 것을 완성 영상에서야 알게 된 원인이다(원장님 실측).
+      */}
+      {uploadIssue && (
+        <Alert
+          variant={uploadIssue.tone === "error" ? "destructive" : "default"}
+          className={`mt-4 min-w-0 ${
+            uploadIssue.tone === "warning" ? "border-amber-300 bg-amber-50/60" : ""
+          }`}
+        >
+          <Info className={uploadIssue.tone === "warning" ? "text-amber-600" : undefined} />
+          <AlertTitle>{uploadIssue.title}</AlertTitle>
+          <AlertDescription>
+            <ul className="space-y-1">
+              {uploadIssue.messages.map((message, index) => (
+                <li key={`${index}-${message}`} className="break-words [overflow-wrap:anywhere]">
+                  {message}
+                </li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="mt-6 grid gap-6 lg:mt-0 lg:grid-cols-[minmax(0,1fr)_360px]">
         <section className="min-w-0 space-y-6">
           <Card className={stepVisibility(1, phoneStep)}>
@@ -502,14 +759,23 @@ export function ShortsGenerator() {
             <CardContent>
               <button
                 type="button"
-                onClick={() => inputRef.current?.click()}
-                disabled={busy || clips.length >= 8}
+                onClick={pickFiles}
+                disabled={busy || clips.length >= MAX_CLIPS}
                 className="flex w-full flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-muted/30 px-5 py-10 text-center transition-colors hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Upload className="mb-3 h-8 w-8 text-primary" />
                 <span className="font-medium">영상 선택하기</span>
-                <span className="mt-1 text-xs text-muted-foreground">2~8개 · 파일당 160MB</span>
+                <span className="mt-1 text-xs text-muted-foreground">
+                  {clips.length >= MAX_CLIPS
+                    ? `${MAX_CLIPS}개를 모두 채웠어요`
+                    : `${MIN_CLIPS}~${MAX_CLIPS}개 · 파일당 160MB`}
+                </span>
               </button>
+              {clips.length >= MAX_CLIPS && (
+                <p className="mt-2 text-center text-xs text-muted-foreground">
+                  더 넣으려면 아래 목록에서 필요 없는 클립을 지워주세요.
+                </p>
+              )}
               <Input
                 ref={inputRef}
                 type="file"
@@ -523,25 +789,72 @@ export function ShortsGenerator() {
                 className="hidden"
                 onChange={(event) => addFiles(event.target.files)}
               />
-              {uploadIssue && (
-                <Alert variant="destructive" className="mt-4 min-w-0">
-                  <Info />
-                  <AlertTitle>{uploadIssue.title}</AlertTitle>
-                  <AlertDescription>
-                    <ul className="space-y-1">
-                      {uploadIssue.messages.map((message, index) => (
-                        <li key={`${index}-${message}`} className="break-words [overflow-wrap:anywhere]">
-                          {message}
-                        </li>
-                      ))}
-                    </ul>
-                  </AlertDescription>
-                </Alert>
-              )}
+              {/*
+                담긴 클립과 그 순서를 업로드 자리에서 바로 보여준다. 순서 조절은 세부
+                조정 카드 안에도 있지만, 접힌 카드를 열고 클립 탭을 골라야 나와서
+                "순서를 바꿀 수 있다"는 것 자체를 알기 어려웠다(원장님 실측 6번).
+              */}
               {clips.length > 0 && (
-                <p className="mt-3 text-xs text-muted-foreground">
-                  클립 {clips.length}개 · 예상 {expectedSecondsLabel}초
-                </p>
+                <div className="mt-4 space-y-2">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                    <p className={`text-xs font-medium ${overLength ? "text-destructive" : ""}`}>
+                      클립 {clips.length}/{MAX_CLIPS}개 · 예상 {expectedSecondsLabel}초
+                      {overLength ? ` / 최대 ${MAX_TOTAL_SECONDS}초` : ""}
+                    </p>
+                    <p className="text-xs text-muted-foreground">고른 순서대로 이어 붙여요</p>
+                  </div>
+                  <ol className="space-y-1">
+                    {clips.map((clip, index) => (
+                      <li
+                        key={clip.id}
+                        className="flex items-center gap-2 rounded-lg border bg-card px-2 py-1.5"
+                      >
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-medium">
+                          {index + 1}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-xs">{clip.file.name}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          disabled={busy || index === 0}
+                          onClick={() => moveClip(index, -1)}
+                          aria-label={`${clip.file.name} 앞으로 이동`}
+                        >
+                          <ArrowUp className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          disabled={busy || index === clips.length - 1}
+                          onClick={() => moveClip(index, 1)}
+                          aria-label={`${clip.file.name} 뒤로 이동`}
+                        >
+                          <ArrowDown className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          disabled={busy}
+                          onClick={() => removeClip(clip.id)}
+                          aria-label={`${clip.file.name} 제거`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ol>
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    한 컷은 기본 {DEFAULT_CLIP_SECONDS}초예요. 세부 조정에서
+                    {MIN_RANGE_SECONDS}~{MAX_RANGE_SECONDS}초까지 바꿀 수 있고, 전체는
+                    최대 {MAX_TOTAL_SECONDS}초까지 만들어져요.
+                  </p>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -620,7 +933,7 @@ export function ShortsGenerator() {
                         type="button"
                         variant="secondary"
                         onClick={generateCaptions}
-                        disabled={busy || clips.length < 2}
+                        disabled={busy || clips.length < MIN_CLIPS}
                       >
                         {generatingCaptions ? (
                           <LoaderCircle className="animate-spin" />
@@ -856,8 +1169,8 @@ export function ShortsGenerator() {
                       />
                     </div>
                   </div>
-                  {clips.length < 8 && (
-                    <Button type="button" variant="outline" onClick={() => inputRef.current?.click()} disabled={busy}>
+                  {clips.length < MAX_CLIPS && (
+                    <Button type="button" variant="outline" onClick={pickFiles} disabled={busy}>
                       <Plus />영상 추가
                     </Button>
                   )}
@@ -886,7 +1199,25 @@ export function ShortsGenerator() {
               {job?.status === "completed" ? (
                 <div className="space-y-4">
                   <div className="overflow-hidden rounded-2xl bg-black">
-                    <video className="aspect-[9/16] w-full" controls playsInline src={videoJobUrl(job.job_id)} />
+                    {/*
+                      `#t=0.1` 로 첫 프레임을 미리 그린다. 그냥 두면 완성된 영상인데도
+                      까만 화면에 재생 버튼만 떠서 실패한 것처럼 보였다(원장님 실측 4번).
+                      Range 요청을 못 받는 환경을 대비해 onLoadedMetadata 에서도 한 번 더
+                      맞춘다 — 서버가 대표 프레임을 내려주면 poster 로 바꾸는 편이 낫다.
+                    */}
+                    <video
+                      className="aspect-[9/16] w-full"
+                      controls
+                      playsInline
+                      preload="metadata"
+                      src={`${videoJobUrl(job.job_id)}#t=0.1`}
+                      onLoadedMetadata={(event) => {
+                        const video = event.currentTarget;
+                        if (video.currentTime === 0 && video.duration > 0.2) {
+                          video.currentTime = 0.1;
+                        }
+                      }}
+                    />
                   </div>
                   <div className="rounded-xl bg-muted/60 p-3 text-xs text-muted-foreground">
                     <p className="flex items-center gap-2 text-foreground"><CheckCircle2 className="h-4 w-4 text-primary" />영상 생성 완료</p>
@@ -913,15 +1244,37 @@ export function ShortsGenerator() {
               ) : submitting || (busy && job) ? (
                 <div className="py-10 text-center">
                   <LoaderCircle className="mx-auto mb-4 h-8 w-8 animate-spin text-primary" />
-                  <p className="font-medium">영상을 편집하고 있습니다</p>
-                  <p className="mt-2 text-xs text-muted-foreground">브라우저를 닫지 말고 잠시 기다려주세요</p>
-                  <div className="mt-6 h-2 overflow-hidden rounded-full bg-muted">
+                  <p className="font-medium">{stage.title}</p>
+                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                    {stage.hint && (
+                      <>
+                        {stage.hint}
+                        <br />
+                      </>
+                    )}
+                    브라우저를 닫지 말고 잠시 기다려주세요.
+                  </p>
+                  <div
+                    className="mt-6 h-2 overflow-hidden rounded-full bg-muted"
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(smoothProgress)}
+                    aria-label="영상 만드는 중"
+                  >
                     <div
-                      className="h-full rounded-full bg-primary transition-all"
-                      style={{ width: `${Math.max(4, job?.progress ?? 0)}%` }}
+                      className="h-full rounded-full bg-primary transition-[width] duration-300 ease-linear"
+                      style={{ width: `${Math.max(4, smoothProgress)}%` }}
                     />
                   </div>
-                  <p className="mt-2 text-xs text-muted-foreground">{job?.progress ?? 0}%</p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    약 {Math.round(smoothProgress)}%
+                  </p>
+                  {elapsedSec > LONG_RUNNING_SECONDS && (
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                      조금만 더 기다려 주세요. 영상이 길수록 더 걸려요.
+                    </p>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -949,11 +1302,12 @@ export function ShortsGenerator() {
                     ))}
                   </ul>
                   <p className="text-xs leading-5 text-muted-foreground">
-                    영상을 2개 이상 올리면 바로 만들기 시작해요.
+                    영상을 {MIN_CLIPS}개 이상 올리면 고른 순서 그대로 초안을 만들어요.
+                    순서·자막을 바꿔 몇 번이든 다시 만들 수 있어요.
                   </p>
                 </div>
               )}
-              {clips.length >= 2 && (
+              {clips.length >= MIN_CLIPS && (
                 <Button type="button" variant="outline" className="mt-4 w-full" onClick={openDetails}>
                   세부 조정
                 </Button>

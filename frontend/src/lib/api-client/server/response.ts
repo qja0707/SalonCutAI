@@ -119,8 +119,20 @@ export async function proxyPendingResponse(
       }
     }
 
-    // 백엔드에서 401 Unauthorized (토큰 만료)가 내려온 경우
-    if (detail === "토큰이 만료되었습니다." && refreshToken) {
+    /*
+      401 이고 refreshToken 이 남아 있으면 재발급을 시도한다.
+
+      전에는 백엔드 문구가 정확히 "토큰이 만료되었습니다." 일 때만 갱신했는데,
+      accessToken **쿠키 자체가 만료돼 사라진** 경우에는 Authorization 헤더가 붙지
+      않아 FastAPI 기본 문구인 "Not authenticated" 가 내려온다 — 조건에서 빠져 갱신
+      없이 401 이 그대로 나갔다. accessToken 30분 / refreshToken 7일 설정이라
+      30분만 지나면 늘 이 상태가 되고, 그러면 7일짜리 refreshToken 이 무의미해진다.
+      문구 비교는 백엔드 메시지가 바뀌면 조용히 깨지기도 해서 상태 코드로 판정한다.
+    */
+    if (response.status === 401 && refreshToken) {
+      console.debug(
+        `[프록시] 401(${detail ?? "detail 없음"}) — 토큰 재발급을 시도합니다: ${pathname}`,
+      );
       if (isStream && hasBody) {
         console.warn(
           `[프록시] 대용량 스트림 요청 중 토큰 만료 발생. 내부 재시도가 불가능하므로 401을 그대로 반환합니다: ${pathname}`,
