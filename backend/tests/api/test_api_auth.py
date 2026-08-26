@@ -15,7 +15,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.api.api import api_router
-from src.service.auth import algoritm, create_jwt
+from src.service.auth import algoritm, create_jwt, verify_access_token
 
 
 def _client() -> TestClient:
@@ -71,14 +71,23 @@ def test_valid_token_passes_auth():
     assert response.status_code == 200
 
 
-def test_auth_me_returns_only_current_user_id():
+def test_auth_me_returns_id_and_matching_expiration():
+    access_token = _access_token()
     response = _client().get(
         "/api/v1/auth/me",
-        headers={"Authorization": f"Bearer {_access_token()}"},
+        headers={"Authorization": f"Bearer {access_token}"},
     )
 
     assert response.status_code == 200
-    assert response.json() == {"id": "testuser"}
+    body = response.json()
+    expires_at = datetime.fromisoformat(body["expires_at"])
+    token_info = verify_access_token(access_token)
+
+    assert set(body) == {"id", "expires_at"}
+    assert body["id"] == "testuser"
+    assert expires_at.tzinfo is not None
+    assert expires_at.utcoffset() == timedelta(0)
+    assert int(expires_at.timestamp()) == token_info.exp
 
 
 def test_auth_me_rejects_expired_token_with_existing_detail():

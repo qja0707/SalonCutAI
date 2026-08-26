@@ -1,18 +1,29 @@
+from datetime import UTC, datetime
+
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from src.api.dependencies import check_auth_token
 from src.db_session.db import get_db
-from src.schemas.auth import RefreshRequest, SigninRequest, SigninResponse
+from src.schemas.auth import (
+    CurrentUserResponse,
+    RefreshRequest,
+    SigninRequest,
+    SigninResponse,
+)
 from src.schemas.common import ErrorResponse
 from src.service.auth import signin_user, token_refresh_with_verify
 
 router = APIRouter(prefix="/auth", tags=["유저 로그인 및 토큰 재발급등 인증 관련"])
 
 
-@router.get("/me")
+@router.get("/me", response_model=CurrentUserResponse)
 def get_current_user(request: Request, _=Depends(check_auth_token)):
-    return {"id": request.state.user.sub}
+    user = request.state.user
+    return CurrentUserResponse(
+        id=user.sub,
+        expires_at=datetime.fromtimestamp(user.exp, UTC),
+    )
 
 
 @router.post(
