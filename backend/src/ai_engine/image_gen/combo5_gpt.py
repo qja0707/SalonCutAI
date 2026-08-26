@@ -40,16 +40,20 @@ def _square_box(
 
     얼굴이 가장자리에 붙어 있으면 그냥 자르는 것으로는 정사각이 깨지고,
     그 크롭을 1024×1024 로 늘리면 얼굴과 마스크 기하가 왜곡된다. 변 길이는
-    유지한 채 상자를 반대쪽으로 밀고, 변이 이미지 짧은 변보다 길면 짧은 변에
-    맞춘다. 어느 경우든 결과는 정사각이다.
+    유지한 채 상자를 이미지 안쪽으로 밀고, 변이 이미지보다 길면 밀지 않고
+    상자가 이미지 밖으로 나가게 둔다. 밖으로 나간 부분은 PIL crop 이 검정으로
+    채우고 paste 가 잘라내므로 generate 쪽은 그대로다. 어느 경우든 결과는
+    정사각이고 bbox 를 온전히 담는다.
     """
     x1, y1, x2, y2 = bbox
     cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
-    side = int(min(max(x2 - x1, y2 - y1) * pad, width, height))
+    side = int(max(x2 - x1, y2 - y1) * pad)
     left = round(cx - side / 2)
     top = round(cy - side / 2)
-    left = min(max(left, 0), width - side)
-    top = min(max(top, 0), height - side)
+    if side <= width:
+        left = min(max(left, 0), width - side)
+    if side <= height:
+        top = min(max(top, 0), height - side)
     return left, top, left + side, top + side
 
 

@@ -137,8 +137,15 @@ def test_run_prompt_mode_uses_sdxl_when_engine_is_not_gpt(monkeypatch):
     assert called["sdxl"]
 
 
-def test_square_box_stays_square_at_every_edge():
-    # 400×500, bbox 100px, pad 1.6 → side 160
+def _assert_square_contains(box, bbox, label):
+    x1, y1, x2, y2 = box
+    assert x2 - x1 == y2 - y1, label
+    assert x1 <= bbox[0] and y1 <= bbox[1], label
+    assert x2 >= bbox[2] and y2 >= bbox[3], label
+
+
+def test_square_box_stays_square_and_contains_bbox_at_every_edge():
+    # 400×500, bbox 100px, pad 1.6 → side 160, 이미지 안에서 밀어서 맞춘다
     cases = {
         "top": (100, 0, 200, 100),
         "bottom": (100, 400, 200, 500),
@@ -147,15 +154,26 @@ def test_square_box_stays_square_at_every_edge():
         "center": (150, 200, 250, 300),
     }
     for label, bbox in cases.items():
-        x1, y1, x2, y2 = combo5_gpt._square_box(bbox, 400, 500, 1.6)
-        assert x2 - x1 == y2 - y1 == 160, label
-        assert 0 <= x1 and x2 <= 400 and 0 <= y1 and y2 <= 500, label
+        box = combo5_gpt._square_box(bbox, 400, 500, 1.6)
+        _assert_square_contains(box, bbox, label)
+        assert box[2] - box[0] == 160, label
+        assert 0 <= box[0] and box[2] <= 400 and 0 <= box[1] and box[3] <= 500, label
 
 
-def test_square_box_clamps_side_to_short_edge():
-    x1, y1, x2, y2 = combo5_gpt._square_box((50, 50, 350, 350), 400, 500, 1.6)
-    assert x2 - x1 == y2 - y1 == 400  # 300×1.6=480 > 짧은 변 400
-    assert (x1, x2) == (0, 400) and 0 <= y1 and y2 <= 500
+def test_square_box_pads_outside_when_side_exceeds_image():
+    # 세로로 긴 얼굴이 좁은 이미지에: side 480 > 폭 200, 좌우를 이미지 밖으로 낸다
+    bbox = (20, 100, 180, 400)
+    box = combo5_gpt._square_box(bbox, 200, 500, 1.6)
+    _assert_square_contains(box, bbox, "narrow")
+    assert box[2] - box[0] == 480
+    assert box[0] < 0 and box[2] > 200  # 좌우 패딩
+    assert 0 <= box[1] and box[3] <= 500  # 세로는 이미지 안
+
+    # 양쪽 다 넘는 경우: 400×500 에 bbox 300 → side 480 > 폭 400
+    bbox = (50, 50, 350, 350)
+    box = combo5_gpt._square_box(bbox, 400, 500, 1.6)
+    _assert_square_contains(box, bbox, "wide")
+    assert box[2] - box[0] == 480 and box[0] < 0 and box[2] > 400
 
 
 def test_client_uses_timeout_and_no_retry(monkeypatch):
