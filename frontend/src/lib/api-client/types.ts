@@ -134,6 +134,13 @@ export type VideoJobResult = {
   height: number;
 };
 
+/** `/auth/me` 응답. 업로드 직전 세션 확인에 쓴다. */
+export type CurrentUser = {
+  id: string;
+  /** ISO 8601(UTC). 백엔드 #192 에서 추가됐다 — 아직 없는 배포도 있어 옵셔널로 둔다. */
+  expires_at?: string;
+};
+
 export type VideoJobResponse = {
   job_id: string;
   status: JobStatus;

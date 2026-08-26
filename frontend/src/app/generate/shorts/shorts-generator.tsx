@@ -24,7 +24,7 @@ import {
   MAX_RANGE_SECONDS,
   MIN_RANGE_SECONDS,
 } from "@/components/shorts/clip-filmstrip";
-import { getCookie } from "@/lib/cookies";
+import { ensureFreshSession, hasSession } from "@/lib/session";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -84,20 +84,16 @@ const MIN_CLIPS = 2;
 const MAX_CLIPS = 8;
 /** 완성 영상 전체 길이 상한. 클립당 5초와 함께 서버가 받는 값이다(승원님 확정). */
 const MAX_TOTAL_SECONDS = 30;
+/**
+ * 총합을 견줄 때 허용하는 오차. 서버의 `DURATION_EPSILON_SECONDS` 와 같은 값이다.
+ *
+ * 0.1 초 단위를 더하면 수학적으로 30 인 조합이 `30.000000000000004` 가 되는데, 서버는
+ * 이 허용치로 받아주므로 화면만 막으면 만들 수 있는 영상을 못 만들게 된다(#193 리뷰).
+ */
+const DURATION_EPSILON_SECONDS = 1e-6;
 /** 구간을 직접 고르지 않은 클립이 차지하는 길이(서버 `CLIP_SECONDS`). */
 const DEFAULT_CLIP_SECONDS = 2;
 
-/**
- * 로그인 상태로 볼지.
- *
- * accessToken 은 30분이라 자주 사라지는데, refreshToken 이 남아 있으면 프록시가
- * 재발급해 주므로(`api-client/server/response.ts`) 둘 중 하나만 있어도 통과시킨다.
- * accessToken 만 보면 로그인한 지 30분 지난 사람을 막게 된다. 쿠키는 있는데 토큰이
- * 실제로 죽은 경우까지는 못 거르고, 그건 기존 401 문구로 처리된다.
- */
-function hasSession(): boolean {
-  return Boolean(getCookie("accessToken") || getCookie("refreshToken"));
-}
 const CUSTOM_DESCRIPTION_VALUE = "__custom__";
 const ACCEPTED_VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".webm", ".mkv"]);
 
@@ -502,13 +498,19 @@ export function ShortsGenerator() {
       setError("시술 전후 흐름을 위해 영상을 2개 이상 올려주세요.");
       return;
     }
-    // 고르는 사이에 토큰이 만료됐을 수 있어 보내기 직전에 한 번 더 본다.
-    if (!hasSession()) {
+    setSubmitting(true);
+    /*
+      보내기 직전에 세션을 확인하고, 만료가 임박했으면 미리 갱신해 둔다.
+
+      업로드는 스트림이라 요청 도중 토큰이 만료되면 프록시가 재시도할 수 없다(#192 논의).
+      쿠키 유무만 보면 "아직 안 죽었지만 곧 죽을" 토큰으로 몇 분짜리 업로드를 시작하게 된다.
+    */
+    if (!(await ensureFreshSession())) {
+      setSubmitting(false);
       setNeedsLogin(true);
       window.requestAnimationFrame(() => scrollIntoViewOnNarrow(loginNoticeRef.current));
       return;
     }
-    setSubmitting(true);
     setJob(null);
     setError("");
     // 지난 실행의 진행률·경과 시간이 첫 tick 전까지 남아 보이지 않게 여기서 비운다.
@@ -528,7 +530,11 @@ export function ShortsGenerator() {
               ...(start_sec !== undefined && end_sec !== undefined
                 ? { start_sec, end_sec }
                 : {}),
-              ...(orderEdited ? { clip_order: index } : {}),
+              // 화면이 "고른 순서대로 이어 붙인다"고 말하므로 순서를 손대지 않았어도
+              // 항상 보낸다. 안 보내면 서버가 role 로 정렬하는데(`ROLE_ORDER`), 기본
+              // 배정이 5개부터 [전·과정·디테일·과정·마무리]가 되어 3번과 4번이 뒤바뀐다
+              // — 화면 순서와 결과가 달라진다(#193 리뷰).
+              clip_order: index,
               ...(audioMode === "original"
                 ? { keep_audio: keep_audio !== false }
                 : {}),
@@ -613,7 +619,8 @@ export function ShortsGenerator() {
   const expectedSecondsLabel = expectedSeconds.toFixed(1).replace(/\.0$/, "");
   // 서버가 전체 30초를 넘기면 422 로 떨군다. 만들기를 누르고 기다린 뒤 실패를 보는
   // 것보다, 누르기 전에 막고 무엇을 줄이면 되는지 알려주는 편이 낫다.
-  const overLength = expectedSeconds > MAX_TOTAL_SECONDS;
+  const overLength =
+    expectedSeconds - MAX_TOTAL_SECONDS > DURATION_EPSILON_SECONDS;
   const stage = progressStage(serverProgress, blurFaces);
 
   // 만들기 버튼 하나를 두 자리에서 그린다 — 데스크톱은 제목 옆, 폰은 하단 고정 바.
