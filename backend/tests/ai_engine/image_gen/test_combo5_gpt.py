@@ -135,3 +135,39 @@ def test_run_prompt_mode_uses_sdxl_when_engine_is_not_gpt(monkeypatch):
         == "sdxl-out"
     )
     assert called["sdxl"]
+
+
+def test_square_box_stays_square_at_every_edge():
+    # 400×500, bbox 100px, pad 1.6 → side 160
+    cases = {
+        "top": (100, 0, 200, 100),
+        "bottom": (100, 400, 200, 500),
+        "left": (0, 200, 100, 300),
+        "right": (300, 200, 400, 300),
+        "center": (150, 200, 250, 300),
+    }
+    for label, bbox in cases.items():
+        x1, y1, x2, y2 = combo5_gpt._square_box(bbox, 400, 500, 1.6)
+        assert x2 - x1 == y2 - y1 == 160, label
+        assert 0 <= x1 and x2 <= 400 and 0 <= y1 and y2 <= 500, label
+
+
+def test_square_box_clamps_side_to_short_edge():
+    x1, y1, x2, y2 = combo5_gpt._square_box((50, 50, 350, 350), 400, 500, 1.6)
+    assert x2 - x1 == y2 - y1 == 400  # 300×1.6=480 > 짧은 변 400
+    assert (x1, x2) == (0, 400) and 0 <= y1 and y2 <= 500
+
+
+def test_client_uses_timeout_and_no_retry(monkeypatch):
+    captured = {}
+
+    class FakeOpenAI:
+        def __init__(self, **kw):
+            captured.update(kw)
+
+    import openai
+
+    monkeypatch.setattr(openai, "OpenAI", FakeOpenAI)
+    combo5_gpt._client()
+    assert captured["timeout"] == settings.GPT_TIMEOUT_SEC == 90
+    assert captured["max_retries"] == settings.GPT_MAX_RETRIES == 0

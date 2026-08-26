@@ -95,6 +95,10 @@ COMBO5_GUIDANCE = 7.5
 # "sdxl" 로 두면 이전 경로로 돌아간다.
 PROMPT_MODE_ENGINE = os.getenv("PROMPT_MODE_ENGINE", "gpt")
 GPT_IMAGE_MODEL = os.getenv("GPT_IMAGE_MODEL", "gpt-image-2")
+# 실측 29~39초. SDK 기본(600초·재시도 2회)이면 워커 1개가 멈춘 응답을 오래
+# 기다린다. 재시도는 job 재시도 경로와 겹치므로 끈다(#197 리뷰).
+GPT_TIMEOUT_SEC = 90
+GPT_MAX_RETRIES = 0
 GPT_CROP_PAD = 1.6  # 얼굴 bbox 긴 변 대비 정사각 크롭 배율
 GPT_CROP_SIZE = 1024
 # 편집 마스크 = 얼굴 윤곽 +16% − 헤어(팽창 0.077). 윤곽 그대로면 턱 그림자를

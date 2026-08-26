@@ -26,26 +26,42 @@ logger = logging.getLogger(__name__)
 def _client():
     from openai import OpenAI
 
-    return OpenAI(api_key=os.getenv("OPENAI_KEY"))
+    return OpenAI(
+        api_key=os.getenv("OPENAI_KEY"),
+        timeout=settings.GPT_TIMEOUT_SEC,
+        max_retries=settings.GPT_MAX_RETRIES,
+    )
+
+
+def _square_box(
+    bbox: tuple[float, float, float, float], width: int, height: int, pad: float
+) -> tuple[int, int, int, int]:
+    """bbox 를 pad 배 키운 정사각 상자를 이미지 안에 맞춰 돌려준다.
+
+    얼굴이 가장자리에 붙어 있으면 그냥 자르는 것으로는 정사각이 깨지고,
+    그 크롭을 1024×1024 로 늘리면 얼굴과 마스크 기하가 왜곡된다. 변 길이는
+    유지한 채 상자를 반대쪽으로 밀고, 변이 이미지 짧은 변보다 길면 짧은 변에
+    맞춘다. 어느 경우든 결과는 정사각이다.
+    """
+    x1, y1, x2, y2 = bbox
+    cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+    side = int(min(max(x2 - x1, y2 - y1) * pad, width, height))
+    left = round(cx - side / 2)
+    top = round(cy - side / 2)
+    left = min(max(left, 0), width - side)
+    top = min(max(top, 0), height - side)
+    return left, top, left + side, top + side
 
 
 def _face_box(img: Image.Image) -> tuple[tuple[int, int, int, int], float]:
-    """얼굴 bbox 를 pad 배 키운 정사각 크롭 상자와 얼굴 폭을 돌려준다."""
+    """얼굴 크롭 상자와 얼굴 폭을 돌려준다."""
     faces = loader.get_face_app().get(cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR))
     if not faces:
         raise ValueError("얼굴을 찾을 수 없다")
     face = max(faces, key=lambda f: f.bbox[2] - f.bbox[0])
-    x1, y1, x2, y2 = face.bbox
-    cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
-    side = max(x2 - x1, y2 - y1) * settings.GPT_CROP_PAD
-    w, h = img.size
-    box = (
-        int(max(0, cx - side / 2)),
-        int(max(0, cy - side / 2)),
-        int(min(w, cx + side / 2)),
-        int(min(h, cy + side / 2)),
-    )
-    return box, float(x2 - x1)
+    x1, y1, x2, y2 = (float(v) for v in face.bbox)
+    box = _square_box((x1, y1, x2, y2), *img.size, settings.GPT_CROP_PAD)
+    return box, x2 - x1
 
 
 def _edit(crop: Image.Image, rgba: Image.Image, prompt: str) -> Image.Image:
