@@ -618,39 +618,38 @@ export function ShortsGenerator() {
               <CardTitle>시술 영상 고르기</CardTitle>
             </CardHeader>
             <CardContent>
-              <button
-                type="button"
-                onClick={pickFiles}
-                disabled={busy || clips.length >= MAX_CLIPS}
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  if (!busy && clips.length < MAX_CLIPS) setDragging(true);
-                }}
-                onDragLeave={() => setDragging(false)}
-                onDrop={handleDrop}
-                className={`flex w-full flex-col items-center justify-center rounded-2xl border border-dashed px-5 py-10 text-center transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                  dragging
-                    ? "border-primary bg-primary/5"
-                    : "border-border bg-muted/30 hover:bg-muted/60"
-                }`}
-              >
-                <Upload className="mb-3 h-8 w-8 text-primary" />
-                <span className="font-medium">영상 선택하기</span>
-                <span className="mt-1 text-xs text-muted-foreground">
-                  {clips.length >= MAX_CLIPS
-                    ? `${MAX_CLIPS}개를 모두 채웠어요`
-                    : `${MIN_CLIPS}~${MAX_CLIPS}개 · MP4, MOV, WEBM, MKV · 파일당 160MB`}
-                </span>
-                {clips.length < MAX_CLIPS && (
+              {/*
+                영상을 담기 전에는 이 자리가 주인공이지만, 담고 나면 담긴 목록이
+                주인공이어야 한다. 올린 뒤에도 큰 "영상 선택하기" 가 그대로 있으면
+                안 올라간 줄 알게 된다(원장님 실측) — 담기고 나면 목록 아래 작은
+                "영상 더 넣기" 로 물러난다.
+              */}
+              {clips.length === 0 && (
+                <button
+                  type="button"
+                  onClick={pickFiles}
+                  disabled={busy}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    if (!busy) setDragging(true);
+                  }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={handleDrop}
+                  className={`flex w-full flex-col items-center justify-center rounded-2xl border border-dashed px-5 py-10 text-center transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                    dragging
+                      ? "border-primary bg-primary/5"
+                      : "border-border bg-muted/30 hover:bg-muted/60"
+                  }`}
+                >
+                  <Upload className="mb-3 h-8 w-8 text-primary" />
+                  <span className="font-medium">영상 선택하기</span>
+                  <span className="mt-1 text-xs text-muted-foreground">
+                    {MIN_CLIPS}~{MAX_CLIPS}개 · MP4, MOV, WEBM, MKV · 파일당 160MB
+                  </span>
                   <span className="mt-1 text-xs text-muted-foreground">
                     {dragging ? "여기에 놓으세요" : "여기로 끌어다 놓아도 돼요"}
                   </span>
-                )}
-              </button>
-              {clips.length >= MAX_CLIPS && (
-                <p className="mt-2 text-center text-xs text-muted-foreground">
-                  더 넣으려면 아래 목록에서 필요 없는 클립을 지워주세요.
-                </p>
+                </button>
               )}
 
               {clips.length === 0 && (
@@ -756,6 +755,31 @@ export function ShortsGenerator() {
                     {MIN_RANGE_SECONDS}~{MAX_RANGE_SECONDS}초까지 바꿀 수 있고, 전체는
                     최대 {MAX_TOTAL_SECONDS}초까지 만들어져요.
                   </p>
+                  {clips.length < MAX_CLIPS ? (
+                    <button
+                      type="button"
+                      onClick={pickFiles}
+                      disabled={busy}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        if (!busy) setDragging(true);
+                      }}
+                      onDragLeave={() => setDragging(false)}
+                      onDrop={handleDrop}
+                      className={`flex w-full items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-3 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                        dragging
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:bg-muted/60"
+                      }`}
+                    >
+                      <Plus className="h-4 w-4" />
+                      {dragging ? "여기에 놓으세요" : `영상 더 넣기 (${MAX_CLIPS - clips.length}개 더)`}
+                    </button>
+                  ) : (
+                    <p className="text-center text-xs text-muted-foreground">
+                      {MAX_CLIPS}개를 모두 채웠어요. 바꾸려면 위에서 필요 없는 클립을 지워주세요.
+                    </p>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -1159,11 +1183,6 @@ export function ShortsGenerator() {
                       />
                     </div>
                   </div>
-                  {clips.length < MAX_CLIPS && (
-                    <Button type="button" variant="outline" onClick={pickFiles} disabled={busy}>
-                      <Plus />영상 추가
-                    </Button>
-                  )}
                 </CardContent>
               )}
             </Card>
