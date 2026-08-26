@@ -75,6 +75,27 @@ SKIN_TONE = {
     "태닝 톤": "deep tanned skin tone",
 }
 
+# GPT 이미지 편집용. 태그 나열은 GPT 에서 약해 문장으로 보낸다. 강아지·고양이·
+# 여우 3종은 눈꼬리 방향·눈 높이·코·입을 명시해야 갈리고, 나머지 동물상은
+# FACE_STYLE 어휘를 문장 틀에 넣는 것으로 충분하다(step3_combo5, 8/25~26).
+# 표정 단어("cool sharp expression")를 여기 넣으면 표정 축에 새어 들어가므로
+# 골격 묘사만 둔다.
+STYLE_SENT = {
+    "강아지상": (
+        "a puppy-like face: large round eyes with outer corners that droop gently "
+        "downward, soft rounded upper eyelids, a small soft nose tip, and full cheeks"
+    ),
+    "고양이상": (
+        "a cat-like face: long almond-shaped eyes with outer corners that tilt "
+        "upward, narrow eye height, a slim straight nose with a fine bridge, and "
+        "small well-defined lips"
+    ),
+    "여우상": (
+        "a fox-like face: long narrow eyes with slightly lowered lids and outer "
+        "corners stretched upward, a thin straight nose, and a slim pointed chin"
+    ),
+}
+
 # 립 2종은 색 이름만으로는 같은 오렌지레드로 뭉개져 명도·채도·마감을 직접 지정한다.
 MAKEUP = {
     "노메이크업": "no makeup, bare face",
@@ -167,3 +188,42 @@ def unmapped_values(options) -> list[str]:
         if value and value not in table:
             missing.append(f"{field}={value}")
     return missing
+
+
+def build_face_sentence(options) -> str:
+    """FacePromptOptions 를 GPT 이미지 편집용 문장으로 바꾼다.
+
+    형식은 다음과 같다.
+        Replace the face with a different {국적 성별 연령} who has {골격}.
+        Expression: {표정}. Makeup: {메이크업}. Keep the same head pose, ...
+
+    스킨 톤은 넣지 않는다. 얼굴 마스크 안만 바뀌어 목·이마와 갈리고, GPT 는
+    크롭 안 주변 피부를 보고 원본 톤에 맞춰 그리므로 지정 없이 두는 편이
+    자연스럽다. 크기·위치 유지 문구는 편집 영역을 넓히면 GPT 가 얼굴을 작게
+    그리는 것을 막는다.
+    """
+    ethnicity = ETHNICITY.get(options.ethnicity, "")
+    gender = GENDER.get(options.gender, "person")
+    age = AGE_GROUP.get(options.age, "")
+    who = " ".join(p for p in [ethnicity, gender, age] if p)
+
+    style = getattr(options, "face_style", "")
+    traits = STYLE_SENT.get(style) or FACE_STYLE.get(style, "")
+    expression = EXPRESSION.get(getattr(options, "expression", ""), "")
+    makeup = MAKEUP.get(getattr(options, "makeup", ""), "")
+
+    s = f"Replace the face with a different {who}"
+    if traits:
+        s += f" who has {traits}"
+    s += "."
+    if expression:
+        s += f" Expression: {expression}."
+    if makeup:
+        s += f" Makeup: {makeup}."
+    s += (
+        " Keep the same head pose, gaze direction and lighting."
+        " Photorealistic, natural skin."
+        " Keep the face the same size and position as the original;"
+        " do not shrink or shift it."
+    )
+    return s
