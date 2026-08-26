@@ -5,6 +5,9 @@
     색 정합 → 헤어 복원 재합성 → 눈썹 보존
 
 조합 3·5 가 같은 경로를 쓴다.
+
+블러 상수는 긴 변 1024 에서 정한 값이다. 후처리는 저장본(2048) 위에서 도므로
+이미지 크기에 비례해 키운다. 그대로 쓰면 경계 페더가 절반으로 좁아진다.
 """
 
 import cv2
@@ -12,6 +15,12 @@ import numpy as np
 from PIL import Image, ImageFilter
 
 from src.ai_engine.image_gen import loader, masks, settings
+
+BLUR_BASE_SIDE = 1024  # 블러 상수를 정한 기준 크기
+
+
+def _blur_scale(img: Image.Image) -> float:
+    return max(img.size) / BLUR_BASE_SIDE
 
 
 def color_transfer(
@@ -59,19 +68,22 @@ def recompose_with_hair(
     헤어 블러를 크게 잡으면 경계가 얇아 잔상이 생기므로 3 으로 둔다.
     """
     size = original.size
+    scale = _blur_scale(original)
     res = result.resize(size)
 
     comp = Image.composite(
         res,
         original,
         face_mask.resize(size).filter(
-            ImageFilter.GaussianBlur(settings.RECOMPOSE_BLUR)
+            ImageFilter.GaussianBlur(settings.RECOMPOSE_BLUR * scale)
         ),
     )
     return Image.composite(
         original,
         comp,
-        hair_mask.resize(size).filter(ImageFilter.GaussianBlur(settings.HAIR_BLUR)),
+        hair_mask.resize(size).filter(
+            ImageFilter.GaussianBlur(settings.HAIR_BLUR * scale)
+        ),
     )
 
 
@@ -92,7 +104,9 @@ def keep_brows(original: Image.Image, comp: Image.Image) -> Image.Image:
     return Image.composite(
         original,
         comp,
-        brow.resize(original.size).filter(ImageFilter.GaussianBlur(settings.HAIR_BLUR)),
+        brow.resize(original.size).filter(
+            ImageFilter.GaussianBlur(settings.HAIR_BLUR * _blur_scale(original))
+        ),
     )
 
 

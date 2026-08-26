@@ -18,12 +18,12 @@ def generate(
     img: Image.Image,
     options,
     seed: int,
-) -> tuple[Image.Image, Image.Image, Image.Image, Image.Image]:
+) -> tuple[Image.Image, Image.Image, Image.Image]:
     """생성 결과와 후처리에 필요한 마스크를 함께 돌려준다.
 
-    돌려주는 것은 (생성 결과, 리사이즈된 원본, 얼굴 마스크, 헤어 마스크) 다.
-    후처리가 원본 크기가 아니라 생성 크기 기준으로 돌아가야 해서
-    리사이즈된 원본도 같이 넘긴다.
+    돌려주는 것은 (생성 결과, 얼굴 마스크, 헤어 마스크) 다.
+    생성은 긴 변 1024 에서 하고 결과도 그 크기지만, 마스크는 원본 크기
+    그대로 돌려준다. 후처리가 원본 위에서 돌기 때문이다.
     """
     face_mask = masks.build_face_mask(img)
     if face_mask is None:
@@ -33,8 +33,6 @@ def generate(
     gen_mask = masks.build_gen_mask(face_mask, hair_mask)
 
     img_r, gen_r = masks.resize_for_sdxl(img, gen_mask)
-    face_r = face_mask.resize(img_r.size)
-    hair_r = hair_mask.resize(img_r.size)
 
     prompt = prompt_map.build_face_prompt(options)
     logger.info("조합 5 프롬프트: %s", prompt)
@@ -50,4 +48,4 @@ def generate(
         generator=torch.Generator("cuda").manual_seed(seed),
     ).images[0]
 
-    return out, img_r, face_r, hair_r
+    return out, face_mask, hair_mask
