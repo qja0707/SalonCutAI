@@ -211,7 +211,7 @@ function ReferencePicker({
 }) {
   const [faces, setFaces] = useState<ReferenceFace[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // 32장을 그대로 나열하면 폰에서 32칸이다. 성별·연령대·국적으로 좁힌다.
+  // 53장을 그대로 나열하면 폰에서 53칸이다. 성별·연령대·국적으로 좁힌다.
   const [genderFilter, setGenderFilter] = useState("");
   const [ageFilter, setAgeFilter] = useState("");
   const [ethnicityFilter, setEthnicityFilter] = useState("");
@@ -263,7 +263,9 @@ function ReferencePicker({
 
   // 폰에서도 썸네일 격자를 쓰고, 열은 2개다(8/27 원장님. 2·3·4열 시안을 놓고 고름).
   // 여기서 고르는 기준은 "20대 여성"이라는 글자가 아니라 마음에 드는 얼굴이라,
-  // 라벨보다 이미지가 커야 한다. 375px 기준 한 칸이 약 168px — 표정과 피부 결까지 보인다.
+  // 라벨보다 이미지가 커야 한다. 375px 기준 한 칸이 약 144px(실측 143.5px) — 표정과
+  // 피부 결까지 보인다. 시안에서 잡은 168px 은 페이지 패딩만 뺀 값이라 카드 안쪽
+  // 패딩이 빠져 있었다.
   // 한 화면에 4명뿐이지만, 위 필터로 좁혀 놓고 고르는 흐름이라 스크롤이 길어지지 않는다.
   return (
     <div className="space-y-3">

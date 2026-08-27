@@ -228,7 +228,7 @@ export function mockFaceSwapImage(
 }
 
 /**
- * 참조 얼굴 풀(조합 3) — 실제 백엔드와 같은 32장 구성이다.
+ * 참조 얼굴 풀(조합 3) — 실제 백엔드와 같은 53장 구성이다(#201 로 21장 추가).
  *
  * 출처는 backend/src/api/reference_faces.py 의 REFERENCE_FACES 상수. id·label·성별·
  * 국적·연령대를 그대로 옮겼다. mock 이 실서버와 다르면 로컬에서 만든 화면이
@@ -320,11 +320,14 @@ export function mockReferenceFaceThumbnail(
 ): { bytes: Uint8Array; filename: string } | null {
   const index = REFERENCE_FACES.findIndex((face) => face.id === faceId);
   if (index < 0) return null;
-  const face = REFERENCE_FACES[index];
   // 얼굴마다 색을 달리해 목록에서 서로 구분되게 한다. 실제 사진은 백엔드가 내려준다.
+  //
+  // 그림 안에 label 을 글자로 넣지 않는다 — 화면은 닉네임으로 부르는데(#204) 카드 그림에
+  // 옛 라벨이 함께 찍혀 한 칸에 이름이 둘로 보였다. 실서버 사진에는 없는 글자라 mock 에서만
+  // 나던 차이다. 이름은 카드 캡션이, 낭독용 정보는 alt 가 맡는다.
   const hue = (index * 47) % 360;
   const size = 320;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><rect width="100%" height="100%" fill="hsl(${hue} 45% 88%)"/><circle cx="${size / 2}" cy="${size * 0.42}" r="${size * 0.22}" fill="hsl(${hue} 40% 78%)"/><path d="M${size * 0.18} ${size} Q${size * 0.5} ${size * 0.6} ${size * 0.82} ${size}Z" fill="hsl(${hue} 40% 72%)"/><text x="50%" y="${size * 0.93}" text-anchor="middle" font-family="sans-serif" font-size="${size * 0.075}" fill="hsl(${hue} 30% 30%)">${face.label}</text></svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><rect width="100%" height="100%" fill="hsl(${hue} 45% 88%)"/><circle cx="${size / 2}" cy="${size * 0.42}" r="${size * 0.22}" fill="hsl(${hue} 40% 78%)"/><path d="M${size * 0.18} ${size} Q${size * 0.5} ${size * 0.6} ${size * 0.82} ${size}Z" fill="hsl(${hue} 40% 72%)"/></svg>`;
   return {
     bytes: new TextEncoder().encode(svg),
     filename: `reference-${faceId}-mock.svg`,
