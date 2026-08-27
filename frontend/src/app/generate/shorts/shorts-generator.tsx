@@ -15,7 +15,6 @@ import {
   Pencil,
   Play,
   Plus,
-  ShieldCheck,
   Sparkles,
   Trash2,
   Upload,
@@ -482,6 +481,7 @@ export function ShortsGenerator() {
   const overLength =
     expectedSeconds - MAX_TOTAL_SECONDS > DURATION_EPSILON_SECONDS;
   const stage = progressStage(serverProgress, blurFaces);
+  const hasResult = job?.status === "completed";
 
   // 만들기 버튼 하나를 두 자리에서 그린다 — 데스크톱은 제목 옆, 폰은 하단 고정 바.
   const generateCta = (
@@ -522,14 +522,6 @@ export function ShortsGenerator() {
         </div>
         <div className="hidden lg:block lg:shrink-0 lg:pt-1">{generateCta}</div>
       </div>
-
-      <Alert className="mb-6 border-primary/20 bg-primary/5 px-4 py-3">
-        <ShieldCheck className="text-primary" />
-        <AlertTitle>얼굴 블러는 한 명만 자동으로 적용돼요</AlertTitle>
-        <AlertDescription>
-          나머지 얼굴은 그대로 나옵니다. 올리기 전에 완성 영상을 확인해주세요.
-        </AlertDescription>
-      </Alert>
 
       <ShortsSteps current={currentStep} />
 
@@ -611,8 +603,14 @@ export function ShortsGenerator() {
         </Alert>
       )}
 
-      <div className="mt-6 space-y-6">
-          <Card>
+      {/*
+        완성 뒤에는 결과를 맨 위로 올린다(8/27 원장님). 고칠 대상이 눈앞에 있어야
+        "이 영상을 고치는 중" 이 읽힌다 — 결과가 맨 아래면 조정하면서 볼 수가 없다.
+        DOM 을 옮기지 않고 order 로만 바꾼다. resultRef·editorRef 로 스크롤을 옮기는
+        곳이 있어 순서를 코드에서 바꾸면 그쪽이 같이 흔들린다.
+      */}
+      <div className="mt-6 flex flex-col gap-6">
+          <Card className={hasResult ? "order-last" : undefined}>
             {/* 폰에서는 위 단계 표시가 같은 말을 하고 있다 — lg 에서만 제목을 둔다. */}
             <CardHeader className="hidden lg:grid">
               <CardTitle>시술 영상 고르기</CardTitle>
@@ -869,12 +867,15 @@ export function ShortsGenerator() {
                           onCheckedChange={setBlurFaces}
                         />
                       </div>
-                      {!blurFaces && (
-                        <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                          본인만 등장하거나 모든 출연자에게 촬영·게시 동의를 받은 영상에서만
-                          꺼주세요.
-                        </p>
-                      )}
+                      {/* 안내는 스위치 옆에 둔다(8/27 원장님). 화면 맨 위에 있을 때는
+                          영상을 올리기도 전에 떠서 무슨 블러인지 알 수 없었고, 정작
+                          스위치를 만질 때는 화면 밖이었다. 켜짐이 기본이라 켠 상태의
+                          한계를 먼저 알리고, 끄면 동의 안내로 바꾼다. */}
+                      <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                        {blurFaces
+                          ? "면적이 가장 큰 한 명에게만 적용돼요. 나머지 얼굴은 그대로 나오니 완성 영상을 확인해주세요."
+                          : "본인만 등장하거나 모든 출연자에게 촬영·게시 동의를 받은 영상에서만 꺼주세요."}
+                      </p>
                     </div>
                     <div className="rounded-xl border bg-muted/20 p-4">
                       <div className="flex items-center justify-between gap-4">
@@ -1188,7 +1189,7 @@ export function ShortsGenerator() {
             </Card>
           </div>
 
-        <section ref={resultRef}>
+        <section ref={resultRef} className={hasResult ? "order-first" : undefined}>
           <Card>
             <CardHeader>
               <CardTitle>저장해서 올리기</CardTitle>
@@ -1226,7 +1227,7 @@ export function ShortsGenerator() {
                     <p className="mt-1">
                       {job.meta?.blur_faces === false
                         ? "얼굴 블러 꺼짐"
-                        : `얼굴 검출·블러 ${job.meta?.faces_blurred ?? 0}회`}
+                        : `얼굴 검출·블러 ${job.meta?.faces_blurred ?? 0}회 (가장 큰 얼굴 한 명)`}
                     </p>
                     <p className="mt-1">
                       {job.meta?.audio_included ? "원본 음성 포함" : "무음 영상"}
@@ -1267,8 +1268,12 @@ export function ShortsGenerator() {
         폰에서는 카드를 세로로 펴 놓아 화면이 길어진다. 만들기 버튼이 화면 밖으로
         밀려나지 않게 아래에 고정한다 — 얼굴 교체·블로그가 쓰는 StepNav 는 단계를
         갈아끼우는 장치라 여기서는 걷어냈고, 이 화면에 필요한 건 버튼 하나뿐이다.
+
+        완성된 뒤에도 남긴다. 예전에는 status 가 completed 면 이 바를 걷었는데,
+        제목 옆 버튼은 lg 부터라 폰 폭에서는 고칠 것을 고치고도 누를 자리가 없었다.
+        라벨이 "변경사항으로 다시 만들기" 로 바뀌므로 같은 버튼이 재생성을 맡는다.
       */}
-      {clips.length > 0 && job?.status !== "completed" && (
+      {clips.length > 0 && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 px-4 py-3 backdrop-blur lg:hidden">
           <div className="mx-auto w-full max-w-3xl">{generateCta}</div>
         </div>
