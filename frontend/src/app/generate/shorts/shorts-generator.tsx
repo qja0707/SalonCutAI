@@ -24,6 +24,7 @@ import {
   MIN_RANGE_SECONDS,
 } from "@/components/shorts/clip-filmstrip";
 import { ensureFreshSession, hasSession } from "@/lib/session";
+import { StepNav, stepVisibility } from "@/components/flow/step-flow";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -106,6 +107,8 @@ export function ShortsGenerator() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   /* 컷 편집 드로어. 목록에서 컷을 누르면 열린다. */
   const [editorOpen, setEditorOpen] = useState(false);
+  /* 폰에서 지금 보고 있는 단계. lg 이상은 카드를 전부 그리므로 쓰이지 않는다. */
+  const [phoneStep, setPhoneStep] = useState<1 | 2 | 3>(1);
   const [topic, setTopic] = useState("");
   const [error, setError] = useState("");
   const [uploadIssue, setUploadIssue] = useState<UploadIssue | null>(null);
@@ -505,6 +508,7 @@ export function ShortsGenerator() {
     setDetailsOpen(false);
     setError("");
     setUploadIssue(null);
+    setPhoneStep(1);
   }
 
   const busy = rendering || generatingCaptions;
@@ -528,6 +532,16 @@ export function ShortsGenerator() {
     expectedSeconds - MAX_TOTAL_SECONDS > DURATION_EPSILON_SECONDS;
   const stage = progressStage(serverProgress, blurFaces);
   const hasResult = job?.status === "completed";
+  /*
+    폰에서 실제로 보여줄 단계. job 이 움직이면 그쪽이 이긴다 — 만드는 중에는 진행
+    표시가 있는 2단계, 다 되면 결과가 있는 3단계다. 그 밖에는 유저가 고른 단계를
+    쓴다. effect 에서 setState 하지 않으려고 파생값으로 둔다(lint 가 막는다).
+  */
+  const shownStep: 1 | 2 | 3 = hasResult
+    ? 3
+    : job?.status === "queued" || job?.status === "processing"
+      ? 2
+      : phoneStep;
 
   // 만들기 버튼 하나를 두 자리에서 그린다 — 데스크톱은 제목 옆, 폰은 하단 고정 바.
   const generateCta = (
@@ -660,7 +674,7 @@ export function ShortsGenerator() {
         곳이 있어 순서를 코드에서 바꾸면 그쪽이 같이 흔들린다.
       */}
       <div className="mt-6 flex flex-col gap-6">
-          <Card className={hasResult ? "order-last" : undefined}>
+          <Card className={stepVisibility(1, shownStep)}>
             {/* 폰에서는 위 단계 표시가 같은 말을 하고 있다 — lg 에서만 제목을 둔다. */}
             <CardHeader className="hidden lg:grid">
               <CardTitle>시술 영상 고르기</CardTitle>
@@ -858,7 +872,7 @@ export function ShortsGenerator() {
             </CardContent>
           </Card>
 
-          <div ref={editorRef}>
+          <div ref={editorRef} className={stepVisibility(2, shownStep)}>
             <Card>
               <CardHeader className="gap-4 sm:flex sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
@@ -1034,7 +1048,7 @@ export function ShortsGenerator() {
             </Card>
           </div>
 
-        <section ref={resultRef} className={hasResult ? "order-first" : undefined}>
+        <section ref={resultRef} className={stepVisibility(3, shownStep)}>
           <Card>
             <CardHeader>
               <CardTitle>저장해서 올리기</CardTitle>
@@ -1339,18 +1353,27 @@ export function ShortsGenerator() {
         </div>
       )}
       {/*
-        폰에서는 카드를 세로로 펴 놓아 화면이 길어진다. 만들기 버튼이 화면 밖으로
-        밀려나지 않게 아래에 고정한다 — 얼굴 교체·블로그가 쓰는 StepNav 는 단계를
-        갈아끼우는 장치라 여기서는 걷어냈고, 이 화면에 필요한 건 버튼 하나뿐이다.
-
-        완성 뒤에는 걷는다 — 그때는 결과가 맨 위에 있고 다시 만들기 버튼이 영상 바로
-        아래에 있어서, 화면 아래에 같은 버튼을 하나 더 띄울 이유가 없다(8/27 원장님).
+        폰에서는 한 번에 한 단계만 보여준다(8/27 원장님). 세로로 다 펴 놓으니 자동
+        편집 카드가 스크롤을 내려야 보였다 — 앱처럼 넘어가는 편이 낫다.
+        얼굴 교체·블로그가 쓰는 StepNav 를 그대로 쓴다. lg 이상은 카드가 전부
+        보이므로 이 바도, 단계 전환도 걸리지 않는다.
       */}
-      {clips.length > 0 && !hasResult && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 px-4 py-3 backdrop-blur lg:hidden">
-          <div className="mx-auto w-full max-w-3xl">{generateCta}</div>
-        </div>
-      )}
+      <StepNav
+        step={shownStep}
+        totalSteps={2}
+        canGoNext={clips.length >= MIN_CLIPS && !overLength}
+        nextHint={
+          clips.length < MIN_CLIPS
+            ? `영상을 ${MIN_CLIPS - clips.length}개 더 올려주세요.`
+            : overLength
+              ? "전체 길이가 30초를 넘어요. 구간을 줄여주세요."
+              : undefined
+        }
+        onPrev={() => setPhoneStep((current) => (current > 1 ? ((current - 1) as 1 | 2) : 1))}
+        onNext={() => setPhoneStep(2)}
+        cta={generateCta}
+        width="max-w-3xl"
+      />
     </div>
   );
 }
