@@ -15,6 +15,33 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const activeChipRef = useRef<HTMLAnchorElement>(null);
   // 오른쪽에 더 볼 메뉴가 남아 있는지. 남아 있을 때만 페이드를 그린다.
   const [hasMoreRight, setHasMoreRight] = useState(false);
+  /*
+    폰에서 스크롤을 내리면 상단 메뉴를 접는다(8/27 원장님). 좁은 화면에서 로그아웃
+    버튼과 메뉴 칩이 늘 자리를 차지해 화면이 지저분했다.
+
+    맨 위까지 되돌아가야 메뉴를 만나는 문제(#124 에서 sticky 로 만든 이유)는 그대로
+    막는다 — 조금이라도 위로 올리면 바로 다시 내려온다. 스크롤이 맨 위면 항상 편다.
+  */
+  const [navHidden, setNavHidden] = useState(false);
+
+  useEffect(() => {
+    let lastY = window.scrollY;
+    const onScroll = () => {
+      const y = window.scrollY;
+      // 손가락 떨림으로 깜빡이지 않게 4px 이상 움직였을 때만 판단한다.
+      if (y <= 8) setNavHidden(false);
+      else if (y > lastY + 4) setNavHidden(true);
+      else if (y < lastY - 4) setNavHidden(false);
+      lastY = y;
+    };
+    /*
+      window 가 아니라 document 캡처 단계에 건다. 본문이 어느 컨테이너에서 스크롤되든
+      캡처로는 잡히고, window 로만 걸면 놓치는 경우가 있다(로컬 실측).
+    */
+    document.addEventListener("scroll", onScroll, { passive: true, capture: true });
+    return () =>
+      document.removeEventListener("scroll", onScroll, { capture: true });
+  }, []);
 
   /*
     지금 보고 있는 화면의 메뉴가 스크롤 밖에 있으면 어디에 있는지 알 수 없다
@@ -110,7 +137,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           가려면 맨 위까지 되돌아가야 했다.
           bg-background 를 같이 주는 이유 — sticky 만 주면 스크롤한 본문이 헤더 뒤로 비친다.
         */}
-        <header className="sticky top-0 z-40 border-b border-border bg-background md:hidden">
+        <header
+          className={cn(
+            "sticky top-0 z-40 border-b border-border bg-background transition-transform duration-200 motion-reduce:transition-none md:hidden",
+            navHidden && "-translate-y-full",
+          )}
+        >
           <div className="flex items-center gap-2 border-t border-border px-3 py-2">
             {/*
               로그인은 메뉴 밖에 둔다 — 메뉴 안에 있으면 활성 칩이 오른쪽에 있을 때
