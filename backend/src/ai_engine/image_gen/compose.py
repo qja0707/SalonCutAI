@@ -87,6 +87,27 @@ def recompose_with_hair(
     )
 
 
+def recompose_skin(
+    original: Image.Image,
+    result: Image.Image,
+    skin_mask: Image.Image,
+    hair_mask: Image.Image,
+) -> Image.Image:
+    """피부 영역만 결과로 두고 머리카락·배경·옷은 원본으로 되돌린다. GPT 경로 전용.
+
+    얼굴 윤곽으로 자르는 recompose_with_hair 는 결과 얼굴이 원본보다 갸름할 때
+    경계 블러 띠에 원본 턱선이 섞여 선으로 남았다. 피부 클래스 경계는 원본 윤곽
+    바깥에 있어 그 안이 전부 결과 픽셀이 되므로 원본 윤곽이 섞이지 않는다.
+    경계가 피부↔배경·옷이라 얇은 블러(HAIR_BLUR)로 충분하다.
+    """
+    size = original.size
+    blur = ImageFilter.GaussianBlur(settings.HAIR_BLUR * _blur_scale(original))
+    comp = Image.composite(
+        result.resize(size), original, skin_mask.resize(size).filter(blur)
+    )
+    return Image.composite(original, comp, hair_mask.resize(size).filter(blur))
+
+
 def keep_brows(original: Image.Image, comp: Image.Image) -> Image.Image:
     """생성된 눈썹을 원본 눈썹으로 되돌린다.
 
