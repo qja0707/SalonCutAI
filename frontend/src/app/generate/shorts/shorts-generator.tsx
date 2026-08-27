@@ -6,7 +6,6 @@ import {
   ArrowDown,
   ArrowUp,
   Captions,
-  CheckCircle2,
   ChevronRight,
   Download,
   Film,
@@ -358,10 +357,53 @@ export function ShortsGenerator() {
     window.requestAnimationFrame(() => scrollIntoViewOnNarrow(editorRef.current));
   }
 
+  /**
+   * 주제로 자막을 만들어 붙인 클립 배열을 돌려준다. 실패하면 null 을 준다 —
+   * 부르는 쪽이 원래 클립으로 계속 진행한다.
+   */
+  async function captionsForTopic(source: ClipDraft[]): Promise<ClipDraft[] | null> {
+    setGeneratingCaptions(true);
+    try {
+      const response = await createVideoCaptions(
+        source.map(({ role, description }, index) => ({
+          index,
+          role,
+          description: description.trim() || undefined,
+        })),
+        topic.trim(),
+      );
+      return source.map((clip, index) => ({
+        ...clip,
+        caption: response.captions[index]?.caption ?? clip.caption,
+      }));
+    } catch {
+      setError("자막을 만들지 못해 기본 문구로 만듭니다. 완성 뒤 자막을 고칠 수 있어요.");
+      return null;
+    } finally {
+      setGeneratingCaptions(false);
+    }
+  }
+
   async function submitDraft(clipsToSubmit: ClipDraft[] = clips) {
     if (clipsToSubmit.length < MIN_CLIPS) {
       setError("시술 전후 흐름을 위해 영상을 2개 이상 올려주세요.");
       return;
+    }
+    /*
+      주제를 받아 놓고 쓰지 않던 것을 고친다(8/27 원장님). 주제는 "AI로 자막 만들기"
+      버튼에서만 쓰였고, 만들기는 클립의 caption 을 그대로 보냈다 — 그 값은 역할별
+      템플릿 문구라(`ROLE_OPTIONS.caption`) 무엇을 적든 결과가 같았다.
+
+      주제가 있으면 접수 전에 자막을 먼저 만들어 그 자막으로 접수한다. 실패해도
+      접수는 계속한다 — 자막 때문에 영상 자체를 못 만들게 하지 않는다.
+    */
+    let clipsForJob = clipsToSubmit;
+    if (topic.trim()) {
+      const withCaptions = await captionsForTopic(clipsToSubmit);
+      if (withCaptions) {
+        clipsForJob = withCaptions;
+        setClips(withCaptions);
+      }
     }
     setSubmitting(true);
     setJob(null);
@@ -385,7 +427,7 @@ export function ShortsGenerator() {
         return;
       }
       const created = await createVideoJob(
-        clipsToSubmit.map(
+        clipsForJob.map(
           ({ file, role, selection, caption, start_sec, end_sec, keep_audio }, index) => ({
             file,
             options: {
@@ -520,14 +562,18 @@ export function ShortsGenerator() {
           {/* 대제목은 릴스로 통일(Discussion #149) — 배지("인스타 릴스 · 스토리")와
               맞춘다. 메뉴는 AI 숏츠 만들기 그대로 — 역할 분리(8/17 원장님) */}
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">🎬 간편 릴스 만들기</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
-            찍어둔 클립만 고르면 9:16 릴스로 자동 편집돼요.
-          </p>
+          {!hasResult && (
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
+              찍어둔 클립만 고르면 9:16 릴스로 자동 편집돼요.
+            </p>
+          )}
         </div>
         <div className="hidden lg:block lg:shrink-0 lg:pt-1">{generateCta}</div>
       </div>
 
-      <ShortsSteps current={currentStep} />
+      {/* 다 만든 뒤에는 단계 표시를 걷는다(8/27 원장님). 어디까지 왔는지는 만드는
+          동안 쓸모 있는 정보이고, 완성 화면에서는 결과가 먼저 보여야 한다. */}
+      {!hasResult && <ShortsSteps current={currentStep} />}
 
       {/*
         요청 오류는 단계 게이트 밖에서 보여준다. 결과 칼럼(3단계) 안에 두면
@@ -1020,27 +1066,32 @@ export function ShortsGenerator() {
                       }}
                     />
                   </div>
-                  <div className="rounded-xl bg-muted/60 p-3 text-xs text-muted-foreground">
-                    <p className="flex items-center gap-2 text-foreground"><CheckCircle2 className="h-4 w-4 text-primary" />영상 생성 완료</p>
-                    <p className="mt-2">길이 {job.result?.duration_sec.toFixed(1)}초 · 처리 {job.meta?.processing_sec.toFixed(1)}초</p>
-                    <p className="mt-1">
-                      {job.meta?.blur_faces === false
-                        ? "얼굴 블러 꺼짐"
-                        : `얼굴 검출·블러 ${job.meta?.faces_blurred ?? 0}회 (가장 큰 얼굴 한 명)`}
-                    </p>
-                    <p className="mt-1">
-                      {job.meta?.audio_included ? "원본 음성 포함" : "무음 영상"}
-                    </p>
-                    <p className="mt-1">원본과 결과는 24시간 후 삭제돼요.</p>
+                  {/*
+                    길이·처리 시간·블러 횟수 같은 수치 상자를 걷었다(8/27 원장님).
+                    영상이 눈앞에 있는데 "생성 완료" 를 글로 다시 말할 이유가 없고,
+                    나머지는 유저가 궁금해하는 값이 아니다. 블러 한계는 스위치 옆에서
+                    이미 말한다. 보관 기한만 저장을 미루지 않도록 남긴다.
+                  */}
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <a
+                      href={videoJobUrl(job.job_id)}
+                      download="saloncutai-shorts.mp4"
+                      className={buttonVariants({ className: "w-full sm:flex-1" })}
+                    >
+                      <Download />MP4 다운로드
+                    </a>
+                    <Button
+                      variant="outline"
+                      className="w-full sm:flex-1"
+                      disabled={busy || clips.length < MIN_CLIPS || overLength}
+                      onClick={() => submitDraft()}
+                    >
+                      <Film />변경사항으로 다시 만들기
+                    </Button>
                   </div>
-                  <a
-                    href={videoJobUrl(job.job_id)}
-                    download="saloncutai-shorts.mp4"
-                    className={buttonVariants({ className: "w-full" })}
-                  >
-                    <Download />MP4 다운로드
-                  </a>
-                  <Button variant="outline" className="w-full" onClick={reset}>새 영상 만들기</Button>
+                  <p className="text-center text-xs text-muted-foreground">
+                    원본과 결과는 24시간 후 삭제돼요.
+                  </p>
                 </div>
               ) : (
                 <div className="mx-auto max-w-[420px] space-y-3 py-4 text-center">
@@ -1277,16 +1328,25 @@ export function ShortsGenerator() {
           )}
         </DrawerContent>
       </Drawer>
+
+      {/* 처음부터 다시 하는 길은 맨 아래에 둔다 — 자주 쓰는 것이 아니고, 위에 두면
+          "다시 만들기" 와 헷갈린다(8/27 원장님). 이건 올린 영상까지 지운다. */}
+      {hasResult && (
+        <div className="mt-8 flex justify-center">
+          <Button variant="ghost" onClick={reset}>
+            새 영상 만들기
+          </Button>
+        </div>
+      )}
       {/*
         폰에서는 카드를 세로로 펴 놓아 화면이 길어진다. 만들기 버튼이 화면 밖으로
         밀려나지 않게 아래에 고정한다 — 얼굴 교체·블로그가 쓰는 StepNav 는 단계를
         갈아끼우는 장치라 여기서는 걷어냈고, 이 화면에 필요한 건 버튼 하나뿐이다.
 
-        완성된 뒤에도 남긴다. 예전에는 status 가 completed 면 이 바를 걷었는데,
-        제목 옆 버튼은 lg 부터라 폰 폭에서는 고칠 것을 고치고도 누를 자리가 없었다.
-        라벨이 "변경사항으로 다시 만들기" 로 바뀌므로 같은 버튼이 재생성을 맡는다.
+        완성 뒤에는 걷는다 — 그때는 결과가 맨 위에 있고 다시 만들기 버튼이 영상 바로
+        아래에 있어서, 화면 아래에 같은 버튼을 하나 더 띄울 이유가 없다(8/27 원장님).
       */}
-      {clips.length > 0 && (
+      {clips.length > 0 && !hasResult && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 px-4 py-3 backdrop-blur lg:hidden">
           <div className="mx-auto w-full max-w-3xl">{generateCta}</div>
         </div>
