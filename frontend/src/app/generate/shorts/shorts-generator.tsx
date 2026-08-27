@@ -120,9 +120,6 @@ export function ShortsGenerator() {
   const [elapsedSec, setElapsedSec] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const loginNoticeRef = useRef<HTMLDivElement>(null);
-  /* 자동 초안을 이미 만들었는지. 버튼 라벨이 이 값을 읽어야 해서 ref 가 아니라
-     state 로 둔다 — 렌더 중 ref 를 읽으면 값이 바뀌어도 다시 그리지 않는다. */
-  const [autoDrafted, setAutoDrafted] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
   const resultRef = useRef<HTMLElement>(null);
   // 폰 단계식(A안, Discussion #149 — 얼굴 교체·블로그와 같은 흐름)에서 지금 보여줄 단계.
@@ -297,14 +294,14 @@ export function ShortsGenerator() {
       const nextClips = [...clips, ...addedClips];
       setClips(nextClips);
       setActiveClipId((current) => current ?? nextClips[0].id);
-      if (
-        clips.length < MIN_CLIPS &&
-        nextClips.length >= MIN_CLIPS &&
-        !autoDrafted
-      ) {
-        setAutoDrafted(true);
-        void submitDraft(nextClips);
-      }
+      /*
+        영상이 채워지는 순간 바로 만들지 않는다(8/27 원장님). 엔진은 영상을 보지
+        않으므로, 유저가 무슨 시술인지 알려주기 전에 만들면 자막이 역할별 템플릿
+        문구로 나온다 — AI 가 한 일이 없는 결과다. 재료를 받고 나서 만든다.
+
+        "설정 없이도 결과가 나온다"(#180)는 그대로다. 주제를 비워도 버튼 한 번이면
+        전과 같은 결과가 나오고, 채우면 첫 결과부터 자막이 그 내용을 탄다.
+      */
     }
     if (skippedByLimit.length) {
       messages.push(
@@ -339,7 +336,6 @@ export function ShortsGenerator() {
       setActiveClipId(nextClips[Math.min(removedIndex, nextClips.length - 1)]?.id ?? null);
     }
     if (nextClips.length === 0) {
-      setAutoDrafted(false);
       setBlurFaces(true);
       setAudioMode("mute");
       setOrderEdited(false);
@@ -465,7 +461,6 @@ export function ShortsGenerator() {
     setActiveClipId(null);
     setOrderEdited(false);
     setDetailsOpen(false);
-    setAutoDrafted(false);
     setError("");
     setUploadIssue(null);
   }
@@ -501,7 +496,7 @@ export function ShortsGenerator() {
       style={{ backgroundColor: IDENTITY_INK }}
     >
       {busy ? <LoaderCircle className="animate-spin" /> : <Film />}
-      {job || autoDrafted ? "변경사항으로 다시 만들기" : "숏츠 만들기"}
+      {job ? "변경사항으로 다시 만들기" : "숏츠 만들기"}
     </Button>
   );
 
@@ -666,18 +661,20 @@ export function ShortsGenerator() {
                 편집은 아직 이 값을 쓰지 않는다 — 자막 생성에만 들어간다.
               */}
               {clips.length > 0 && (
-                <div className="mt-5 space-y-2">
-                  <Label htmlFor="caption-topic">무슨 시술인가요? (선택)</Label>
+                <div className="mt-5 space-y-2 rounded-xl border bg-muted/20 p-4">
+                  <Label htmlFor="caption-topic">무슨 시술인가요?</Label>
                   <Input
                     id="caption-topic"
                     value={topic}
                     maxLength={MAX_CAPTION_CONTEXT_LENGTH}
                     disabled={busy}
-                    placeholder="예: 레이어드컷, 여름 스타일 변신"
+                    placeholder="예: 퍼스널 컬러 염색, 레이어드컷"
                     onChange={(event) => setTopic(event.target.value)}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    자막을 만들 때 씁니다. 영상은 전송되지 않아요.
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    {clips.length >= MIN_CLIPS
+                      ? "적어주시면 자막이 이 내용을 타고 나옵니다. 비워두고 만드셔도 돼요."
+                      : `영상을 ${MIN_CLIPS - clips.length}개 더 올리면 만들 수 있어요.`}
                   </p>
                 </div>
               )}
@@ -830,9 +827,9 @@ export function ShortsGenerator() {
                     </Badge>
                   </CardTitle>
                   <CardDescription className="mt-2 leading-6">
-                    고른 순서대로 이어 붙이고 자막까지 얹어드려요. 영상 길이에 따라
-                    걸리는 시간이 달라져요. 그대로 두셔도 되고, 마음에 안 드는 부분만
-                    고치셔도 돼요.
+                    {job
+                      ? "그대로 두셔도 되고, 마음에 안 드는 부분만 고치셔도 돼요. 고친 뒤 다시 만들면 반영됩니다."
+                      : "고른 순서대로 이어 붙이고 자막을 얹어드려요. 아래 버튼을 누르면 만들기 시작합니다. 영상 길이에 따라 걸리는 시간이 달라져요."}
                   </CardDescription>
                 </div>
                 {clips.length > 0 && (
