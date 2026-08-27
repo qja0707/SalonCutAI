@@ -7,15 +7,14 @@ import {
   ArrowUp,
   Captions,
   CheckCircle2,
+  ChevronRight,
   Download,
   Film,
   Info,
   LoaderCircle,
   LogIn,
-  Pencil,
   Play,
   Plus,
-  ShieldCheck,
   Sparkles,
   Trash2,
   Upload,
@@ -30,6 +29,13 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -99,6 +105,8 @@ export function ShortsGenerator() {
   const [activeClipId, setActiveClipId] = useState<string | null>(null);
   const [orderEdited, setOrderEdited] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  /* 컷 편집 드로어. 목록에서 컷을 누르면 열린다. */
+  const [editorOpen, setEditorOpen] = useState(false);
   const [topic, setTopic] = useState("");
   const [error, setError] = useState("");
   const [uploadIssue, setUploadIssue] = useState<UploadIssue | null>(null);
@@ -112,9 +120,6 @@ export function ShortsGenerator() {
   const [elapsedSec, setElapsedSec] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const loginNoticeRef = useRef<HTMLDivElement>(null);
-  /* 자동 초안을 이미 만들었는지. 버튼 라벨이 이 값을 읽어야 해서 ref 가 아니라
-     state 로 둔다 — 렌더 중 ref 를 읽으면 값이 바뀌어도 다시 그리지 않는다. */
-  const [autoDrafted, setAutoDrafted] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
   const resultRef = useRef<HTMLElement>(null);
   // 폰 단계식(A안, Discussion #149 — 얼굴 교체·블로그와 같은 흐름)에서 지금 보여줄 단계.
@@ -289,14 +294,14 @@ export function ShortsGenerator() {
       const nextClips = [...clips, ...addedClips];
       setClips(nextClips);
       setActiveClipId((current) => current ?? nextClips[0].id);
-      if (
-        clips.length < MIN_CLIPS &&
-        nextClips.length >= MIN_CLIPS &&
-        !autoDrafted
-      ) {
-        setAutoDrafted(true);
-        void submitDraft(nextClips);
-      }
+      /*
+        영상이 채워지는 순간 바로 만들지 않는다(8/27 원장님). 엔진은 영상을 보지
+        않으므로, 유저가 무슨 시술인지 알려주기 전에 만들면 자막이 역할별 템플릿
+        문구로 나온다 — AI 가 한 일이 없는 결과다. 재료를 받고 나서 만든다.
+
+        "설정 없이도 결과가 나온다"(#180)는 그대로다. 주제를 비워도 버튼 한 번이면
+        전과 같은 결과가 나오고, 채우면 첫 결과부터 자막이 그 내용을 탄다.
+      */
     }
     if (skippedByLimit.length) {
       messages.push(
@@ -331,7 +336,6 @@ export function ShortsGenerator() {
       setActiveClipId(nextClips[Math.min(removedIndex, nextClips.length - 1)]?.id ?? null);
     }
     if (nextClips.length === 0) {
-      setAutoDrafted(false);
       setBlurFaces(true);
       setAudioMode("mute");
       setOrderEdited(false);
@@ -457,7 +461,6 @@ export function ShortsGenerator() {
     setActiveClipId(null);
     setOrderEdited(false);
     setDetailsOpen(false);
-    setAutoDrafted(false);
     setError("");
     setUploadIssue(null);
   }
@@ -482,6 +485,7 @@ export function ShortsGenerator() {
   const overLength =
     expectedSeconds - MAX_TOTAL_SECONDS > DURATION_EPSILON_SECONDS;
   const stage = progressStage(serverProgress, blurFaces);
+  const hasResult = job?.status === "completed";
 
   // 만들기 버튼 하나를 두 자리에서 그린다 — 데스크톱은 제목 옆, 폰은 하단 고정 바.
   const generateCta = (
@@ -492,7 +496,7 @@ export function ShortsGenerator() {
       style={{ backgroundColor: IDENTITY_INK }}
     >
       {busy ? <LoaderCircle className="animate-spin" /> : <Film />}
-      {job || autoDrafted ? "변경사항으로 다시 만들기" : "숏츠 만들기"}
+      {job ? "변경사항으로 다시 만들기" : "숏츠 만들기"}
     </Button>
   );
 
@@ -522,14 +526,6 @@ export function ShortsGenerator() {
         </div>
         <div className="hidden lg:block lg:shrink-0 lg:pt-1">{generateCta}</div>
       </div>
-
-      <Alert className="mb-6 border-primary/20 bg-primary/5 px-4 py-3">
-        <ShieldCheck className="text-primary" />
-        <AlertTitle>얼굴 블러는 한 명만 자동으로 적용돼요</AlertTitle>
-        <AlertDescription>
-          나머지 얼굴은 그대로 나옵니다. 올리기 전에 완성 영상을 확인해주세요.
-        </AlertDescription>
-      </Alert>
 
       <ShortsSteps current={currentStep} />
 
@@ -611,8 +607,14 @@ export function ShortsGenerator() {
         </Alert>
       )}
 
-      <div className="mt-6 space-y-6">
-          <Card>
+      {/*
+        완성 뒤에는 결과를 맨 위로 올린다(8/27 원장님). 고칠 대상이 눈앞에 있어야
+        "이 영상을 고치는 중" 이 읽힌다 — 결과가 맨 아래면 조정하면서 볼 수가 없다.
+        DOM 을 옮기지 않고 order 로만 바꾼다. resultRef·editorRef 로 스크롤을 옮기는
+        곳이 있어 순서를 코드에서 바꾸면 그쪽이 같이 흔들린다.
+      */}
+      <div className="mt-6 flex flex-col gap-6">
+          <Card className={hasResult ? "order-last" : undefined}>
             {/* 폰에서는 위 단계 표시가 같은 말을 하고 있다 — lg 에서만 제목을 둔다. */}
             <CardHeader className="hidden lg:grid">
               <CardTitle>시술 영상 고르기</CardTitle>
@@ -650,6 +652,31 @@ export function ShortsGenerator() {
                     {dragging ? "여기에 놓으세요" : "여기로 끌어다 놓아도 돼요"}
                   </span>
                 </button>
+              )}
+
+              {/*
+                시술 주제를 영상 고르는 자리로 올렸다(8/27 원장님). 자동 편집 카드 안쪽에
+                있을 때는 자막을 만들 때가 되어서야 눈에 띄었는데, 영상을 넣으면서 무슨
+                시술인지 함께 받는 편이 흐름에 맞고 자막도 그만큼 좋아진다.
+                편집은 아직 이 값을 쓰지 않는다 — 자막 생성에만 들어간다.
+              */}
+              {clips.length > 0 && (
+                <div className="mt-5 space-y-2 rounded-xl border bg-muted/20 p-4">
+                  <Label htmlFor="caption-topic">무슨 시술인가요?</Label>
+                  <Input
+                    id="caption-topic"
+                    value={topic}
+                    maxLength={MAX_CAPTION_CONTEXT_LENGTH}
+                    disabled={busy}
+                    placeholder="예: 퍼스널 컬러 염색, 레이어드컷"
+                    onChange={(event) => setTopic(event.target.value)}
+                  />
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    {clips.length >= MIN_CLIPS
+                      ? "적어주시면 자막이 이 내용을 타고 나옵니다. 비워두고 만드셔도 돼요."
+                      : `영상을 ${MIN_CLIPS - clips.length}개 더 올리면 만들 수 있어요.`}
+                  </p>
+                </div>
               )}
 
               {clips.length === 0 && (
@@ -800,9 +827,9 @@ export function ShortsGenerator() {
                     </Badge>
                   </CardTitle>
                   <CardDescription className="mt-2 leading-6">
-                    고른 순서대로 이어 붙이고 자막까지 얹어드려요. 영상 길이에 따라
-                    걸리는 시간이 달라져요. 그대로 두셔도 되고, 마음에 안 드는 부분만
-                    고치셔도 돼요.
+                    {job
+                      ? "그대로 두셔도 되고, 마음에 안 드는 부분만 고치셔도 돼요. 고친 뒤 다시 만들면 반영됩니다."
+                      : "고른 순서대로 이어 붙이고 자막을 얹어드려요. 아래 버튼을 누르면 만들기 시작합니다. 영상 길이에 따라 걸리는 시간이 달라져요."}
                   </CardDescription>
                 </div>
                 {clips.length > 0 && (
@@ -869,12 +896,15 @@ export function ShortsGenerator() {
                           onCheckedChange={setBlurFaces}
                         />
                       </div>
-                      {!blurFaces && (
-                        <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                          본인만 등장하거나 모든 출연자에게 촬영·게시 동의를 받은 영상에서만
-                          꺼주세요.
-                        </p>
-                      )}
+                      {/* 안내는 스위치 옆에 둔다(8/27 원장님). 화면 맨 위에 있을 때는
+                          영상을 올리기도 전에 떠서 무슨 블러인지 알 수 없었고, 정작
+                          스위치를 만질 때는 화면 밖이었다. 켜짐이 기본이라 켠 상태의
+                          한계를 먼저 알리고, 끄면 동의 안내로 바꾼다. */}
+                      <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                        {blurFaces
+                          ? "면적이 가장 큰 한 명에게만 적용돼요. 나머지 얼굴은 그대로 나오니 완성 영상을 확인해주세요."
+                          : "본인만 등장하거나 모든 출연자에게 촬영·게시 동의를 받은 영상에서만 꺼주세요."}
+                      </p>
                     </div>
                     <div className="rounded-xl border bg-muted/20 p-4">
                       <div className="flex items-center justify-between gap-4">
@@ -895,17 +925,6 @@ export function ShortsGenerator() {
                   </div>
                   <div className="rounded-xl border bg-muted/20 p-4">
                     <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                      <div className="space-y-2">
-                        <Label htmlFor="caption-topic">시술명 또는 홍보 주제 (선택)</Label>
-                        <Input
-                          id="caption-topic"
-                          value={topic}
-                          maxLength={MAX_CAPTION_CONTEXT_LENGTH}
-                          disabled={busy}
-                          placeholder="예: 레이어드컷, 여름 스타일 변신"
-                          onChange={(event) => setTopic(event.target.value)}
-                        />
-                      </div>
                       <Button
                         type="button"
                         variant="secondary"
@@ -921,274 +940,55 @@ export function ShortsGenerator() {
                       </Button>
                     </div>
                     <ul className="mt-3 list-disc space-y-1 pl-5 text-xs leading-5 text-muted-foreground">
-                      <li>AI는 입력한 장면 설명과 주제만 사용해 자막 초안을 만듭니다.</li>
                       <li>영상·대표 프레임·사용 구간은 AI 자막 요청에 전송되지 않습니다.</li>
                       <li>버튼을 누르지 않으면 기본 문구를 직접 수정해 사용할 수 있습니다.</li>
                     </ul>
                   </div>
 
                   {/*
-                    컷 고르는 자리. 전에는 파일명만 늘어놓은 회색 버튼이라 "지금 어느 컷을
-                    고치는 중인지", "다른 걸 누를 수 있다는 건지" 둘 다 안 보였다(원장님 지적).
-                    컷 역할("시술 전" 등)을 라벨로 쓰려다 되돌렸다 — 그건 화면이 순서를 보고
-                    자동 배정한 추측값(`defaultRole`)이라, 첫 컷에 완성본을 넣은 사람에게는
-                    화면이 틀린 말을 하게 된다. 파일명은 정보가 적어도 틀리지는 않는다.
+                    컷은 목록으로만 두고, 고치는 것은 눌렀을 때 드로어에서 한다(8/27 원장님).
+                    전에는 목록과 편집이 같은 화면에 이어져 컷을 바꿀 때마다 아래가 통째로
+                    갈아끼워졌고, 그래서 "지금은 N번을 고치는 중" 이라는 안내가 따로 필요했다.
+                    드로어는 제목에 몇 번 컷인지 달고 열리므로 그 안내가 필요 없어진다.
+                    줄마다 역할·구간·자막 유무를 요약해 무엇이 설정됐는지 목록에서 보이게 한다.
                   */}
-                  <div className="rounded-xl border bg-muted/20 p-3">
-                    <p className="text-sm font-medium">어느 컷을 고칠까요?</p>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      지금은 <strong className="font-semibold text-foreground">{activeClipIndex + 1}번</strong> 을 고치는 중이에요.
-                      다른 컷을 고치려면 아래에서 눌러주세요.
-                    </p>
-                    <div
-                      className="mt-3 flex gap-2 overflow-x-auto pb-1"
-                      role="tablist"
-                      aria-label="고칠 컷 고르기"
-                    >
-                      {clips.map((clip, index) => {
-                        const active = clip.id === activeClip.id;
-                        return (
-                          <button
-                            key={clip.id}
-                            type="button"
-                            role="tab"
-                            aria-selected={active}
-                            title={clip.file.name}
-                            onClick={() => setActiveClipId(clip.id)}
-                            className={`flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-xs transition-colors ${
-                              active
-                                ? "border-transparent font-semibold shadow-sm"
-                                : "border-border bg-background hover:bg-muted"
-                            }`}
-                            style={
-                              active
-                                ? { backgroundColor: IDENTITY_INK, color: "#fff" }
-                                : undefined
-                            }
-                          >
-                            <span
-                              className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold ${
-                                active ? "bg-white/25" : "bg-muted"
-                              }`}
-                            >
-                              {index + 1}
-                            </span>
-                            <span className="max-w-28 truncate">{clip.file.name}</span>
-                            {active && <Pencil className="h-3.5 w-3.5" />}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border bg-card p-4">
-                    <div className="mb-4 flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="flex items-center gap-1.5 text-xs font-medium" style={{ color: IDENTITY_INK }}>
-                          <Pencil className="h-3.5 w-3.5" />
-                          {activeClipIndex + 1}번 컷을 고치는 중
-                        </p>
-                        <p className="mt-1 truncate text-sm font-medium">
-                          {activeClip.file.name}
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {(activeClip.file.size / MIB).toFixed(1)}MB
-                          {orderEdited ? " · 순서 직접 조정됨" : ""}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-1">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          disabled={busy || activeClipIndex <= 0}
-                          onClick={() => moveClip(activeClipIndex, -1)}
-                          aria-label={`${activeClip.file.name} 앞으로 이동`}
-                        >
-                          <ArrowUp />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          disabled={busy || activeClipIndex >= clips.length - 1}
-                          onClick={() => moveClip(activeClipIndex, 1)}
-                          aria-label={`${activeClip.file.name} 뒤로 이동`}
-                        >
-                          <ArrowDown />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          disabled={busy}
-                          onClick={() => removeClip(activeClip.id)}
-                          aria-label={`${activeClip.file.name} 제거`}
-                        >
-                          <Trash2 />
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label htmlFor={`role-${activeClip.id}`}>컷 역할</Label>
-                        <Select
-                          value={activeClip.role}
-                          disabled={busy}
-                          onValueChange={(value) => {
-                            if (!value) return;
-                            const role = value as VideoRole;
-                            updateClip(activeClip.id, {
-                              role,
-                              caption:
-                                ROLE_OPTIONS.find((option) => option.value === role)?.caption ||
-                                activeClip.caption,
-                            });
-                          }}
-                        >
-                          <SelectTrigger id={`role-${activeClip.id}`} className="w-full">
-                            <SelectValue>
-                              {(value: VideoRole) => ROLE_OPTIONS.find((option) => option.value === value)?.label ?? value}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            {ROLE_OPTIONS.map((option) => (
-                              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor={`selection-${activeClip.id}`}>기본 사용 구간</Label>
-                        <Select
-                          value={activeClip.selection}
-                          disabled={busy}
-                          onValueChange={(value) =>
-                            value &&
-                            updateClip(activeClip.id, {
-                              selection: value as VideoSelection,
-                            })
-                          }
-                        >
-                          <SelectTrigger id={`selection-${activeClip.id}`} className="w-full">
-                            <SelectValue>
-                              {(value: VideoSelection) => SELECTION_OPTIONS.find((option) => option.value === value)?.label ?? value}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            {SELECTION_OPTIONS.map((option) => (
-                              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div className="mt-4 space-y-2">
-                      <Label>정밀 구간</Label>
-                      <ClipFilmstrip
-                        key={activeClip.id}
-                        file={activeClip.file}
-                        startSec={activeClip.start_sec}
-                        endSec={activeClip.end_sec}
+                  <div className="overflow-hidden rounded-xl border">
+                    {clips.map((clip, index) => (
+                      <button
+                        key={clip.id}
+                        type="button"
                         disabled={busy}
-                        onRangeChange={(start_sec, end_sec) =>
-                          updateClip(activeClip.id, {
-                            start_sec: Number(start_sec.toFixed(1)),
-                            end_sec: Number(end_sec.toFixed(1)),
-                          })
-                        }
-                        onResetRange={() =>
-                          updateClip(activeClip.id, {
-                            start_sec: undefined,
-                            end_sec: undefined,
-                          })
-                        }
-                      />
-                    </div>
-                    {audioMode === "original" && (
-                      <div className="mt-4 flex items-center justify-between gap-4 rounded-lg border px-3 py-3">
-                        <Label htmlFor={`keep-audio-${activeClip.id}`}>이 클립 원음 유지</Label>
-                        <Switch
-                          id={`keep-audio-${activeClip.id}`}
-                          checked={activeClip.keep_audio !== false}
-                          disabled={busy}
-                          onCheckedChange={(keep_audio) =>
-                            updateClip(activeClip.id, { keep_audio })
-                          }
-                        />
-                      </div>
-                    )}
-                    <div className="mt-4 space-y-2">
-                      <Label htmlFor={`description-choice-${activeClip.id}`}>장면 설명 (선택)</Label>
-                      <Select
-                        value={
-                          activeClip.descriptionMode === "custom"
-                            ? CUSTOM_DESCRIPTION_VALUE
-                            : activeClip.description || null
-                        }
-                        disabled={busy}
-                        onValueChange={(value) => {
-                          if (!value) return;
-                          if (value === CUSTOM_DESCRIPTION_VALUE) {
-                            updateClip(activeClip.id, {
-                              description: "",
-                              descriptionMode: "custom",
-                            });
-                            return;
-                          }
-                          updateClip(activeClip.id, {
-                            description: value,
-                            descriptionMode: "preset",
-                          });
+                        onClick={() => {
+                          setActiveClipId(clip.id);
+                          setEditorOpen(true);
                         }}
+                        className="flex w-full items-center gap-3 border-b bg-muted/20 px-3 py-3 text-left last:border-b-0 hover:bg-muted/40 disabled:opacity-60"
                       >
-                        <SelectTrigger id={`description-choice-${activeClip.id}`} className="w-full">
-                          <SelectValue placeholder="장면 설명을 선택하세요" />
-                        </SelectTrigger>
-                        <SelectContent align="start">
-                          {DESCRIPTION_OPTIONS.map((option) => (
-                            <SelectItem key={option} value={option}>{option}</SelectItem>
-                          ))}
-                          <SelectSeparator />
-                          <SelectItem value={CUSTOM_DESCRIPTION_VALUE}>직접 입력</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {activeClip.descriptionMode === "custom" && (
-                        <Input
-                          id={`description-${activeClip.id}`}
-                          value={activeClip.description}
-                          maxLength={MAX_CAPTION_CONTEXT_LENGTH}
-                          disabled={busy}
-                          aria-label={`${activeClipIndex + 1}번 장면 설명 직접 입력`}
-                          placeholder="장면 설명을 직접 입력하세요"
-                          onChange={(event) =>
-                            updateClip(activeClip.id, { description: event.target.value })
-                          }
-                        />
-                      )}
-                      <p className="text-xs text-muted-foreground">
-                        AI가 영상을 보지 않으므로 자막에 반영할 내용만 적어주세요.
-                      </p>
-                    </div>
-                    <div className="mt-4 space-y-2">
-                      <Label htmlFor={`caption-${activeClip.id}`} className="flex items-center gap-2"><Captions className="h-4 w-4" />자막</Label>
-                      <Input
-                        id={`caption-${activeClip.id}`}
-                        value={activeClip.caption}
-                        maxLength={80}
-                        disabled={busy}
-                        onChange={(event) =>
-                          updateClip(activeClip.id, { caption: event.target.value })
-                        }
-                      />
-                    </div>
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-background text-xs text-muted-foreground">
+                          {index + 1}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm">
+                            {ROLE_OPTIONS.find((option) => option.value === clip.role)?.label ??
+                              clip.role}
+                          </span>
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {clip.file.name}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {clip.caption ? "자막 있음" : "자막 없음"}
+                        </span>
+                        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      </button>
+                    ))}
                   </div>
                 </CardContent>
               )}
             </Card>
           </div>
 
-        <section ref={resultRef}>
+        <section ref={resultRef} className={hasResult ? "order-first" : undefined}>
           <Card>
             <CardHeader>
               <CardTitle>저장해서 올리기</CardTitle>
@@ -1226,7 +1026,7 @@ export function ShortsGenerator() {
                     <p className="mt-1">
                       {job.meta?.blur_faces === false
                         ? "얼굴 블러 꺼짐"
-                        : `얼굴 검출·블러 ${job.meta?.faces_blurred ?? 0}회`}
+                        : `얼굴 검출·블러 ${job.meta?.faces_blurred ?? 0}회 (가장 큰 얼굴 한 명)`}
                     </p>
                     <p className="mt-1">
                       {job.meta?.audio_included ? "원본 음성 포함" : "무음 영상"}
@@ -1263,12 +1063,230 @@ export function ShortsGenerator() {
         </section>
       </div>
 
+
+      {/*
+        컷 편집은 드로어에서 한다(8/27 원장님). 항목은 그대로 두고 자리만 옮겼다 —
+        필름 스트립처럼 자리를 많이 먹는 것을 늘 펼쳐 둘 이유가 없었고, 목록과 편집이
+        한 화면에 이어져 있어 무엇을 고치는 중인지 흐렸다. 제목이 몇 번 컷인지 말한다.
+      */}
+      <Drawer open={editorOpen} onOpenChange={setEditorOpen}>
+        <DrawerContent className="max-h-[85vh]">
+          <DrawerHeader>
+            <DrawerTitle>
+              {activeClip ? `${activeClipIndex + 1}번 컷` : "컷 편집"}
+            </DrawerTitle>
+            <DrawerDescription className="truncate">
+              {activeClip?.file.name}
+            </DrawerDescription>
+          </DrawerHeader>
+          {activeClip && (
+            <div className="overflow-y-auto px-4 pb-6">
+        {/* 드로어 제목이 몇 번 컷인지·파일명을 이미 말하므로 여기서는 되풀이하지 않는다. */}
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">
+            {(activeClip.file.size / MIB).toFixed(1)}MB
+            {orderEdited ? " · 순서 직접 조정됨" : ""}
+          </p>
+          <div className="flex shrink-0 items-center gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              disabled={busy || activeClipIndex <= 0}
+              onClick={() => moveClip(activeClipIndex, -1)}
+              aria-label={`${activeClip.file.name} 앞으로 이동`}
+            >
+              <ArrowUp />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              disabled={busy || activeClipIndex >= clips.length - 1}
+              onClick={() => moveClip(activeClipIndex, 1)}
+              aria-label={`${activeClip.file.name} 뒤로 이동`}
+            >
+              <ArrowDown />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              disabled={busy}
+              onClick={() => removeClip(activeClip.id)}
+              aria-label={`${activeClip.file.name} 제거`}
+            >
+              <Trash2 />
+            </Button>
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor={`role-${activeClip.id}`}>컷 역할</Label>
+            <Select
+              value={activeClip.role}
+              disabled={busy}
+              onValueChange={(value) => {
+                if (!value) return;
+                const role = value as VideoRole;
+                updateClip(activeClip.id, {
+                  role,
+                  caption:
+                    ROLE_OPTIONS.find((option) => option.value === role)?.caption ||
+                    activeClip.caption,
+                });
+              }}
+            >
+              <SelectTrigger id={`role-${activeClip.id}`} className="w-full">
+                <SelectValue>
+                  {(value: VideoRole) => ROLE_OPTIONS.find((option) => option.value === value)?.label ?? value}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {ROLE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`selection-${activeClip.id}`}>기본 사용 구간</Label>
+            <Select
+              value={activeClip.selection}
+              disabled={busy}
+              onValueChange={(value) =>
+                value &&
+                updateClip(activeClip.id, {
+                  selection: value as VideoSelection,
+                })
+              }
+            >
+              <SelectTrigger id={`selection-${activeClip.id}`} className="w-full">
+                <SelectValue>
+                  {(value: VideoSelection) => SELECTION_OPTIONS.find((option) => option.value === value)?.label ?? value}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {SELECTION_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="mt-4 space-y-2">
+          <Label>정밀 구간</Label>
+          <ClipFilmstrip
+            key={activeClip.id}
+            file={activeClip.file}
+            startSec={activeClip.start_sec}
+            endSec={activeClip.end_sec}
+            disabled={busy}
+            onRangeChange={(start_sec, end_sec) =>
+              updateClip(activeClip.id, {
+                start_sec: Number(start_sec.toFixed(1)),
+                end_sec: Number(end_sec.toFixed(1)),
+              })
+            }
+            onResetRange={() =>
+              updateClip(activeClip.id, {
+                start_sec: undefined,
+                end_sec: undefined,
+              })
+            }
+          />
+        </div>
+        {audioMode === "original" && (
+          <div className="mt-4 flex items-center justify-between gap-4 rounded-lg border px-3 py-3">
+            <Label htmlFor={`keep-audio-${activeClip.id}`}>이 클립 원음 유지</Label>
+            <Switch
+              id={`keep-audio-${activeClip.id}`}
+              checked={activeClip.keep_audio !== false}
+              disabled={busy}
+              onCheckedChange={(keep_audio) =>
+                updateClip(activeClip.id, { keep_audio })
+              }
+            />
+          </div>
+        )}
+        <div className="mt-4 space-y-2">
+          <Label htmlFor={`description-choice-${activeClip.id}`}>장면 설명 (선택)</Label>
+          <Select
+            value={
+              activeClip.descriptionMode === "custom"
+                ? CUSTOM_DESCRIPTION_VALUE
+                : activeClip.description || null
+            }
+            disabled={busy}
+            onValueChange={(value) => {
+              if (!value) return;
+              if (value === CUSTOM_DESCRIPTION_VALUE) {
+                updateClip(activeClip.id, {
+                  description: "",
+                  descriptionMode: "custom",
+                });
+                return;
+              }
+              updateClip(activeClip.id, {
+                description: value,
+                descriptionMode: "preset",
+              });
+            }}
+          >
+            <SelectTrigger id={`description-choice-${activeClip.id}`} className="w-full">
+              <SelectValue placeholder="장면 설명을 선택하세요" />
+            </SelectTrigger>
+            <SelectContent align="start">
+              {DESCRIPTION_OPTIONS.map((option) => (
+                <SelectItem key={option} value={option}>{option}</SelectItem>
+              ))}
+              <SelectSeparator />
+              <SelectItem value={CUSTOM_DESCRIPTION_VALUE}>직접 입력</SelectItem>
+            </SelectContent>
+          </Select>
+          {activeClip.descriptionMode === "custom" && (
+            <Input
+              id={`description-${activeClip.id}`}
+              value={activeClip.description}
+              maxLength={MAX_CAPTION_CONTEXT_LENGTH}
+              disabled={busy}
+              aria-label={`${activeClipIndex + 1}번 장면 설명 직접 입력`}
+              placeholder="장면 설명을 직접 입력하세요"
+              onChange={(event) =>
+                updateClip(activeClip.id, { description: event.target.value })
+              }
+            />
+          )}
+          <p className="text-xs text-muted-foreground">
+            AI가 영상을 보지 않으므로 자막에 반영할 내용만 적어주세요.
+          </p>
+        </div>
+        <div className="mt-4 space-y-2">
+          <Label htmlFor={`caption-${activeClip.id}`} className="flex items-center gap-2"><Captions className="h-4 w-4" />자막</Label>
+          <Input
+            id={`caption-${activeClip.id}`}
+            value={activeClip.caption}
+            maxLength={80}
+            disabled={busy}
+            onChange={(event) =>
+              updateClip(activeClip.id, { caption: event.target.value })
+            }
+          />
+        </div>
+            </div>
+          )}
+        </DrawerContent>
+      </Drawer>
       {/*
         폰에서는 카드를 세로로 펴 놓아 화면이 길어진다. 만들기 버튼이 화면 밖으로
         밀려나지 않게 아래에 고정한다 — 얼굴 교체·블로그가 쓰는 StepNav 는 단계를
         갈아끼우는 장치라 여기서는 걷어냈고, 이 화면에 필요한 건 버튼 하나뿐이다.
+
+        완성된 뒤에도 남긴다. 예전에는 status 가 completed 면 이 바를 걷었는데,
+        제목 옆 버튼은 lg 부터라 폰 폭에서는 고칠 것을 고치고도 누를 자리가 없었다.
+        라벨이 "변경사항으로 다시 만들기" 로 바뀌므로 같은 버튼이 재생성을 맡는다.
       */}
-      {clips.length > 0 && job?.status !== "completed" && (
+      {clips.length > 0 && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 px-4 py-3 backdrop-blur lg:hidden">
           <div className="mx-auto w-full max-w-3xl">{generateCta}</div>
         </div>
