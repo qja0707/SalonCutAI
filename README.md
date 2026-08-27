@@ -46,11 +46,10 @@ npm run dev
 - [frontend/README.md](./frontend/README.md)
 - [backend/README.md](./backend/README.md)
 
-## 검증
+## 테스트
 
 - 백엔드: pytest(엔진·API), ruff
 - 프론트엔드: lint, production build, `verify:mock`(빌드본에서 접수→폴링→결과 회귀 확인)
-- 병합 전 검증: PR마다 최신 `dev`와 결합한 격리 환경에서 빌드·테스트·실제 동작을 재현한 뒤 병합했습니다
 
 ## 사용자 테스트
 
@@ -69,8 +68,8 @@ npm run dev
 
 - 얼굴 블러는 면적이 가장 큰 한 명에게만 자동 적용됩니다 (화면에서 안내)
 - 블로그 검수는 준비된 10개 시나리오 밖의 입력 조합에서 품질을 보장하지 않습니다
-- 숏폼 작업 상태와 임시 파일은 서버 프로세스·임시 저장소에 있어 재시작 시 진행 중 작업이 유실됩니다. 얼굴 변경 작업은 상태를 DB에 보관하지만 재시작으로 중단되면 재시도가 필요합니다
-- GPU가 1장이라 서비스와 검증이 자원을 공유합니다
+- 숏폼 작업 상태와 임시 파일은 서버 프로세스·임시 저장소에 있어 서버 재시작 시 진행 중 작업이 유실됩니다. 얼굴 변경 작업은 상태를 DB에 보관하지만 서버 재시작으로 중단되면 재시도가 필요합니다
+- GPU가 1장이라 모델 실험·품질 실측과 실제 서비스를 동시에 운영하기 어렵습니다
 
 ## 문서
 
@@ -86,10 +85,19 @@ npm run dev
 
 ```
 SalonCutAI/
-├── frontend/            # Next.js 웹 앱 (화면·mock 계약 레이어)
+├── frontend/
+│   └── src/
+│       ├── app/             # 라우트·화면 (face-swap, generate/blog, generate/shorts 등)
+│       ├── components/      # 공통 컴포넌트 (화면 틀·단계 흐름·UI 요소)
+│       └── lib/api-client/  # API 계약 레이어 (mock ↔ 실서버 전환)
 ├── backend/
 │   └── src/
-│       ├── api/         # REST API 라우터
-│       └── ai_engine/   # 이미지·텍스트·영상 파이프라인, 평가, 실험
-└── .github/             # 배포 스크립트·운영 문서
+│       ├── api/             # REST API 라우터
+│       ├── service/         # 비즈니스 로직
+│       ├── db_session/      # DB 연결·세션
+│       └── ai_engine/       # AI 파이프라인 (이미지 생성 · 텍스트 · 영상 · 평가 · 실험)
+└── .github/
+    ├── workflows/           # dev 검증·배포 워크플로
+    ├── scripts/             # 변경 영역 감지 배포 스크립트
+    └── systemd/             # VM 5분 주기 타이머 유닛
 ```
