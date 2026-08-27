@@ -727,7 +727,7 @@ export function ShortsGenerator() {
 
               {clips.length === 0 && (
                 <div className="mt-6">
-                  <p className="text-sm font-medium">이런 영상 3개면 충분해요</p>
+                  <p className="text-sm font-medium">이런 영상 2개~8개까지 가능해요</p>
                   <ul className="mt-3 grid max-w-[400px] grid-cols-3 gap-2 sm:gap-3">
                     {EXAMPLE_SHOTS.map((shot) => (
                       <li key={shot.label} className="min-w-0">
