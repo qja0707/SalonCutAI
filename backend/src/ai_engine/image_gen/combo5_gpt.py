@@ -16,7 +16,7 @@ import os
 
 import cv2
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter
 
 from src.ai_engine.image_gen import loader, masks, prompt_map, settings
 
@@ -68,6 +68,28 @@ def _face_box(img: Image.Image) -> tuple[tuple[int, int, int, int], float]:
     return box, x2 - x1
 
 
+def _paste_feathered(
+    img: Image.Image, raw: Image.Image, box: tuple[int, int, int, int]
+) -> Image.Image:
+    """편집 결과를 상자 자리에 붙이되 테두리를 페더링해 톤 계단을 없앤다.
+
+    GPT 는 마스크 밖도 미세하게 다시 그려 돌려주므로 상자 경계에서 원본과
+    톤이 살짝 다르다. 경계가 배경·옷이면 재합성이 원본으로 덮지만 목 피부를
+    가로지르면 피부 재합성이 GPT 쪽을 남겨 수평선이 드러난다. 상자 안쪽으로
+    좁힌 마스크를 블러해 섞는다.
+    """
+    x1, y1, x2, y2 = box
+    full = img.copy()
+    full.paste(raw.resize((x2 - x1, y2 - y1), Image.LANCZOS), (x1, y1))
+    feather = int((x2 - x1) * settings.GPT_PASTE_FEATHER_RATIO)
+    if feather <= 0:
+        return full
+    blend = Image.new("L", img.size, 0)
+    blend.paste(255, (x1 + feather, y1 + feather, x2 - feather, y2 - feather))
+    blend = blend.filter(ImageFilter.GaussianBlur(feather))
+    return Image.composite(full, img, blend)
+
+
 def _edit(crop: Image.Image, rgba: Image.Image, prompt: str) -> Image.Image:
     """크롭과 알파 마스크를 보내 편집 결과를 받는다. 투명한 곳이 편집 영역이다."""
     img_buf, mask_buf = io.BytesIO(), io.BytesIO()
@@ -107,7 +129,6 @@ def generate(img: Image.Image, options) -> tuple[Image.Image, Image.Image, Image
         raise ValueError("얼굴 마스크를 만들 수 없다")
 
     box, face_width = _face_box(img)
-    x1, y1, x2, y2 = box
     size = settings.GPT_CROP_SIZE
 
     edit_face = masks.dilate_mask(face_mask, face_width, settings.GPT_EDIT_DILATE_RATIO)
@@ -122,8 +143,7 @@ def generate(img: Image.Image, options) -> tuple[Image.Image, Image.Image, Image
     logger.info("조합 5 GPT 프롬프트: %s", prompt)
     raw = _edit(crop, rgba, prompt)
 
-    full = img.copy()
-    full.paste(raw.resize((x2 - x1, y2 - y1), Image.LANCZOS), (x1, y1))
+    full = _paste_feathered(img, raw, box)
 
     skin = masks.build_skin_mask(img, face_width)
     hair = masks.build_hair_mask_gpt(img, face_width)

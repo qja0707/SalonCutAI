@@ -94,8 +94,10 @@ def test_generate_pastes_result_back_into_box_only(monkeypatch):
 
     arr = np.array(full)
     assert full.size == img.size
-    assert tuple(arr[200, 200]) == (255, 0, 0)  # 상자 안은 GPT 결과
+    assert tuple(arr[200, 200]) == (255, 0, 0)  # 상자 중심은 GPT 결과
     assert tuple(arr[50, 50]) == (0, 0, 255)  # 상자 밖은 원본
+    edge = arr[100, 200]  # 상자 위 변: 페더링으로 섞임
+    assert 0 < edge[0] < 255 and 0 < edge[2] < 255
     assert skin.size == img.size and hair.size == img.size
 
 
