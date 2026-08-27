@@ -30,6 +30,7 @@ import {
   FACE_SKIN_TONES,
   FACE_STYLES,
 } from "@/lib/face-taxonomy";
+import { faceNickname, orderFaces } from "@/lib/face-nicknames";
 import type { FaceMode, FaceOption, ReferenceFace } from "@/lib/api-client/types";
 
 export type FaceOptionValues = {
@@ -210,7 +211,7 @@ function ReferencePicker({
 }) {
   const [faces, setFaces] = useState<ReferenceFace[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // 32장을 그대로 나열하면 폰에서 32칸이다. 성별·연령대·국적으로 좁힌다.
+  // 53장을 그대로 나열하면 폰에서 53칸이다. 성별·연령대·국적으로 좁힌다.
   const [genderFilter, setGenderFilter] = useState("");
   const [ageFilter, setAgeFilter] = useState("");
   const [ethnicityFilter, setEthnicityFilter] = useState("");
@@ -239,9 +240,9 @@ function ReferencePicker({
 
   if (!faces) {
     return (
-      <div className="grid gap-2 sm:grid-cols-3 sm:gap-3">
-        {[0, 1, 2, 3, 4, 5].map((index) => (
-          <Skeleton key={index} className="h-12 w-full rounded-lg sm:aspect-square sm:h-auto" />
+      <div className="grid grid-cols-2 gap-2 sm:gap-3">
+        {[0, 1, 2, 3].map((index) => (
+          <Skeleton key={index} className="aspect-square w-full rounded-lg" />
         ))}
       </div>
     );
@@ -251,15 +252,22 @@ function ReferencePicker({
     return <p className="text-sm text-muted-foreground">고를 수 있는 얼굴이 아직 없습니다.</p>;
   }
 
-  const filtered = faces.filter(
-    (face) =>
-      (!genderFilter || face.gender === genderFilter) &&
-      (!ageFilter || face.age_group === ageFilter) &&
-      (!ethnicityFilter || face.ethnicity === ethnicityFilter),
+  const filtered = orderFaces(
+    faces.filter(
+      (face) =>
+        (!genderFilter || face.gender === genderFilter) &&
+        (!ageFilter || face.age_group === ageFilter) &&
+        (!ethnicityFilter || face.ethnicity === ethnicityFilter),
+    ),
   );
 
-  // 폰에서는 썸네일을 감춘다. 3열 격자가 86px까지 줄어들어 얼굴을 알아볼 수 없고,
-  // 좁은 화면에서는 한 줄에 하나씩 라벨로 고르는 편이 누르기도 쉽다.
+  // 폰에서도 썸네일 격자를 쓰고, 열은 2개다(8/27 원장님. 2·3·4열 시안을 놓고 고름).
+  // 여기서 고르는 기준은 "20대 여성"이라는 글자가 아니라 마음에 드는 얼굴이라,
+  // 라벨보다 이미지가 커야 한다. 폰(375px)에서 한 칸이 140px 안팎이라 표정과 피부 결까지
+  // 보인다. 정확한 값은 환경마다 다르다 — 같은 375×812 에서도 세로 스크롤바가 자리를
+  // 차지하느냐에 따라 136~144px 로 갈린다(#204 리뷰에서 두 환경 실측이 8px 어긋났다).
+  // 고정 수치를 적으면 또 어긋나므로 범위로 둔다.
+  // 한 화면에 4명뿐이지만, 위 필터로 좁혀 놓고 고르는 흐름이라 스크롤이 길어지지 않는다.
   return (
     <div className="space-y-3">
       <div className="space-y-1.5">
@@ -290,7 +298,7 @@ function ReferencePicker({
           이 조건에 맞는 얼굴이 아직 없습니다. 필터를 넓혀보세요.
         </p>
       ) : (
-        <div className="grid gap-2 sm:grid-cols-3 sm:gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           {filtered.map((face) => {
             const selected = face.id === value;
             return (
@@ -301,29 +309,27 @@ function ReferencePicker({
                 // 같은 얼굴을 다시 누르면 선택을 푼다. 잘못 고른 뒤 되돌릴 길이 있어야 한다.
                 onClick={() => onChange(selected ? "" : face.id)}
                 className={cn(
-                  "overflow-hidden rounded-lg border-2 text-left transition-colors",
-                  selected ? "border-primary" : "border-border hover:border-foreground/20 sm:border-transparent",
+                  "overflow-hidden rounded-lg border-2 transition-colors",
+                  selected ? "border-primary" : "border-transparent hover:border-foreground/20",
                 )}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={face.thumbnail_url}
                   alt={face.label}
-                  className="hidden aspect-square w-full object-cover sm:block"
+                  className="aspect-square w-full object-cover"
                 />
-                {/* label 에 국적이 이미 들어 있어("한국인 20대 여성 A") 따로 표시하지
-                    않는다 — #84 8.1에서 중복 표시는 프론트가 정리하기로 했다.
-                    폰에서는 인스타 프로필처럼 원형 얼굴을 이름 옆에 둔다(8/17 원장님) —
-                    32줄을 이름만으로는 얼굴로 구분해 고를 수 없다. */}
-                <span className="flex min-h-12 items-center gap-3 px-3 text-sm sm:min-h-0 sm:px-2 sm:py-1.5 sm:text-xs sm:text-muted-foreground">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={face.thumbnail_url}
-                    alt=""
-                    aria-hidden
-                    className="h-9 w-9 shrink-0 rounded-full border border-border object-cover sm:hidden"
-                  />
-                  {face.label}
+                {/* 이름은 닉네임이다 — 성별·연령대·국적은 위 필터가 이미 담당하고,
+                    캡션은 고른 뒤 무엇을 골랐는지 확인하는 용도다. face-nicknames.ts 참고.
+                    alt 에는 label 을 그대로 둔다. 화면 낭독으로 고르는 분께는 "서연"보다
+                    "한국인 20대 여성 A" 가 실제 정보다. */}
+                <span
+                  className={cn(
+                    "block px-2 py-2 text-center text-sm leading-tight",
+                    selected ? "font-medium text-foreground" : "text-muted-foreground",
+                  )}
+                >
+                  {faceNickname(face)}
                 </span>
               </button>
             );
