@@ -15,6 +15,8 @@
   <img alt="Caddy" src="https://img.shields.io/badge/Caddy-1F88C0?style=for-the-badge&logo=caddy&logoColor=white">
 </p>
 
+[![SalonCutAI 메인 화면](./docs/assets/readme/hero-home.jpg)](https://saloncut-ai.duckdns.org)
+
 **라이브 데모**: https://saloncut-ai.duckdns.org (프로젝트 운영 기간 동안 열려 있습니다)
 
 ## 목차
@@ -41,7 +43,7 @@
 
 ### 헤어 모델 만들기
 
-![헤어 모델 만들기 원본·결과 비교 예시](./docs/assets/readme/mvp-face-swap.jpg)
+![지정 시술 사진으로 얼굴을 변경하고 3규격으로 저장하는 흐름 예시](./docs/assets/readme/mvp-face-swap.jpg)
 
 ### 간단 블로그 글쓰기
 
