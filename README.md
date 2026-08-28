@@ -22,6 +22,7 @@
 ## 목차
 
 - [무엇을 하나요](#무엇을-하나요)
+- [전체 시연 영상](#전체-시연-영상)
 - [어떻게 동작하나요](#어떻게-동작하나요)
 - [기술 스택](#기술-스택)
 - [직접 실행해 보기](#직접-실행해-보기)
@@ -52,6 +53,12 @@
 ### 간편 릴스 만들기
 
 ![시술 영상 클립을 릴스로 만드는 흐름 예시](https://raw.githubusercontent.com/qja0707/SalonCutAI/677c0015aa14c27e8f5801b15906df4e2a2ca019/docs/assets/readme/mvp-shorts.jpg)
+
+## 전체 시연 영상
+
+[![SalonCutAI 전체 시연 영상 보기](./docs/assets/readme/demo-thumbnail.jpg)](https://github.com/user-attachments/assets/a0b410fd-cc78-487a-8f49-01a10c9bc419)
+
+[영상이 재생되지 않으면 새 창에서 보기](https://github.com/user-attachments/assets/a0b410fd-cc78-487a-8f49-01a10c9bc419)
 
 ## 어떻게 동작하나요
 
