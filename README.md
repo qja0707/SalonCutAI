@@ -43,15 +43,15 @@
 
 ### 헤어 모델 만들기
 
-![지정 시술 사진으로 얼굴을 변경하고 3규격으로 저장하는 흐름 예시](https://raw.githubusercontent.com/qja0707/SalonCutAI/5109cf282d8807d2bb4fd7f316de19e422fcc2d8/docs/assets/readme/mvp-face-swap.jpg)
+![지정 시술 사진으로 얼굴을 변경하고 3규격으로 저장하는 흐름 예시](https://raw.githubusercontent.com/qja0707/SalonCutAI/677c0015aa14c27e8f5801b15906df4e2a2ca019/docs/assets/readme/mvp-face-swap.jpg)
 
 ### 간단 블로그 글쓰기
 
-![시술 정보로 생성한 블로그 글 예시](https://raw.githubusercontent.com/qja0707/SalonCutAI/5109cf282d8807d2bb4fd7f316de19e422fcc2d8/docs/assets/readme/mvp-blog.jpg)
+![시술 정보로 생성한 블로그 글 예시](https://raw.githubusercontent.com/qja0707/SalonCutAI/677c0015aa14c27e8f5801b15906df4e2a2ca019/docs/assets/readme/mvp-blog.jpg)
 
 ### 간편 릴스 만들기
 
-![시술 영상 클립을 릴스로 만드는 흐름 예시](https://raw.githubusercontent.com/qja0707/SalonCutAI/5109cf282d8807d2bb4fd7f316de19e422fcc2d8/docs/assets/readme/mvp-shorts.jpg)
+![시술 영상 클립을 릴스로 만드는 흐름 예시](https://raw.githubusercontent.com/qja0707/SalonCutAI/677c0015aa14c27e8f5801b15906df4e2a2ca019/docs/assets/readme/mvp-shorts.jpg)
 
 ## 어떻게 동작하나요
 
