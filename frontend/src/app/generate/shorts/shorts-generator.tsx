@@ -12,6 +12,7 @@ import {
   Info,
   LoaderCircle,
   LogIn,
+  Pencil,
   Play,
   Plus,
   Sparkles,
@@ -552,7 +553,7 @@ export function ShortsGenerator() {
       style={{ backgroundColor: IDENTITY_INK }}
     >
       {busy ? <LoaderCircle className="animate-spin" /> : <Film />}
-      {job ? "변경사항으로 다시 만들기" : "숏츠 만들기"}
+      {job ? "변경사항으로 다시 만들기" : "자동으로 만들기"}
     </Button>
   );
 
@@ -889,21 +890,10 @@ export function ShortsGenerator() {
                   <CardDescription className="mt-2 leading-6">
                     {job
                       ? "그대로 두셔도 되고, 마음에 안 드는 부분만 고치셔도 돼요. 고친 뒤 다시 만들면 반영됩니다."
-                      : "고른 순서대로 이어 붙이고 자막을 얹어드려요. 아래 버튼을 누르면 만들기 시작합니다. 영상 길이에 따라 걸리는 시간이 달라져요."}
+                      : "고른 순서대로 이어 붙이고 자막까지 얹어드려요. 그대로 만드셔도 되고, 고칠 것이 있으면 아래에서 손보셔도 돼요."}
                   </CardDescription>
                 </div>
-                {clips.length > 0 && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0"
-                    aria-expanded={detailsOpen}
-                    onClick={() => setDetailsOpen((open) => !open)}
-                  >
-                    {detailsOpen ? "직접 손보기 닫기" : "직접 손보기"}
-                  </Button>
-                )}
+
               </CardHeader>
               {(submitting || (busy && job)) && (
                 <CardContent>
@@ -943,8 +933,41 @@ export function ShortsGenerator() {
                   </div>
                 </CardContent>
               )}
+              {/*
+                두 갈래를 화면에 드러낸다(8/27 원장님). 전에는 카드 머리에 작은 테두리
+                버튼 하나뿐이라 "직접 손볼 수도 있다" 는 사실 자체가 안 보였다. 아래
+                버튼은 자동으로 만들고, 이 줄은 직접 고치는 길이라는 게 읽혀야 한다.
+              */}
+              {!detailsOpen && clips.length > 0 && (
+                <CardContent>
+                  <button
+                    type="button"
+                    aria-expanded={false}
+                    onClick={() => setDetailsOpen(true)}
+                    className="flex w-full items-center gap-3 rounded-xl border bg-muted/20 px-4 py-4 text-left hover:bg-muted/40"
+                  >
+                    <Pencil className="h-5 w-5 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-medium">직접 손보기</span>
+                      <span className="block text-xs text-muted-foreground">
+                        컷 길이 · 자막 · 얼굴 블러를 고칠 수 있어요
+                      </span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  </button>
+                </CardContent>
+              )}
               {detailsOpen && activeClip && clips.length > 0 && (
                 <CardContent className="space-y-4">
+                  <button
+                    type="button"
+                    aria-expanded
+                    onClick={() => setDetailsOpen(false)}
+                    className="flex w-full items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+                  >
+                    <ChevronRight className="h-4 w-4 rotate-90" />
+                    직접 손보기 닫기
+                  </button>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="rounded-xl border bg-muted/20 p-4">
                       <div className="flex items-center justify-between gap-4">
