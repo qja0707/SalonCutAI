@@ -56,9 +56,11 @@
 
 ## 전체 시연 영상
 
-[![SalonCutAI 전체 시연 영상 보기](./docs/assets/readme/demo-thumbnail.jpg)](https://github.com/user-attachments/assets/a0b410fd-cc78-487a-8f49-01a10c9bc419)
+<p>
+  <a href="https://github.com/user-attachments/assets/a0b410fd-cc78-487a-8f49-01a10c9bc419"><img src="./docs/assets/readme/demo-thumbnail.jpg" alt="SalonCutAI 전체 시연 영상 보기"></a>
+</p>
 
-[영상이 재생되지 않으면 새 창에서 보기](https://github.com/user-attachments/assets/a0b410fd-cc78-487a-8f49-01a10c9bc419)
+<p><a href="https://github.com/user-attachments/assets/a0b410fd-cc78-487a-8f49-01a10c9bc419">영상이 재생되지 않으면 새 창에서 보기</a></p>
 
 ## 어떻게 동작하나요
 
