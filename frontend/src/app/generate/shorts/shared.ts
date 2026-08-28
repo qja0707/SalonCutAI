@@ -27,6 +27,22 @@ export const MIB = 1024 * 1024;
 export const MAX_FILE_BYTES = 160 * MIB;
 export const MAX_TOTAL_BYTES = 320 * MIB;
 export const MAX_CAPTION_CONTEXT_LENGTH = 100;
+
+export function buildCaptionPrompt(topic: string, mood: string): string {
+  const cleanTopic = topic.trim();
+  const cleanMood = mood.trim();
+  if (!cleanMood) return cleanTopic.slice(0, MAX_CAPTION_CONTEXT_LENGTH);
+
+  const suffix = `분위기: ${cleanMood}`;
+  const topicLimit = Math.max(
+    0,
+    MAX_CAPTION_CONTEXT_LENGTH - suffix.length - (cleanTopic ? 1 : 0),
+  );
+  const limitedTopic = cleanTopic.slice(0, topicLimit).trimEnd();
+  return limitedTopic
+    ? `${limitedTopic}\n${suffix}`
+    : suffix.slice(0, MAX_CAPTION_CONTEXT_LENGTH);
+}
 /** 서버(`video_gen/engine.py` 의 MIN_CLIPS·MAX_CLIPS)와 같은 값. 개수가 화면 곳곳에
  * 흩어져 있었는데, 8 을 하나 고치면 나머지도 같이 고쳐야 해서 상수로 모았다. */
 export const MIN_CLIPS = 2;

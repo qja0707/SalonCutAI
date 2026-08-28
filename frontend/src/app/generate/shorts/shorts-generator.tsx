@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowDown,
+  ArrowLeftRight,
   ArrowUp,
   Captions,
   ChevronRight,
@@ -33,6 +34,7 @@ import {
   Drawer,
   DrawerContent,
   DrawerDescription,
+  DrawerFooter,
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
@@ -81,6 +83,7 @@ import {
   MIN_CLIPS,
   ROLE_OPTIONS,
   SELECTION_OPTIONS,
+  buildCaptionPrompt,
   createClipId,
   defaultRole,
   fileSizeLabel,
@@ -93,6 +96,35 @@ import type {
   UploadIssue,
 } from "@/app/generate/shorts/shared";
 
+const MOOD_OPTIONS = ["감성", "전문", "친근", "예약 유도"] as const;
+type MoodOption = (typeof MOOD_OPTIONS)[number];
+
+function simpleRoleLabel(role: VideoRole): string {
+  if (role === "before") return "시술 전";
+  if (role === "after") return "완성";
+  return ROLE_OPTIONS.find((option) => option.value === role)?.label ?? role;
+}
+
+function ClipThumbnail({ file, label }: { file: File; label: string }) {
+  const previewUrl = useMemo(() => URL.createObjectURL(file), [file]);
+
+  useEffect(() => () => URL.revokeObjectURL(previewUrl), [previewUrl]);
+
+  return (
+    <video
+      src={`${previewUrl}#t=0.1`}
+      muted
+      playsInline
+      preload="metadata"
+      aria-label={`${label} 영상 미리보기`}
+      className="aspect-video w-full bg-black object-cover"
+      onLoadedData={(event) => {
+        if (event.currentTarget.duration > 0.2) event.currentTarget.currentTime = 0.1;
+      }}
+    />
+  );
+}
+
 
 
 export function ShortsGenerator() {
@@ -104,12 +136,13 @@ export function ShortsGenerator() {
   const [audioMode, setAudioMode] = useState<VideoAudioMode>("mute");
   const [activeClipId, setActiveClipId] = useState<string | null>(null);
   const [orderEdited, setOrderEdited] = useState(false);
-  const [detailsOpen, setDetailsOpen] = useState(false);
   /* 컷 편집 드로어. 목록에서 컷을 누르면 열린다. */
   const [editorOpen, setEditorOpen] = useState(false);
   /* 폰에서 지금 보고 있는 단계. lg 이상은 카드를 전부 그리므로 쓰이지 않는다. */
   const [phoneStep, setPhoneStep] = useState<1 | 2 | 3>(1);
   const [topic, setTopic] = useState("");
+  const [mood, setMood] = useState<MoodOption | "">("");
+  const [editingResult, setEditingResult] = useState(false);
   const [error, setError] = useState("");
   const [uploadIssue, setUploadIssue] = useState<UploadIssue | null>(null);
   const [needsLogin, setNeedsLogin] = useState(false);
@@ -130,6 +163,7 @@ export function ShortsGenerator() {
     submitting || job?.status === "queued" || job?.status === "processing";
   const serverProgress = job?.progress ?? 0;
   const serverProgressRef = useRef(0);
+  const captionPrompt = buildCaptionPrompt(topic, mood);
 
   useEffect(() => {
     serverProgressRef.current = serverProgress;
@@ -341,7 +375,6 @@ export function ShortsGenerator() {
       setBlurFaces(true);
       setAudioMode("mute");
       setOrderEdited(false);
-      setDetailsOpen(false);
       setUploadIssue(null);
     }
   }
@@ -353,11 +386,6 @@ export function ShortsGenerator() {
     [nextClips[index], nextClips[target]] = [nextClips[target], nextClips[index]];
     setClips(nextClips);
     setOrderEdited(true);
-  }
-
-  function openDetails() {
-    setDetailsOpen(true);
-    window.requestAnimationFrame(() => scrollIntoViewOnNarrow(editorRef.current));
   }
 
   /**
@@ -373,7 +401,7 @@ export function ShortsGenerator() {
           role,
           description: description.trim() || undefined,
         })),
-        topic.trim(),
+        captionPrompt,
       );
       return source.map((clip, index) => ({
         ...clip,
@@ -401,7 +429,7 @@ export function ShortsGenerator() {
       접수는 계속한다 — 자막 때문에 영상 자체를 못 만들게 하지 않는다.
     */
     let clipsForJob = clipsToSubmit;
-    if (topic.trim()) {
+    if (captionPrompt) {
       const withCaptions = await captionsForTopic(clipsToSubmit);
       if (withCaptions) {
         clipsForJob = withCaptions;
@@ -454,10 +482,10 @@ export function ShortsGenerator() {
         blurFaces,
         audioMode,
       );
+      setEditingResult(false);
       setJob(await getVideoJob(created.job_id));
     } catch (submitError) {
       setError(errorMessage(submitError, "영상 작업을 접수하지 못했습니다."));
-      openDetails();
     } finally {
       setSubmitting(false);
     }
@@ -477,7 +505,7 @@ export function ShortsGenerator() {
           role,
           description: description.trim() || undefined,
         })),
-        topic.trim(),
+        captionPrompt,
       );
       setClips((current) =>
         current.map((clip, index) => ({
@@ -501,14 +529,30 @@ export function ShortsGenerator() {
     setJob(null);
     setClips([]);
     setTopic("");
+    setMood("");
+    setEditingResult(false);
     setBlurFaces(true);
     setAudioMode("mute");
     setActiveClipId(null);
     setOrderEdited(false);
-    setDetailsOpen(false);
     setError("");
     setUploadIssue(null);
     setPhoneStep(1);
+  }
+
+  function editResult() {
+    setEditingResult(true);
+    setPhoneStep(2);
+    window.requestAnimationFrame(() => scrollIntoViewOnNarrow(editorRef.current));
+  }
+
+  function swapBoundaryClips() {
+    if (busy || clips.length < 2) return;
+    const nextClips = [...clips];
+    const lastIndex = nextClips.length - 1;
+    [nextClips[0], nextClips[lastIndex]] = [nextClips[lastIndex], nextClips[0]];
+    setClips(nextClips);
+    setOrderEdited(true);
   }
 
   const busy = rendering || generatingCaptions;
@@ -517,6 +561,8 @@ export function ShortsGenerator() {
   const activeClipIndex = activeClip
     ? clips.findIndex((clip) => clip.id === activeClip.id)
     : -1;
+  const summaryClips =
+    clips.length <= 2 ? clips : [clips[0], clips[clips.length - 1]];
   const expectedSeconds = clips.reduce(
     (sum, clip) =>
       sum +
@@ -537,28 +583,28 @@ export function ShortsGenerator() {
     표시가 있는 2단계, 다 되면 결과가 있는 3단계다. 그 밖에는 유저가 고른 단계를
     쓴다. effect 에서 setState 하지 않으려고 파생값으로 둔다(lint 가 막는다).
   */
-  const shownStep: 1 | 2 | 3 = hasResult
+  const shownStep: 1 | 2 | 3 = hasResult && !editingResult
     ? 3
     : job?.status === "queued" || job?.status === "processing"
       ? 2
       : phoneStep;
 
-  // 만들기 버튼 하나를 두 자리에서 그린다 — 데스크톱은 제목 옆, 폰은 하단 고정 바.
+  // 만들기 CTA는 2단계 하단에만 둔다. 폰에서는 StepNav가 같은 버튼을 고정한다.
   const generateCta = (
     <Button
       onClick={() => submitDraft()}
       disabled={busy || clips.length < MIN_CLIPS || overLength}
-      className="w-full transition-[filter] hover:brightness-90 active:brightness-95"
-      style={{ backgroundColor: IDENTITY_INK }}
+      className="min-h-11 w-full transition-[filter] hover:brightness-90 active:brightness-95"
+      style={{ backgroundColor: IDENTITY_INK, color: "#FFFFFF" }}
     >
       {busy ? <LoaderCircle className="animate-spin" /> : <Film />}
-      {job ? "변경사항으로 다시 만들기" : "숏츠 만들기"}
+      {busy ? "AI가 만드는 중" : "AI가 자동으로 만들어주기"}
     </Button>
   );
 
   /* 카드가 전부 보이므로 단계는 "지금 어디까지 왔는지" 표시일 뿐이다. */
   const currentStep: 1 | 2 | 3 =
-    job?.status === "completed" ? 3 : clips.length >= MIN_CLIPS ? 2 : 1;
+    job?.status === "completed" && !editingResult ? 3 : clips.length >= MIN_CLIPS ? 2 : 1;
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 pb-28 sm:px-6 lg:py-12 lg:pb-12">
@@ -576,18 +622,17 @@ export function ShortsGenerator() {
           {/* 대제목은 릴스로 통일(Discussion #149) — 배지("인스타 릴스 · 스토리")와
               맞춘다. 메뉴는 AI 숏츠 만들기 그대로 — 역할 분리(8/17 원장님) */}
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">🎬 간편 릴스 만들기</h1>
-          {!hasResult && (
+          {(!hasResult || editingResult) && (
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
               찍어둔 클립만 고르면 9:16 릴스로 자동 편집돼요.
             </p>
           )}
         </div>
-        <div className="hidden lg:block lg:shrink-0 lg:pt-1">{generateCta}</div>
       </div>
 
       {/* 다 만든 뒤에는 단계 표시를 걷는다(8/27 원장님). 어디까지 왔는지는 만드는
           동안 쓸모 있는 정보이고, 완성 화면에서는 결과가 먼저 보여야 한다. */}
-      {!hasResult && <ShortsSteps current={currentStep} />}
+      {(!hasResult || editingResult) && <ShortsSteps current={currentStep} />}
 
       {/*
         요청 오류는 단계 게이트 밖에서 보여준다. 결과 칼럼(3단계) 안에 두면
@@ -712,31 +757,6 @@ export function ShortsGenerator() {
                     {dragging ? "여기에 놓으세요" : "여기로 끌어다 놓아도 돼요"}
                   </span>
                 </button>
-              )}
-
-              {/*
-                시술 주제를 영상 고르는 자리로 올렸다(8/27 원장님). 자동 편집 카드 안쪽에
-                있을 때는 자막을 만들 때가 되어서야 눈에 띄었는데, 영상을 넣으면서 무슨
-                시술인지 함께 받는 편이 흐름에 맞고 자막도 그만큼 좋아진다.
-                편집은 아직 이 값을 쓰지 않는다 — 자막 생성에만 들어간다.
-              */}
-              {clips.length > 0 && (
-                <div className="mt-5 space-y-2 rounded-xl border bg-muted/20 p-4">
-                  <Label htmlFor="caption-topic">무슨 시술인가요?</Label>
-                  <Input
-                    id="caption-topic"
-                    value={topic}
-                    maxLength={MAX_CAPTION_CONTEXT_LENGTH}
-                    disabled={busy}
-                    placeholder="예: 퍼스널 컬러 염색, 레이어드컷"
-                    onChange={(event) => setTopic(event.target.value)}
-                  />
-                  <p className="text-xs leading-5 text-muted-foreground">
-                    {clips.length >= MIN_CLIPS
-                      ? "적어주시면 자막이 이 내용을 타고 나옵니다. 비워두고 만드셔도 돼요."
-                      : `영상을 ${MIN_CLIPS - clips.length}개 더 올리면 만들 수 있어요.`}
-                  </p>
-                </div>
               )}
 
               {clips.length === 0 && (
@@ -874,37 +894,197 @@ export function ShortsGenerator() {
 
           <div ref={editorRef} className={stepVisibility(2, shownStep)}>
             <Card>
-              <CardHeader className="gap-4 sm:flex sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
-                  <CardTitle className="flex items-center gap-2">
-                    자동 편집
-                    <Badge
-                      variant="secondary"
-                      className="border-0 text-[10px]"
-                      style={{ backgroundColor: IDENTITY_WASH, color: IDENTITY_INK }}
-                    >
-                      자동
-                    </Badge>
-                  </CardTitle>
-                  <CardDescription className="mt-2 leading-6">
-                    {job
-                      ? "그대로 두셔도 되고, 마음에 안 드는 부분만 고치셔도 돼요. 고친 뒤 다시 만들면 반영됩니다."
-                      : "고른 순서대로 이어 붙이고 자막을 얹어드려요. 아래 버튼을 누르면 만들기 시작합니다. 영상 길이에 따라 걸리는 시간이 달라져요."}
-                  </CardDescription>
-                </div>
-                {clips.length > 0 && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0"
-                    aria-expanded={detailsOpen}
-                    onClick={() => setDetailsOpen((open) => !open)}
-                  >
-                    {detailsOpen ? "직접 손보기 닫기" : "직접 손보기"}
-                  </Button>
-                )}
+              <CardHeader>
+                <CardTitle>어떤 릴스로 만들까요?</CardTitle>
+                <CardDescription className="mt-2 leading-6">
+                  원하는 느낌을 한 문장으로 적고, 기본 설정만 확인하면 AI가 자동으로 만듭니다.
+                </CardDescription>
               </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="caption-topic">시술과 원하는 연출을 적어주세요</Label>
+                  <Input
+                    id="caption-topic"
+                    value={topic}
+                    maxLength={MAX_CAPTION_CONTEXT_LENGTH}
+                    disabled={busy}
+                    placeholder="레이어드컷 전후를 자연스럽고 고급스럽게 보여주세요"
+                    onChange={(event) => setTopic(event.target.value)}
+                    className="min-h-11"
+                  />
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    비워두면 선택한 영상 순서와 기본 자막으로 만듭니다.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">분위기</p>
+                  <div className="flex flex-wrap gap-2" role="group" aria-label="릴스 분위기">
+                    {MOOD_OPTIONS.map((option) => {
+                      const selected = mood === option;
+                      return (
+                        <button
+                          key={option}
+                          type="button"
+                          aria-pressed={selected}
+                          disabled={busy}
+                          onClick={() => setMood(selected ? "" : option)}
+                          className={`min-h-11 rounded-full border px-4 text-sm font-medium transition-colors disabled:opacity-50 ${
+                            selected
+                              ? "border-transparent text-white"
+                              : "border-border bg-background hover:bg-muted"
+                          }`}
+                          style={selected ? { backgroundColor: IDENTITY_INK } : undefined}
+                        >
+                          {option}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-medium">선택한 영상</p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="min-h-11"
+                      disabled={busy || clips.length < 2}
+                      onClick={swapBoundaryClips}
+                    >
+                      <ArrowLeftRight className="h-4 w-4" />
+                      {clips.length > 2 ? "처음·마지막 바꾸기" : "순서 바꾸기"}
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {summaryClips.map((clip, index) => {
+                      const roleLabel = simpleRoleLabel(clip.role);
+                      const positionLabel =
+                        clips.length > 2 ? (index === 0 ? "처음" : "마지막") : roleLabel;
+                      return (
+                        <div key={clip.id} className="overflow-hidden rounded-xl border bg-muted/20">
+                          <ClipThumbnail file={clip.file} label={positionLabel} />
+                          <div className="p-3">
+                            <p className="text-sm font-medium">{positionLabel}</p>
+                            {clips.length > 2 && (
+                              <p className="mt-1 text-xs text-muted-foreground">{roleLabel}</p>
+                            )}
+                            <p className="mt-1 truncate text-xs text-muted-foreground">{clip.file.name}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {clips.length > 2 && (
+                    <p className="text-xs text-muted-foreground">
+                      중간 영상 {clips.length - 2}개와 전체 순서는 세부 설정에서 바꿀 수 있어요.
+                    </p>
+                  )}
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl border bg-muted/20 p-4">
+                    <div className="flex min-h-11 items-center justify-between gap-4">
+                      <Label htmlFor="blur-faces">얼굴 가리기</Label>
+                      <Switch
+                        id="blur-faces"
+                        checked={blurFaces}
+                        disabled={busy}
+                        onCheckedChange={setBlurFaces}
+                      />
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                      {blurFaces
+                        ? "면적이 가장 큰 한 명의 얼굴을 가려요."
+                        : "모든 출연자의 촬영·게시 동의를 확인해주세요."}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border bg-muted/20 p-4">
+                    <div className="flex min-h-11 items-center justify-between gap-4">
+                      <Label htmlFor="original-audio">원본 소리</Label>
+                      <Switch
+                        id="original-audio"
+                        checked={audioMode === "original"}
+                        disabled={busy}
+                        onCheckedChange={(checked) =>
+                          setAudioMode(checked ? "original" : "mute")
+                        }
+                      />
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                      끄면 모든 클립을 무음으로 만듭니다.
+                    </p>
+                  </div>
+                </div>
+
+                <details className="group overflow-hidden rounded-xl border bg-muted/10">
+                  <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium marker:hidden">
+                    <span className="min-w-0">
+                      <span className="block">직접 손보기</span>
+                      <span className="mt-1 block text-xs font-normal text-muted-foreground">
+                        자막과 컷 구간을 직접 수정할 수 있어요
+                      </span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
+                  </summary>
+                  <div className="space-y-4 border-t p-4">
+                    <div className="rounded-xl border bg-background p-4">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="min-h-11 w-full"
+                        onClick={generateCaptions}
+                        disabled={busy || clips.length < MIN_CLIPS}
+                      >
+                        {generatingCaptions ? (
+                          <LoaderCircle className="animate-spin" />
+                        ) : (
+                          <Sparkles />
+                        )}
+                        {generatingCaptions ? "AI 자막 만드는 중" : "AI 자막만 다시 만들기"}
+                      </Button>
+                      <ul className="mt-3 list-disc space-y-1 pl-5 text-xs leading-5 text-muted-foreground">
+                        <li>영상·대표 프레임·사용 구간은 AI 자막 요청에 전송되지 않습니다.</li>
+                        <li>각 컷을 누르면 자막과 사용 구간을 직접 바꿀 수 있어요.</li>
+                      </ul>
+                    </div>
+                    <div className="overflow-hidden rounded-xl border bg-background">
+                      {clips.map((clip, index) => (
+                        <button
+                          key={clip.id}
+                          type="button"
+                          disabled={busy}
+                          onClick={() => {
+                            setActiveClipId(clip.id);
+                            setEditorOpen(true);
+                          }}
+                          className="flex min-h-11 w-full items-center gap-3 border-b px-3 py-3 text-left last:border-b-0 hover:bg-muted/40 disabled:opacity-60"
+                        >
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs text-muted-foreground">
+                            {index + 1}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm">
+                              {ROLE_OPTIONS.find((option) => option.value === clip.role)?.label ?? clip.role}
+                            </span>
+                            <span className="block truncate text-xs text-muted-foreground">
+                              {clip.file.name}
+                            </span>
+                          </span>
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            {clip.caption ? "자막 있음" : "자막 없음"}
+                          </span>
+                          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </details>
+
+                <div className="hidden lg:block">{generateCta}</div>
+              </CardContent>
               {(submitting || (busy && job)) && (
                 <CardContent>
                   <div className="py-6 text-center">
@@ -943,115 +1123,13 @@ export function ShortsGenerator() {
                   </div>
                 </CardContent>
               )}
-              {detailsOpen && activeClip && clips.length > 0 && (
-                <CardContent className="space-y-4">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-xl border bg-muted/20 p-4">
-                      <div className="flex items-center justify-between gap-4">
-                        <Label htmlFor="blur-faces">얼굴 블러 적용</Label>
-                        <Switch
-                          id="blur-faces"
-                          checked={blurFaces}
-                          disabled={busy}
-                          onCheckedChange={setBlurFaces}
-                        />
-                      </div>
-                      {/* 안내는 스위치 옆에 둔다(8/27 원장님). 화면 맨 위에 있을 때는
-                          영상을 올리기도 전에 떠서 무슨 블러인지 알 수 없었고, 정작
-                          스위치를 만질 때는 화면 밖이었다. 켜짐이 기본이라 켠 상태의
-                          한계를 먼저 알리고, 끄면 동의 안내로 바꾼다. */}
-                      <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                        {blurFaces
-                          ? "면적이 가장 큰 한 명에게만 적용돼요. 나머지 얼굴은 그대로 나오니 완성 영상을 확인해주세요."
-                          : "본인만 등장하거나 모든 출연자에게 촬영·게시 동의를 받은 영상에서만 꺼주세요."}
-                      </p>
-                    </div>
-                    <div className="rounded-xl border bg-muted/20 p-4">
-                      <div className="flex items-center justify-between gap-4">
-                        <Label htmlFor="original-audio">원본 음성 사용</Label>
-                        <Switch
-                          id="original-audio"
-                          checked={audioMode === "original"}
-                          disabled={busy}
-                          onCheckedChange={(checked) =>
-                            setAudioMode(checked ? "original" : "mute")
-                          }
-                        />
-                      </div>
-                      <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                        끄면 모든 클립을 무음으로 만듭니다.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="rounded-xl border bg-muted/20 p-4">
-                    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={generateCaptions}
-                        disabled={busy || clips.length < MIN_CLIPS}
-                      >
-                        {generatingCaptions ? (
-                          <LoaderCircle className="animate-spin" />
-                        ) : (
-                          <Sparkles />
-                        )}
-                        {generatingCaptions ? "AI 자막 만드는 중" : "AI로 자막 만들기"}
-                      </Button>
-                    </div>
-                    <ul className="mt-3 list-disc space-y-1 pl-5 text-xs leading-5 text-muted-foreground">
-                      <li>영상·대표 프레임·사용 구간은 AI 자막 요청에 전송되지 않습니다.</li>
-                      <li>버튼을 누르지 않으면 기본 문구를 직접 수정해 사용할 수 있습니다.</li>
-                    </ul>
-                  </div>
-
-                  {/*
-                    컷은 목록으로만 두고, 고치는 것은 눌렀을 때 드로어에서 한다(8/27 원장님).
-                    전에는 목록과 편집이 같은 화면에 이어져 컷을 바꿀 때마다 아래가 통째로
-                    갈아끼워졌고, 그래서 "지금은 N번을 고치는 중" 이라는 안내가 따로 필요했다.
-                    드로어는 제목에 몇 번 컷인지 달고 열리므로 그 안내가 필요 없어진다.
-                    줄마다 역할·구간·자막 유무를 요약해 무엇이 설정됐는지 목록에서 보이게 한다.
-                  */}
-                  <div className="overflow-hidden rounded-xl border">
-                    {clips.map((clip, index) => (
-                      <button
-                        key={clip.id}
-                        type="button"
-                        disabled={busy}
-                        onClick={() => {
-                          setActiveClipId(clip.id);
-                          setEditorOpen(true);
-                        }}
-                        className="flex w-full items-center gap-3 border-b bg-muted/20 px-3 py-3 text-left last:border-b-0 hover:bg-muted/40 disabled:opacity-60"
-                      >
-                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-background text-xs text-muted-foreground">
-                          {index + 1}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm">
-                            {ROLE_OPTIONS.find((option) => option.value === clip.role)?.label ??
-                              clip.role}
-                          </span>
-                          <span className="block truncate text-xs text-muted-foreground">
-                            {clip.file.name}
-                          </span>
-                        </span>
-                        <span className="shrink-0 text-xs text-muted-foreground">
-                          {clip.caption ? "자막 있음" : "자막 없음"}
-                        </span>
-                        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      </button>
-                    ))}
-                  </div>
-                </CardContent>
-              )}
             </Card>
           </div>
 
         <section ref={resultRef} className={stepVisibility(3, shownStep)}>
           <Card>
             <CardHeader>
-              <CardTitle>저장해서 올리기</CardTitle>
+              <CardTitle>릴스가 완성됐어요</CardTitle>
               <CardDescription>
                 세로형 {audioMode === "original" ? "원음 포함" : "무음"} MP4로 생성됩니다.
               </CardDescription>
@@ -1086,21 +1164,29 @@ export function ShortsGenerator() {
                     나머지는 유저가 궁금해하는 값이 아니다. 블러 한계는 스위치 옆에서
                     이미 말한다. 보관 기한만 저장을 미루지 않도록 남긴다.
                   */}
-                  <div className="flex flex-col gap-2 sm:flex-row">
+                  <div className="grid gap-2 sm:grid-cols-3">
                     <a
                       href={videoJobUrl(job.job_id)}
                       download="saloncutai-shorts.mp4"
-                      className={buttonVariants({ className: "w-full sm:flex-1" })}
+                      className={buttonVariants({ className: "min-h-11 w-full" })}
                     >
-                      <Download />MP4 다운로드
+                      <Download />이대로 저장
                     </a>
                     <Button
                       variant="outline"
-                      className="w-full sm:flex-1"
-                      disabled={busy || clips.length < MIN_CLIPS || overLength}
-                      onClick={() => submitDraft()}
+                      className="min-h-11 w-full"
+                      disabled={busy}
+                      onClick={editResult}
                     >
-                      <Film />변경사항으로 다시 만들기
+                      조금 수정하기
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="min-h-11 w-full"
+                      disabled={busy}
+                      onClick={reset}
+                    >
+                      새 영상 만들기
                     </Button>
                   </div>
                   <p className="text-center text-xs text-muted-foreground">
@@ -1145,7 +1231,8 @@ export function ShortsGenerator() {
             </DrawerDescription>
           </DrawerHeader>
           {activeClip && (
-            <div className="overflow-y-auto px-4 pb-6">
+            <>
+            <div className="overflow-y-auto px-4 pb-4">
         {/* 드로어 제목이 몇 번 컷인지·파일명을 이미 말하므로 여기서는 되풀이하지 않는다. */}
         <div className="mb-4 flex items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">
@@ -1240,93 +1327,6 @@ export function ShortsGenerator() {
           </div>
         </div>
         <div className="mt-4 space-y-2">
-          <Label>정밀 구간</Label>
-          <ClipFilmstrip
-            key={activeClip.id}
-            file={activeClip.file}
-            startSec={activeClip.start_sec}
-            endSec={activeClip.end_sec}
-            disabled={busy}
-            onRangeChange={(start_sec, end_sec) =>
-              updateClip(activeClip.id, {
-                start_sec: Number(start_sec.toFixed(1)),
-                end_sec: Number(end_sec.toFixed(1)),
-              })
-            }
-            onResetRange={() =>
-              updateClip(activeClip.id, {
-                start_sec: undefined,
-                end_sec: undefined,
-              })
-            }
-          />
-        </div>
-        {audioMode === "original" && (
-          <div className="mt-4 flex items-center justify-between gap-4 rounded-lg border px-3 py-3">
-            <Label htmlFor={`keep-audio-${activeClip.id}`}>이 클립 원음 유지</Label>
-            <Switch
-              id={`keep-audio-${activeClip.id}`}
-              checked={activeClip.keep_audio !== false}
-              disabled={busy}
-              onCheckedChange={(keep_audio) =>
-                updateClip(activeClip.id, { keep_audio })
-              }
-            />
-          </div>
-        )}
-        <div className="mt-4 space-y-2">
-          <Label htmlFor={`description-choice-${activeClip.id}`}>장면 설명 (선택)</Label>
-          <Select
-            value={
-              activeClip.descriptionMode === "custom"
-                ? CUSTOM_DESCRIPTION_VALUE
-                : activeClip.description || null
-            }
-            disabled={busy}
-            onValueChange={(value) => {
-              if (!value) return;
-              if (value === CUSTOM_DESCRIPTION_VALUE) {
-                updateClip(activeClip.id, {
-                  description: "",
-                  descriptionMode: "custom",
-                });
-                return;
-              }
-              updateClip(activeClip.id, {
-                description: value,
-                descriptionMode: "preset",
-              });
-            }}
-          >
-            <SelectTrigger id={`description-choice-${activeClip.id}`} className="w-full">
-              <SelectValue placeholder="장면 설명을 선택하세요" />
-            </SelectTrigger>
-            <SelectContent align="start">
-              {DESCRIPTION_OPTIONS.map((option) => (
-                <SelectItem key={option} value={option}>{option}</SelectItem>
-              ))}
-              <SelectSeparator />
-              <SelectItem value={CUSTOM_DESCRIPTION_VALUE}>직접 입력</SelectItem>
-            </SelectContent>
-          </Select>
-          {activeClip.descriptionMode === "custom" && (
-            <Input
-              id={`description-${activeClip.id}`}
-              value={activeClip.description}
-              maxLength={MAX_CAPTION_CONTEXT_LENGTH}
-              disabled={busy}
-              aria-label={`${activeClipIndex + 1}번 장면 설명 직접 입력`}
-              placeholder="장면 설명을 직접 입력하세요"
-              onChange={(event) =>
-                updateClip(activeClip.id, { description: event.target.value })
-              }
-            />
-          )}
-          <p className="text-xs text-muted-foreground">
-            AI가 영상을 보지 않으므로 자막에 반영할 내용만 적어주세요.
-          </p>
-        </div>
-        <div className="mt-4 space-y-2">
           <Label htmlFor={`caption-${activeClip.id}`} className="flex items-center gap-2"><Captions className="h-4 w-4" />자막</Label>
           <Input
             id={`caption-${activeClip.id}`}
@@ -1338,42 +1338,138 @@ export function ShortsGenerator() {
             }
           />
         </div>
+        <details className="group mt-4 overflow-hidden rounded-xl border bg-muted/10">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium marker:hidden">
+            정밀하게 자르기
+            <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
+          </summary>
+          <div className="space-y-4 border-t p-4">
+            <ClipFilmstrip
+              key={activeClip.id}
+              file={activeClip.file}
+              startSec={activeClip.start_sec}
+              endSec={activeClip.end_sec}
+              disabled={busy}
+              onRangeChange={(start_sec, end_sec) =>
+                updateClip(activeClip.id, {
+                  start_sec: Number(start_sec.toFixed(1)),
+                  end_sec: Number(end_sec.toFixed(1)),
+                })
+              }
+              onResetRange={() =>
+                updateClip(activeClip.id, {
+                  start_sec: undefined,
+                  end_sec: undefined,
+                })
+              }
+            />
+            {audioMode === "original" && (
+              <div className="flex items-center justify-between gap-4 rounded-lg border px-3 py-3">
+                <Label htmlFor={`keep-audio-${activeClip.id}`}>이 클립 원음 유지</Label>
+                <Switch
+                  id={`keep-audio-${activeClip.id}`}
+                  checked={activeClip.keep_audio !== false}
+                  disabled={busy}
+                  onCheckedChange={(keep_audio) =>
+                    updateClip(activeClip.id, { keep_audio })
+                  }
+                />
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor={`description-choice-${activeClip.id}`}>장면 설명 (선택)</Label>
+              <Select
+                value={
+                  activeClip.descriptionMode === "custom"
+                    ? CUSTOM_DESCRIPTION_VALUE
+                    : activeClip.description || null
+                }
+                disabled={busy}
+                onValueChange={(value) => {
+                  if (!value) return;
+                  if (value === CUSTOM_DESCRIPTION_VALUE) {
+                    updateClip(activeClip.id, {
+                      description: "",
+                      descriptionMode: "custom",
+                    });
+                    return;
+                  }
+                  updateClip(activeClip.id, {
+                    description: value,
+                    descriptionMode: "preset",
+                  });
+                }}
+              >
+                <SelectTrigger id={`description-choice-${activeClip.id}`} className="w-full">
+                  <SelectValue placeholder="장면 설명을 선택하세요" />
+                </SelectTrigger>
+                <SelectContent align="start">
+                  {DESCRIPTION_OPTIONS.map((option) => (
+                    <SelectItem key={option} value={option}>{option}</SelectItem>
+                  ))}
+                  <SelectSeparator />
+                  <SelectItem value={CUSTOM_DESCRIPTION_VALUE}>직접 입력</SelectItem>
+                </SelectContent>
+              </Select>
+              {activeClip.descriptionMode === "custom" && (
+                <Input
+                  id={`description-${activeClip.id}`}
+                  value={activeClip.description}
+                  maxLength={MAX_CAPTION_CONTEXT_LENGTH}
+                  disabled={busy}
+                  aria-label={`${activeClipIndex + 1}번 장면 설명 직접 입력`}
+                  placeholder="장면 설명을 직접 입력하세요"
+                  onChange={(event) =>
+                    updateClip(activeClip.id, { description: event.target.value })
+                  }
+                />
+              )}
+              <p className="text-xs text-muted-foreground">
+                AI가 영상을 보지 않으므로 자막에 반영할 내용만 적어주세요.
+              </p>
             </div>
+          </div>
+        </details>
+            </div>
+            <DrawerFooter className="border-t pt-4">
+              <Button
+                type="button"
+                className="min-h-11 w-full"
+                disabled={busy}
+                onClick={() => setEditorOpen(false)}
+              >
+                수정 적용하고 닫기
+              </Button>
+            </DrawerFooter>
+            </>
           )}
         </DrawerContent>
       </Drawer>
 
-      {/* 처음부터 다시 하는 길은 맨 아래에 둔다 — 자주 쓰는 것이 아니고, 위에 두면
-          "다시 만들기" 와 헷갈린다(8/27 원장님). 이건 올린 영상까지 지운다. */}
-      {hasResult && (
-        <div className="mt-8 flex justify-center">
-          <Button variant="ghost" onClick={reset}>
-            새 영상 만들기
-          </Button>
-        </div>
-      )}
       {/*
         폰에서는 한 번에 한 단계만 보여준다(8/27 원장님). 세로로 다 펴 놓으니 자동
         편집 카드가 스크롤을 내려야 보였다 — 앱처럼 넘어가는 편이 낫다.
         얼굴 교체·블로그가 쓰는 StepNav 를 그대로 쓴다. lg 이상은 카드가 전부
         보이므로 이 바도, 단계 전환도 걸리지 않는다.
       */}
-      <StepNav
-        step={shownStep}
-        totalSteps={2}
-        canGoNext={clips.length >= MIN_CLIPS && !overLength}
-        nextHint={
-          clips.length < MIN_CLIPS
-            ? `영상을 ${MIN_CLIPS - clips.length}개 더 올려주세요.`
-            : overLength
-              ? "전체 길이가 30초를 넘어요. 구간을 줄여주세요."
-              : undefined
-        }
-        onPrev={() => setPhoneStep((current) => (current > 1 ? ((current - 1) as 1 | 2) : 1))}
-        onNext={() => setPhoneStep(2)}
-        cta={generateCta}
-        width="max-w-3xl"
-      />
+      {shownStep <= 2 && (
+        <StepNav
+          step={shownStep}
+          totalSteps={2}
+          canGoNext={clips.length >= MIN_CLIPS && !overLength}
+          nextHint={
+            clips.length < MIN_CLIPS
+              ? `영상을 ${MIN_CLIPS - clips.length}개 더 올려주세요.`
+              : overLength
+                ? "전체 길이가 30초를 넘어요. 구간을 줄여주세요."
+                : undefined
+          }
+          onPrev={() => setPhoneStep(1)}
+          onNext={() => setPhoneStep(2)}
+          cta={generateCta}
+          width="max-w-3xl"
+        />
+      )}
     </div>
   );
 }
