@@ -43,15 +43,15 @@
 
 ### 헤어 모델 만들기
 
-![지정 시술 사진으로 얼굴을 변경하고 3규격으로 저장하는 흐름 예시](./docs/assets/readme/mvp-face-swap.jpg)
+![지정 시술 사진으로 얼굴을 변경하고 3규격으로 저장하는 흐름 예시](./docs/assets/readme/mvp-face-swap.jpg?v=5109cf2)
 
 ### 간단 블로그 글쓰기
 
-![시술 정보로 생성한 블로그 글 예시](./docs/assets/readme/mvp-blog.jpg)
+![시술 정보로 생성한 블로그 글 예시](./docs/assets/readme/mvp-blog.jpg?v=5109cf2)
 
 ### 간편 릴스 만들기
 
-![시술 영상 클립을 릴스로 만드는 흐름 예시](./docs/assets/readme/mvp-shorts.jpg)
+![시술 영상 클립을 릴스로 만드는 흐름 예시](./docs/assets/readme/mvp-shorts.jpg?v=5109cf2)
 
 ## 어떻게 동작하나요
 
