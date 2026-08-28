@@ -543,7 +543,13 @@ export function ShortsGenerator() {
   function editResult() {
     setEditingResult(true);
     setPhoneStep(2);
-    window.requestAnimationFrame(() => scrollIntoViewOnNarrow(editorRef.current));
+    window.requestAnimationFrame(() => {
+      const editor = editorRef.current;
+      if (!editor) return;
+
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      editor.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+    });
   }
 
   function swapBoundaryClips() {
