@@ -155,7 +155,7 @@ npm run dev
 
 ## 문서
 
-- **최종 보고서**: 제출본 확정 후 링크를 추가합니다 <!-- docs/ 경로 확정 후 링크 -->
+- **최종 보고서**: [1팀_SalonCutAI_최종보고서.pdf](docs/final/1팀_SalonCutAI_최종보고서.pdf) · [보고서 소개](https://github.com/qja0707/SalonCutAI/discussions/233)
 - **협업일지** (GitHub Discussions):
   [노승원](https://github.com/qja0707/SalonCutAI/discussions?discussions_q=author%3Aynow98+%ED%98%91%EC%97%85%EC%9D%BC%EC%A7%80),
   [박규범](https://github.com/qja0707/SalonCutAI/discussions?discussions_q=author%3Aqja0707+%ED%98%91%EC%97%85%EC%9D%BC%EC%A7%80),
