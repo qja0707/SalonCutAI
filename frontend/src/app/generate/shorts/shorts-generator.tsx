@@ -609,8 +609,7 @@ export function ShortsGenerator() {
   );
 
   /* 카드가 전부 보이므로 단계는 "지금 어디까지 왔는지" 표시일 뿐이다. */
-  const currentStep: 1 | 2 | 3 =
-    job?.status === "completed" && !editingResult ? 3 : clips.length >= MIN_CLIPS ? 2 : 1;
+  const currentStep = shownStep;
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 pb-28 sm:px-6 lg:py-12 lg:pb-12">
